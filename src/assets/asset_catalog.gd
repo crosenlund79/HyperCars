@@ -1,6 +1,6 @@
 class_name AssetCatalog
 extends RefCounted
-## Replacement contract for every graphic used in Milestone 1.
+## Replacement contract for every graphic used by the game.
 ## Overrides may use any resolution but must keep the template's aspect ratio and
 ## orientation; the game scales each texture to its display size in world pixels.
 
@@ -12,6 +12,9 @@ const GRASS := "track/grass"
 const WALL := "track/wall"
 const START_LINE := "track/start_line"
 const HUD_PANEL := "ui/hud_panel"
+const STAR_GOLD := "ui/star_gold"
+const STAR_SILVER := "ui/star_silver"
+const STAR_BRONZE := "ui/star_bronze"
 
 ## display_size: world/screen pixels the texture is scaled to (sprites, strips).
 ## tile_world_size: world pixels covered by one repeat of a seamless tile.
@@ -46,6 +49,12 @@ const SPECS := {
 		"notes": "Start/finish strip, long axis across the road; stretched to road width."},
 	HUD_PANEL: {"template_size": Vector2i(96, 96), "patch_margin": 24,
 		"notes": "Nine-patch panel; 24 px corners are not stretched (scaled with the texture)."},
+	STAR_GOLD: {"template_size": Vector2i(48, 48), "display_size": Vector2(22, 22),
+		"notes": "1st place marker in the race history; square, centred, transparent background."},
+	STAR_SILVER: {"template_size": Vector2i(48, 48), "display_size": Vector2(22, 22),
+		"notes": "2nd place marker; same contract as the gold star."},
+	STAR_BRONZE: {"template_size": Vector2i(48, 48), "display_size": Vector2(22, 22),
+		"notes": "3rd place marker; same contract as the gold star."},
 }
 
 

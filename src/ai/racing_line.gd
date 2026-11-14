@@ -11,6 +11,8 @@ var speeds := PackedFloat32Array()
 ## Furthest the racing line itself goes from the centreline (px).
 var max_lateral := 0.0
 var road_half_width := 0.0
+## Highest target speed on the line (straights).
+var top_speed := 0.0
 var _normals := PackedVector2Array()
 
 
@@ -75,6 +77,8 @@ func _build_speeds(driving: DrivingParams, ai: AiParams) -> void:
 			var j := (i + 1) % n
 			var ds := position(i).distance_to(position(j))
 			speeds[i] = minf(speeds[i], sqrt(speeds[j] * speeds[j] + 2.0 * decel * ds))
+	for v in speeds:
+		top_speed = maxf(top_speed, v)
 
 
 ## Radius of the circle through the line points 3 samples either side (INF on straights).

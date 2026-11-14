@@ -33,3 +33,29 @@ extends Resource
 ## Rate the driver moves sideways when changing line (px/s), and returns to the racing line.
 @export var lane_change_rate := 110.0
 @export var lane_return_rate := 45.0
+
+## --- Personality (decision traits). Defaults are neutral and reproduce the M2 driver.
+## How far ahead (seconds at current speed) the driver reads the target speed;
+## smaller = brakes later.
+@export var brake_anticipation := 0.1
+## Target-speed scale inside braking/corner zones (>1 = pushes harder than the plan).
+@export var corner_commitment := 1.0
+## Random +- variation of corner_commitment, rolled per corner (consistency).
+@export var commitment_variation := 0.0
+## Chance per corner of over-committing, and the extra commitment when it happens.
+@export var overcommit_chance := 0.0
+@export var overcommit_extra := 0.0
+## Extra commitment when chasing a car within traffic_distance.
+@export var chase_aggression := 0.0
+## Only start a pass when the line ahead is a straight (no braking zone within pass_lookahead).
+@export var pass_on_straights_only := false
+@export var pass_lookahead := 300.0
+## Pressure: a car within pressure_distance behind or alongside. 0 disables.
+@export var pressure_distance := 0.0
+## Chance per second under pressure of becoming flustered, and how long it lasts (s).
+@export var fluster_chance_per_second := 0.0
+@export var fluster_duration := 1.0
+## While flustered: chance per tick of lifting off (hesitation) ...
+@export var fluster_lift_chance := 0.0
+## ... and over-correction: look-ahead shrinks by this fraction and the steering deadband vanishes.
+@export var fluster_overcorrection := 0.0

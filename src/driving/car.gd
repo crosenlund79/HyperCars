@@ -9,6 +9,10 @@ signal wall_hit(normal: Vector2, impact_speed: float)
 signal car_hit(other: Car, impact_speed: float)
 
 const MAX_SLIDES := 4
+## Simulation step used for all driving maths, independent of engine timing, so
+## normal and accelerated simulation perform identical calculations. Matches
+## the project's 60 physics ticks per second at normal speed.
+const FIXED_STEP := 1.0 / 60.0
 
 var model: CarModel
 var steer := 0.0
@@ -41,12 +45,12 @@ func place(at: Transform2D) -> void:
 		model.velocity = Vector2.ZERO
 
 
-func _physics_process(delta: float) -> void:
+func _physics_process(_delta: float) -> void:
 	if model == null or not active:
 		return
-	model.update(delta, steer, fire)
+	model.update(FIXED_STEP, steer, fire)
 	global_rotation = model.heading
-	var motion := model.velocity * delta
+	var motion := model.velocity * FIXED_STEP
 	for i in MAX_SLIDES:
 		var collision := move_and_collide(motion)
 		if collision == null:

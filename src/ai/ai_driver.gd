@@ -3,17 +3,42 @@ extends RefCounted
 ## One computer driver. Each tick it reads its car's state and nearby traffic and
 ## returns the same inputs a player has: steer (-1, 0, +1) and fire. It drives in
 ## Fire to Accelerate mode: fire accelerates, releasing fire brakes.
+## Personality traits in AiParams shape decisions only (braking point, corner
+## commitment, passing, reactions to pressure); with neutral traits this is the
+## M2 driver. Randomness comes from a per-race seeded generator.
 ## Pure logic (no scene access), so it is unit-testable.
 
 var line: RacingLine
 var params: AiParams
+var rng := RandomNumberGenerator.new()
 ## Current sideways shift from the racing line (px), used for passing.
 var lane_bias := 0.0
+## Commitment chosen for the current corner (1.0 outside corners).
+var commitment := 1.0
+## True while the driver is in a braking/corner zone.
+var in_corner := false
+## Seconds of fluster left (hesitation / over-correction under pressure).
+var fluster_time := 0.0
+## Counters for validation and tests.
+var overcommits := 0
+var flusters := 0
 
 
 func _init(p_line: RacingLine, p_params: AiParams) -> void:
 	line = p_line
 	params = p_params
+	begin_race(0)
+
+
+## Resets per-race state and seeds the decision randomness.
+func begin_race(seed_value: int) -> void:
+	rng.seed = seed_value
+	lane_bias = 0.0
+	commitment = 1.0
+	in_corner = false
+	fluster_time = 0.0
+	overcommits = 0
+	flusters = 0
 
 
 ## me: {position, heading, speed, distance, lateral}
@@ -30,7 +55,7 @@ func decide(me: Dictionary, others: Array, delta: float) -> Dictionary:
 	var ahead := _nearest_car_ahead(me, others)
 	if not ahead.is_empty():
 		var pass_lateral := NAN
-		if ahead.speed < speed - params.pass_speed_margin:
+		if ahead.speed < speed - params.pass_speed_margin and _may_start_pass(s):
 			pass_lateral = choose_pass_lateral(me.lateral, ahead.lateral)
 		if not is_nan(pass_lateral):
 			blocked = true
@@ -38,32 +63,96 @@ func decide(me: Dictionary, others: Array, delta: float) -> Dictionary:
 		elif ahead.gap < params.follow_gap:
 			lift = true
 
+	_update_fluster(me, others, delta)
+	var flustered := fluster_time > 0.0
+	if flustered and params.fluster_lift_chance > 0.0 and rng.randf() < params.fluster_lift_chance:
+		lift = true
+
 	var desired_bias := target_lateral - line.offset_at(s)
 	var rate := params.lane_change_rate if blocked else params.lane_return_rate
 	lane_bias = move_toward(lane_bias, desired_bias, rate * delta)
 
 	var lookahead := params.lookahead_base + params.lookahead_per_speed * speed
+	var deadband := deg_to_rad(params.steer_deadband_degrees)
+	if flustered:
+		lookahead *= 1.0 - params.fluster_overcorrection
+		deadband *= 1.0 - params.fluster_overcorrection
 	var limit := line.road_half_width - params.pass_margin
 	var aim_lateral := clampf(line.offset_at(s + lookahead) + lane_bias, -limit, limit)
 	var aim := line.point_with_lateral(s + lookahead, aim_lateral)
 	var error := wrapf((aim - me.position).angle() - me.heading, -PI, PI)
 	var steer := 0.0
-	if absf(error) > deg_to_rad(params.steer_deadband_degrees):
+	if absf(error) > deadband:
 		steer = signf(error)
 
-	var target_speed := line.speed_at(s + speed * 0.1)
+	var speed_point := s + speed * params.brake_anticipation
+	var planned := line.speed_at(speed_point)
+	_update_corner(planned < line.top_speed - 1.0, not _nearest_car_ahead(me, others, true).is_empty())
+	var target_speed := planned * commitment if in_corner else planned
 	var fire := speed < target_speed and not lift
 	return {"steer": steer, "fire": fire}
 
 
-## Closest car in our path within traffic_distance, as {gap, lateral, speed}; empty if none.
-func _nearest_car_ahead(me: Dictionary, others: Array) -> Dictionary:
+## Picks this corner's commitment when entering a braking/corner zone.
+func _update_corner(zone: bool, chasing: bool) -> void:
+	if zone and not in_corner:
+		commitment = params.corner_commitment
+		if params.commitment_variation > 0.0:
+			commitment += rng.randf_range(-params.commitment_variation, params.commitment_variation)
+		if params.overcommit_chance > 0.0 and rng.randf() < params.overcommit_chance:
+			commitment += params.overcommit_extra
+			overcommits += 1
+		if chasing:
+			commitment += params.chase_aggression
+	elif not zone:
+		commitment = 1.0
+	in_corner = zone
+
+
+## Under pressure (a car close behind or alongside) the driver may become flustered.
+func _update_fluster(me: Dictionary, others: Array, delta: float) -> void:
+	fluster_time = maxf(0.0, fluster_time - delta)
+	if params.pressure_distance <= 0.0 or fluster_time > 0.0:
+		return
+	if under_pressure(me, others) and rng.randf() < params.fluster_chance_per_second * delta:
+		fluster_time = params.fluster_duration
+		flusters += 1
+
+
+func under_pressure(me: Dictionary, others: Array) -> bool:
+	if params.pressure_distance <= 0.0:
+		return false
+	for o in others:
+		var gap := _gap(me, o)
+		if gap <= 0.0 and gap > -params.pressure_distance and absf(o.lateral - me.lateral) < params.car_clearance * 2.0:
+			return true
+	return false
+
+
+func _may_start_pass(s: float) -> bool:
+	if not params.pass_on_straights_only:
+		return true
+	var d := 0.0
+	while d <= params.pass_lookahead:
+		if line.speed_at(s + d) < line.top_speed - 1.0:
+			return false
+		d += 50.0
+	return true
+
+
+func _gap(me: Dictionary, other: Dictionary) -> float:
+	return wrapf(other.distance - me.distance, -line.center.length * 0.5, line.center.length * 0.5)
+
+
+## Closest car ahead within traffic_distance, as {gap, lateral, speed}; empty if none.
+## Only cars in our path count unless any_lane is true.
+func _nearest_car_ahead(me: Dictionary, others: Array, any_lane: bool = false) -> Dictionary:
 	var best := {}
 	for o in others:
-		var gap := wrapf(o.distance - me.distance, -line.center.length * 0.5, line.center.length * 0.5)
+		var gap := _gap(me, o)
 		if gap <= 0.0 or gap > params.traffic_distance:
 			continue
-		if absf(o.lateral - me.lateral) > params.car_clearance:
+		if not any_lane and absf(o.lateral - me.lateral) > params.car_clearance:
 			continue
 		if best.is_empty() or gap < best.gap:
 			best = {"gap": gap, "lateral": o.lateral, "speed": o.speed}

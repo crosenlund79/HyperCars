@@ -13,6 +13,8 @@ var _time_label: Label
 var _mode_label: Label
 var _message_panel: NinePatchRect
 var _message_label: Label
+## Spectator race history (created by setup_history).
+var history_panel: HistoryPanel
 
 
 func setup(resolver: AssetResolver) -> void:
@@ -38,8 +40,35 @@ func setup(resolver: AssetResolver) -> void:
 
 
 func show_mode_select(mode: CarModel.ControlMode) -> void:
-	_show_message("CONTROL MODE\n<  %s  >\n\nLeft / Right to change - Fire to start" % mode_name(mode))
+	show_menu(mode_name(mode))
 	_mode_label.text = mode_name(mode)
+
+
+## Mode menu: the choice is a control mode or spectating.
+func show_menu(choice: String) -> void:
+	_show_message("MODE\n<  %s  >\n\nLeft / Right to change - Fire to start" % choice)
+	_mode_label.text = choice
+
+
+func setup_history(resolver: AssetResolver, history: RaceHistory, car_textures: Dictionary, names: Dictionary) -> void:
+	history_panel = HistoryPanel.new()
+	history_panel.position = Vector2(676, 20)
+	history_panel.size = Vector2(580, 350)
+	add_child(history_panel)
+	history_panel.setup(resolver, history, car_textures, names)
+	history_panel.visible = false
+
+
+func hide_message() -> void:
+	_message_panel.visible = false
+
+
+## Spectator info panel: race number, leader's lap, race time, speed, who the camera follows.
+func update_spectator(race_number: int, lap: int, lap_count: int, elapsed: float, speed_label: String, following: String) -> void:
+	_pos_label.text = "RACE %d" % race_number
+	_lap_label.text = "LAP %d / %d" % [lap, lap_count]
+	_time_label.text = format_time(elapsed)
+	_mode_label.text = "SPECTATING %s  > %s" % [speed_label, following]
 
 
 func show_racing(mode: CarModel.ControlMode) -> void:
@@ -48,18 +77,20 @@ func show_racing(mode: CarModel.ControlMode) -> void:
 
 
 ## Results table: finished cars with their time, the rest by running order.
-func show_results(standings: Array[RacerState]) -> void:
-	_show_message(results_text(standings), 22)
+func show_results(standings: Array[RacerState], footer: String = "Fire to race again (reversed grid)") -> void:
+	_show_message(results_text(standings, footer), 22)
 
 
-static func results_text(standings: Array[RacerState]) -> String:
+static func results_text(standings: Array[RacerState], footer: String = "Fire to race again (reversed grid)") -> String:
 	var lines := PackedStringArray(["RESULTS"])
 	for i in standings.size():
 		var r := standings[i]
-		var time := format_time(r.finish_time) if r.is_finished() else "running"
+		var time := "running"
+		if r.is_finished():
+			time = format_time(r.finish_time) if r.finish_time >= 0.0 else "classified"
 		var mark := "  <" if r.is_player else ""
 		lines.append("%d.  %s   %s%s" % [i + 1, r.display_name, time, mark])
-	lines.append("Fire to race again (reversed grid)")
+	lines.append(footer)
 	return "\n".join(lines)
 
 

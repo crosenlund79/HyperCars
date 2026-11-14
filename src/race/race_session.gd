@@ -1,6 +1,9 @@
 class_name RaceSession
 extends RefCounted
-## Race flow: choose control mode -> race -> finished (when the player finishes).
+## Race flow: choose mode -> race -> finished. In a normal race FINISHED means
+## the player has finished; in spectator mode (no player car) it means every
+## rival has finished. The race clock keeps running until every participating
+## car has finished, so later finishers get their real times.
 ## Holds every racer's laps, live positions and the finishing order.
 ## Racer 0 is the player; the single-racer API (tracker, lap_times,
 ## checkpoint_reached(index)) refers to the player.
@@ -15,6 +18,8 @@ var control_mode: CarModel.ControlMode = CarModel.ControlMode.FIRE_TO_ACCELERATE
 var racers: Array[RacerState] = []
 var elapsed := 0.0
 var finish_order: Array[int] = []
+## Spectator mode: the player (racer 0) does not take part.
+var spectator := false
 var _checkpoint_count: int
 var _lap_count: int
 var _names: PackedStringArray
@@ -46,8 +51,33 @@ func reset() -> void:
 		racers.append(RacerState.new(i, _names[i], i == PLAYER_ID, _checkpoint_count, _lap_count))
 
 
+## Only allowed while choosing the mode.
+func set_spectator(on: bool) -> void:
+	if state == State.MODE_SELECT:
+		spectator = on
+
+
+func is_participating(racer_id: int) -> bool:
+	return not (spectator and racer_id == PLAYER_ID)
+
+
+func participants() -> Array[RacerState]:
+	var out: Array[RacerState] = []
+	for r in racers:
+		if is_participating(r.id):
+			out.append(r)
+	return out
+
+
 func racer_count() -> int:
-	return racers.size()
+	return participants().size()
+
+
+func all_finished() -> bool:
+	for r in participants():
+		if not r.is_finished():
+			return false
+	return true
 
 
 func toggle_mode() -> void:
@@ -62,13 +92,13 @@ func start() -> void:
 
 
 func tick(delta: float) -> void:
-	if state == State.RACING:
+	if state != State.MODE_SELECT and not all_finished():
 		elapsed += delta
 
 
 ## Laps keep counting for every car until it finishes, also after the player finished.
 func checkpoint_reached(index: int, racer_id: int = PLAYER_ID) -> LapTracker.Result:
-	if state == State.MODE_SELECT:
+	if state == State.MODE_SELECT or not is_participating(racer_id):
 		return LapTracker.Result.IGNORED
 	var r := racers[racer_id]
 	var result := r.tracker.reach(index)
@@ -79,9 +109,19 @@ func checkpoint_reached(index: int, racer_id: int = PLAYER_ID) -> LapTracker.Res
 		finish_order.append(racer_id)
 		r.finish_position = finish_order.size()
 		r.finish_time = elapsed
-		if racer_id == PLAYER_ID:
+		if (not spectator and racer_id == PLAYER_ID) or (spectator and all_finished()):
 			state = State.FINISHED
 	return result
+
+
+## Ends a race that cannot complete normally (spectator safety net): unfinished
+## participants are classified in running order without a finish time.
+func classify_remaining() -> void:
+	for r in standings():
+		if not r.is_finished():
+			finish_order.append(r.id)
+			r.finish_position = finish_order.size()
+	state = State.FINISHED
 
 
 func set_progress(racer_id: int, progress: float) -> void:
@@ -90,7 +130,7 @@ func set_progress(racer_id: int, progress: float) -> void:
 
 ## Live order: finished cars by finishing order, then the rest by distance covered.
 func standings() -> Array[RacerState]:
-	var order: Array[RacerState] = racers.duplicate()
+	var order: Array[RacerState] = participants()
 	order.sort_custom(func(a: RacerState, b: RacerState) -> bool:
 		if a.is_finished() != b.is_finished():
 			return a.is_finished()
