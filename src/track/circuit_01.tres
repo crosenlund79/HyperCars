@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="TrackLayout" format=3]
+
+[ext_resource type="Script" path="res://src/track/track_layout.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+control_points = PackedVector2Array(0, 0, 600, 0, 1100, 40, 1480, 260, 1560, 680, 1320, 960, 960, 900, 700, 1060, 760, 1420, 450, 1660, 0, 1580, -320, 1260, -200, 900, -480, 640, -560, 280, -340, 40)
+road_width = 150.0
+samples_per_segment = 12
+checkpoint_count = 8
+lap_count = 3
+start_offset = 70.0
