@@ -32,6 +32,7 @@ Any resolution is accepted as long as the **aspect ratio and orientation** match
 | `custom/graphics/scenery/flag.png` | 96 x 64 | 48 x 64 | Marshal flag: horizontal strip of 2 frames (48x64 each), pole foot at bottom-left third. |
 | `custom/graphics/scenery/flowers.png` | 64 x 64 | 64 x 64 | Flower patch, centred, transparent. |
 | `custom/graphics/scenery/grandstand.png` | 192 x 80 | 288 x 120 | Top-down grandstand; the crowd side (bottom edge) faces the track. |
+| `custom/graphics/scenery/lamp_post.png` | 48 x 48 | 56 x 56 | Lighting pilot: top-down lamp post, lamp head towards the top (-Y), rotated to face the track. |
 | `custom/graphics/scenery/rock.png` | 56 x 56 | 56 x 56 | Rock, centred, transparent. |
 | `custom/graphics/scenery/tree_bloom.png` | 112 x 112 | 112 x 112 | Top-down blossom tree, centred, transparent; sways gently. |
 | `custom/graphics/scenery/tree_round.png` | 128 x 128 | 128 x 128 | Top-down tree canopy, centred, transparent; sways gently. |

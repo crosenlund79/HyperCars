@@ -73,6 +73,10 @@ var combat: CombatWorld
 ## Pre-race option: Weapons ON (true) / No Guns (false). Kept across races.
 var weapons_enabled := false
 var combat_view: CombatView
+## Lighting pilot (presentation experiment; L toggles). Off by default.
+var lighting: LightingPilot
+## Start with the lighting pilot on (e.g. for comparison runs).
+@export var lighting_on_start := false
 
 @onready var track: Track = $Track
 @onready var car: Car = $Car
@@ -145,6 +149,11 @@ func _ready() -> void:
 		combat_view.name = "CombatView"
 		add_child(combat_view)
 		combat_view.setup(combat, cars, resolver, race_audio)
+		lighting = LightingPilot.new()
+		lighting.name = "LightingPilot"
+		add_child(lighting)
+		lighting.setup(track, cars, combat, resolver)
+		lighting.set_enabled(lighting_on_start)
 	_race_grid = first_grid(cars.size(), player_first_grid_slot)
 	_spectator_grid = rival_ids.duplicate()
 	grid_order = _race_grid
@@ -397,6 +406,8 @@ func _update_camera_target(step: float = 0.0) -> void:
 
 
 func _process(_delta: float) -> void:
+	if lighting != null and Input.is_action_just_pressed(PlayerControls.TOGGLE_LIGHTING):
+		lighting.set_enabled(not lighting.enabled)
 	_refresh_hud()
 	_present_finishers()
 

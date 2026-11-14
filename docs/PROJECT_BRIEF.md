@@ -21,6 +21,7 @@ This is the **master template**, not an active game. Complete it collaboratively
   - `src/ai/` — `RacingLine` (line + speed profile from shared driving params), `AiDriver` (player-equivalent inputs: digital steer + fire; seeded personality decisions), `AiParams` (provisional; neutral `default_ai_params.tres`, pilot personalities in `personalities/`), `RivalRoster` (fixed identities).
   - Spectator (M2.1): `RaceHistory` (`src/race/`, session-only results and position counts), `SpectatorDirector` (`src/camera/`, battle-following camera), `HistoryPanel` (`src/ui/`); spectator flow and simulation speed in `src/main/main.gd`.
   - Presentation (M2.2, read-only on race state): `src/presentation/` — `TrackScenery` (decorations, road decals, ambient animation), `RaceEffects` (tyre marks, smoke, dust, sparks, confetti), `RaceAudio` (engines, squeal, impacts, cues, ambience, music); `src/audio/` — `AudioSettings` (Master/Music/Engine/Effects volume + mute, saved to `user://settings.cfg`); `src/ui/` — `HyperTheme`, `TitleScreen`, `SettingsPanel`, `ControlsPanel`; `src/main/game.tscn` (run scene: title ⇄ race). `Main.presentation_enabled` switches presentation off (tests prove the race is bit-identical either way).
+  - Lighting pilot (experiment): `src/presentation/lighting_pilot.gd` — CanvasModulate dusk tint, 10 lamp posts, one light per car (cone + glow), explosion flashes; L toggles; off by default; `Main.lighting_on_start`.
   - Combat (M3): `src/combat/` — `WeaponRules` (verified behaviour + provisional numbers, loadout), `CombatWorld` (deterministic ammo, missiles, mines, homing/super missile, wrecks, respawn; event log); AI weapon decisions in `AiDriver.decide_weapons` (separate seeded generator); `src/presentation/CombatView` (read-only visuals and sounds).
   - `src/controls/` — `PlayerControls` (input actions, digital joystick reading). `src/camera/` — `FollowCamera`. `src/ui/` — `Hud`.
   - `src/assets/` — `AssetResolver` (override/fallback), `AssetCatalog` (replacement contract). `src/main/` — composition root; no Autoloads.
@@ -30,13 +31,13 @@ This is the **master template**, not an active game. Complete it collaboratively
 
 ## Current approved development objective
 
-**Status: Delivered for user playtesting.** This heading records an objective *after* the user approves it in conversation; it is not an instruction to implement, and a later task needs fresh approval.
+**Status: Pilot delivered for user review.** This heading records an objective *after* the user approves it in conversation; it is not an instruction to implement, and a later task needs fresh approval.
 
-- **User approval (reference / summary):** User, 2026-11-14, "HyperCars — Variable Race Lengths (3 / 7 / 20 / 50 Laps)". Previous: M2.3 + M3 (delivered).
-- **Objective:** Selectable race lengths 3 / 7 / 20 / 50 (default 3) before Normal Racing and All-AI Spectator Mode; the spectator session keeps the length across auto-restarts; HUD, results and menus show it.
-- **Out of scope:** Changes to AI personalities, driving physics, collisions, weapons, balance or track geometry; extra statistics, progression or features; exports, merges.
-- **Acceptance criteria / done when:** all four lengths tested; long spectator sessions complete without time limits or unintended classification, with weapons ON and No Guns; reversed grids and result tracking preserved; regressions pass; user playtests.
-- **Relevant tests:** `tests/integration/test_race_lengths.gd` + all earlier tests (the M2.3 no-guns probe hashes still match at the default 3 laps); checklist `tests/manual/race_lengths_checklist.md`.
+- **User approval (reference / summary):** User, 2026-11-14, "HyperCars — Controlled Lighting Pilot" (experiment, no permanent night mode). Previous: Variable Race Lengths (delivered).
+- **Objective:** Small isolated dusk-lighting test: darker ambient, a few trackside lamps, car headlight cones, subtle glow; toggle ON/OFF (L key) in Normal Racing and Spectator Mode; presentation only.
+- **Out of scope:** Gameplay, driving, AI, collision, weapon or race-rule changes; new mechanics; a committed night mode; broader rollout.
+- **Done when:** pilot playable and comparable ON/OFF; gameplay proven unchanged; readability and performance observations reported; user decides whether to continue.
+- **Relevant tests:** `tests/integration/test_lighting_pilot.gd` (race bit-identical with lighting on/off, toggle, light count, no collision) + all earlier tests.
 
 ## Proposals awaiting user approval
 

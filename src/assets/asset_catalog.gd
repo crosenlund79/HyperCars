@@ -35,6 +35,7 @@ const CONFETTI := "fx/confetti"
 const MISSILE := "weapons/missile"
 const MINE := "weapons/mine"
 const BLAST := "fx/blast"
+const LAMP_POST := "scenery/lamp_post"
 
 ## display_size: world/screen pixels the texture is scaled to (sprites, strips).
 ## tile_world_size: world pixels covered by one repeat of a seamless tile.
@@ -108,6 +109,8 @@ const SPECS := {
 		"notes": "Mine: horizontal strip of 2 frames (32x32 each: lamp off / lamp on), blinks while armed; also the HUD mine icon."},
 	BLAST: {"template_size": Vector2i(96, 96), "display_size": Vector2(110, 110),
 		"notes": "Explosion burst, centred, transparent; scaled up and faded out."},
+	LAMP_POST: {"template_size": Vector2i(48, 48), "display_size": Vector2(56, 56),
+		"notes": "Lighting pilot: top-down lamp post, lamp head towards the top (-Y), rotated to face the track."},
 }
 
 ## Replaceable audio: logical name -> spec. bus: Music / Engine / Effects.

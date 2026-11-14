@@ -7,7 +7,7 @@ extends SceneTree
 ## scenes in one process, which changes the order multi-car contacts resolve.
 
 var main: Node2D
-var opts := {"mode": "spectate", "speed": "1", "presentation": "1", "ticks": "900", "weapons": "0"}
+var opts := {"mode": "spectate", "speed": "1", "presentation": "1", "ticks": "900", "weapons": "0", "lighting": "0"}
 var tick := 0
 
 
@@ -18,6 +18,8 @@ func _initialize() -> void:
 			opts[kv[0]] = kv[1]
 	main = load("res://src/main/main.tscn").instantiate()
 	main.presentation_enabled = opts.presentation == "1"
+	if "lighting_on_start" in main:
+		main.lighting_on_start = opts.lighting == "1"
 	root.add_child(main)
 	physics_frame.connect(_on_tick)
 
