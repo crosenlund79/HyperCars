@@ -1,12 +1,13 @@
 class_name Hud
 extends CanvasLayer
-## Minimal race HUD: lap counter, race time, control mode, and the centre
-## message used for mode selection and the finish. Built in code from the
+## Minimal race HUD: position, lap counter, race time, control mode, and the
+## centre message used for mode selection and the results. Built in code from the
 ## painted panel texture so the panel can be overridden like any other asset.
 
 const TEXT_COLOR := Color("ead9b8")
 const OUTLINE_COLOR := Color("2a2220")
 
+var _pos_label: Label
 var _lap_label: Label
 var _time_label: Label
 var _mode_label: Label
@@ -16,15 +17,16 @@ var _message_label: Label
 
 func setup(resolver: AssetResolver) -> void:
 	var texture := resolver.get_texture(AssetCatalog.HUD_PANEL)
-	var info := _panel(texture, Vector2(24, 20), Vector2(300, 132))
+	var info := _panel(texture, Vector2(24, 20), Vector2(300, 170))
 	var box := VBoxContainer.new()
 	box.position = Vector2(26, 18)
 	box.add_theme_constant_override("separation", 2)
 	info.add_child(box)
-	_lap_label = _label(30)
-	_time_label = _label(24)
+	_pos_label = _label(30)
+	_lap_label = _label(26)
+	_time_label = _label(22)
 	_mode_label = _label(18)
-	for l in [_lap_label, _time_label, _mode_label]:
+	for l in [_pos_label, _lap_label, _time_label, _mode_label]:
 		box.add_child(l)
 
 	_message_panel = _panel(texture, Vector2(340, 250), Vector2(600, 220))
@@ -45,23 +47,34 @@ func show_racing(mode: CarModel.ControlMode) -> void:
 	_mode_label.text = mode_name(mode)
 
 
-func show_finished(lap_times: Array[float], total: float) -> void:
-	var lines := PackedStringArray(["FINISHED", "Total  %s" % format_time(total)])
-	for i in lap_times.size():
-		lines.append("Lap %d  %s" % [i + 1, format_time(lap_times[i])])
-	lines.append("Fire to race again")
-	_show_message("\n".join(lines))
+## Results table: finished cars with their time, the rest by running order.
+func show_results(standings: Array[RacerState]) -> void:
+	_show_message(results_text(standings), 22)
 
 
-func update_race(lap: int, lap_count: int, elapsed: float) -> void:
+static func results_text(standings: Array[RacerState]) -> String:
+	var lines := PackedStringArray(["RESULTS"])
+	for i in standings.size():
+		var r := standings[i]
+		var time := format_time(r.finish_time) if r.is_finished() else "running"
+		var mark := "  <" if r.is_player else ""
+		lines.append("%d.  %s   %s%s" % [i + 1, r.display_name, time, mark])
+	lines.append("Fire to race again (reversed grid)")
+	return "\n".join(lines)
+
+
+func update_race(lap: int, lap_count: int, elapsed: float, position: int = 1, field: int = 1) -> void:
+	_pos_label.text = "POS %d / %d" % [position, field]
 	_lap_label.text = "LAP %d / %d" % [lap, lap_count]
 	_time_label.text = format_time(elapsed)
 
 
-## Centre panel sized to its text (about 42 px per line at font size 28).
-func _show_message(text: String) -> void:
+## Centre panel sized to its text (about 1.5 x font size per line).
+func _show_message(text: String, font_size: int = 28) -> void:
 	_message_label.text = text
-	_message_panel.size.y = 56.0 + 42.0 * text.count("\n") + 42.0
+	_message_label.add_theme_font_size_override("font_size", font_size)
+	var line_height := font_size * 1.5
+	_message_panel.size.y = 56.0 + line_height * (text.count("\n") + 1)
 	_message_panel.position.y = 360.0 - _message_panel.size.y * 0.5
 	_message_panel.visible = true
 

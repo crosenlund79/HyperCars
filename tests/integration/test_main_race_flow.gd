@@ -85,4 +85,5 @@ func test_fire_after_finish_resets_to_start() -> void:
 		await _visit_checkpoint(0)
 	await _tap(PlayerControls.FIRE)
 	assert_eq(_main.session.state, RaceSession.State.MODE_SELECT)
-	assert_almost_eq(_main.car.global_position, _main.track.start_transform().origin, Vector2(0.01, 0.01))
+	var slot: int = _main.grid_order.find(RaceSession.PLAYER_ID)
+	assert_almost_eq(_main.car.global_position, _main.track.grid_transform(slot).origin, Vector2(0.01, 0.01))

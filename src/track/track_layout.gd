@@ -17,8 +17,26 @@ extends Resource
 @export var checkpoint_count := 12
 ## Laps per race. PROVISIONAL: the original's lap count per track is unverified.
 @export var lap_count := 3
-## Distance the car starts ahead of the start/finish line (px).
-@export var start_offset := 70.0
+## Starting grid: two staggered columns behind the start/finish line.
+## Formation and spacing are PROVISIONAL (the original's grid layout is unverified).
+## Distance of the pole position behind the line (px).
+@export var grid_first_offset := 60.0
+## Distance between grid rows (px).
+@export var grid_row_spacing := 80.0
+## Lateral distance of each column from the centreline (px).
+@export var grid_column_offset := 37.0
+## Extra distance the second column starts behind the first (px).
+@export var grid_stagger := 40.0
+
+
+## Grid slot (0 = pole) as {distance_behind_line, lateral}; lateral > 0 = right.
+func grid_slot(slot: int) -> Dictionary:
+	var row := slot / 2
+	var column := slot % 2
+	return {
+		"behind": grid_first_offset + row * grid_row_spacing + column * grid_stagger,
+		"lateral": grid_column_offset * (-1.0 if column == 0 else 1.0),
+	}
 
 
 ## Problems that make the layout unbuildable (empty when valid).

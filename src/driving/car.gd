@@ -2,9 +2,11 @@ class_name Car
 extends CharacterBody2D
 ## Scene wrapper for CarModel: applies input each physics tick, moves the body
 ## with continuous collision, and feeds wall contacts back into the model.
-## Input is set from outside (steer/fire) so the car can be driven by tests.
+## Input is set from outside (steer/fire) by the player, the AI or tests.
+## Car-to-car contacts are resolved symmetrically through CarModel.
 
 signal wall_hit(normal: Vector2, impact_speed: float)
+signal car_hit(other: Car, impact_speed: float)
 
 const MAX_SLIDES := 4
 
@@ -12,6 +14,8 @@ var model: CarModel
 var steer := 0.0
 var fire := false
 var active := false
+## Identifies the racer in the race session (0 = player).
+var racer_id := 0
 
 @onready var sprite: Sprite2D = $Sprite
 
@@ -48,11 +52,19 @@ func _physics_process(delta: float) -> void:
 		if collision == null:
 			break
 		var normal := collision.get_normal()
-		var impact := -model.velocity.dot(normal)
-		model.apply_wall_collision(normal)
-		if impact > 0.0:
-			wall_hit.emit(normal, impact)
-		motion = collision.get_remainder().slide(normal) * model.params.wall_tangent_retention
+		var other := collision.get_collider() as Car
+		if other != null and other.model != null:
+			var closing := -(model.velocity - other.model.velocity).dot(normal)
+			CarModel.resolve_car_collision(model, other.model, normal)
+			if closing > 0.0:
+				car_hit.emit(other, closing)
+			motion = collision.get_remainder().slide(normal)
+		else:
+			var impact := -model.velocity.dot(normal)
+			model.apply_wall_collision(normal)
+			if impact > 0.0:
+				wall_hit.emit(normal, impact)
+			motion = collision.get_remainder().slide(normal) * model.params.wall_tangent_retention
 		if motion.length_squared() < 0.0001:
 			break
 	model.position = global_position

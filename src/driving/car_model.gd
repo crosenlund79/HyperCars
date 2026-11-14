@@ -76,3 +76,15 @@ func apply_wall_collision(normal: Vector2) -> void:
 		return
 	var tangent := velocity - normal * into
 	velocity = tangent * params.wall_tangent_retention - normal * into * params.wall_restitution
+
+
+## Equal-mass contact between two cars. normal points from b towards a.
+## Only the closing velocity along the normal changes, identically for both cars.
+static func resolve_car_collision(a: CarModel, b: CarModel, normal: Vector2) -> void:
+	var closing := (a.velocity - b.velocity).dot(normal)
+	if closing >= 0.0:
+		return
+	var restitution := (a.params.car_restitution + b.params.car_restitution) * 0.5
+	var impulse := -(1.0 + restitution) * closing * 0.5
+	a.velocity += normal * impulse
+	b.velocity -= normal * impulse

@@ -26,3 +26,6 @@ extends Resource
 @export_range(0.0, 1.0) var wall_restitution: float = 0.3
 ## Fraction of the along-wall speed kept on impact (0..1). PROVISIONAL.
 @export_range(0.0, 1.0) var wall_tangent_retention: float = 0.75
+## Car-to-car contact: fraction of the closing speed bounced apart (0..1). Equal masses,
+## symmetric for every car. Added in M2; PROVISIONAL.
+@export_range(0.0, 1.0) var car_restitution: float = 0.4

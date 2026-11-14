@@ -14,12 +14,15 @@ const GROUND_MARGIN := 900.0
 
 var centerline := PackedVector2Array()
 var checkpoint_samples := PackedInt32Array()
+## Centreline as a measurable path (race progress, AI navigation).
+var path: ClosedPath
 
 
 func build(resolver: AssetResolver) -> void:
 	for child in get_children():
 		child.free()
 	centerline = layout.sample_centerline()
+	path = ClosedPath.new(centerline)
 	checkpoint_samples = layout.checkpoint_sample_indices(centerline.size())
 	var half := layout.road_width * 0.5
 	var left_edge := TrackLayout.offset_line(centerline, -half)
@@ -42,11 +45,13 @@ func checkpoint_transform(index: int) -> Transform2D:
 	return Transform2D(tan.angle(), centerline[s])
 
 
-## Car start: on the centreline, start_offset ahead of the line, facing along the track.
-func start_transform() -> Transform2D:
-	var line := checkpoint_transform(0)
-	var dir := Vector2.from_angle(line.get_rotation())
-	return Transform2D(line.get_rotation(), line.origin + dir * layout.start_offset)
+## Starting grid slot (0 = pole) behind the start/finish line, facing along the track.
+func grid_transform(slot: int) -> Transform2D:
+	var g := layout.grid_slot(slot)
+	var s: float = path.length - g.behind
+	var tan := path.tangent_at(s)
+	var right := Vector2(-tan.y, tan.x)
+	return Transform2D(tan.angle(), path.point_at(s) + right * g.lateral)
 
 
 func _build_ground(texture: Texture2D) -> void:

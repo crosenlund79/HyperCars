@@ -13,3 +13,4 @@ full_steer_speed = 0.0
 grip = 4.5
 wall_restitution = 0.3
 wall_tangent_retention = 0.75
+car_restitution = 0.4

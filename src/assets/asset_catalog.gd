@@ -5,6 +5,8 @@ extends RefCounted
 ## orientation; the game scales each texture to its display size in world pixels.
 
 const CAR_PLAYER := "cars/car_player"
+## Opponent cars: "cars/car_ai_1" .. "cars/car_ai_9" (see ai_car()).
+const AI_CAR_COUNT := 9
 const TARMAC := "track/tarmac"
 const GRASS := "track/grass"
 const WALL := "track/wall"
@@ -16,6 +18,24 @@ const HUD_PANEL := "ui/hud_panel"
 const SPECS := {
 	CAR_PLAYER: {"template_size": Vector2i(128, 72), "display_size": Vector2(64, 36),
 		"notes": "Top-down, nose pointing right (+X), centred pivot, transparent background."},
+	"cars/car_ai_1": {"template_size": Vector2i(128, 72), "display_size": Vector2(64, 36),
+		"notes": "Opponent car 1; same contract as the player car."},
+	"cars/car_ai_2": {"template_size": Vector2i(128, 72), "display_size": Vector2(64, 36),
+		"notes": "Opponent car 2; same contract as the player car."},
+	"cars/car_ai_3": {"template_size": Vector2i(128, 72), "display_size": Vector2(64, 36),
+		"notes": "Opponent car 3; same contract as the player car."},
+	"cars/car_ai_4": {"template_size": Vector2i(128, 72), "display_size": Vector2(64, 36),
+		"notes": "Opponent car 4; same contract as the player car."},
+	"cars/car_ai_5": {"template_size": Vector2i(128, 72), "display_size": Vector2(64, 36),
+		"notes": "Opponent car 5; same contract as the player car."},
+	"cars/car_ai_6": {"template_size": Vector2i(128, 72), "display_size": Vector2(64, 36),
+		"notes": "Opponent car 6; same contract as the player car."},
+	"cars/car_ai_7": {"template_size": Vector2i(128, 72), "display_size": Vector2(64, 36),
+		"notes": "Opponent car 7; same contract as the player car."},
+	"cars/car_ai_8": {"template_size": Vector2i(128, 72), "display_size": Vector2(64, 36),
+		"notes": "Opponent car 8; same contract as the player car."},
+	"cars/car_ai_9": {"template_size": Vector2i(128, 72), "display_size": Vector2(64, 36),
+		"notes": "Opponent car 9; same contract as the player car."},
 	TARMAC: {"template_size": Vector2i(256, 256), "tile_world_size": 256.0,
 		"notes": "Seamless repeating road surface, opaque."},
 	GRASS: {"template_size": Vector2i(256, 256), "tile_world_size": 256.0,
@@ -27,6 +47,11 @@ const SPECS := {
 	HUD_PANEL: {"template_size": Vector2i(96, 96), "patch_margin": 24,
 		"notes": "Nine-patch panel; 24 px corners are not stretched (scaled with the texture)."},
 }
+
+
+## Logical name of opponent car n (1-based), cycling if more cars than templates.
+static func ai_car(n: int) -> String:
+	return "cars/car_ai_%d" % ((n - 1) % AI_CAR_COUNT + 1)
 
 
 ## Converts a world-space tile size to the UV scale for a texture of any resolution.
