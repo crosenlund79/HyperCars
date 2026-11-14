@@ -5,6 +5,9 @@ extends Node
 ## (Race / Spectate / Settings / Controls / Quit). Presentation only.
 
 signal start_requested(choice: int)
+## Weapons ON / No Guns preference for both racing and spectating (saved).
+var weapons_on := true
+var _weapons_button: Button
 signal quit_requested
 
 const TRACK_SCRIPT := preload("res://src/track/track.gd")
@@ -58,8 +61,12 @@ func setup(p_resolver: AssetResolver, p_settings: AudioSettings) -> void:
 	_tagline.position = Vector2(0, 222)
 	root.add_child(_tagline)
 
+	_load_weapons_pref()
 	_main_menu = _menu(root, [["RACE", _open_race], ["SPECTATE RIVALS", func() -> void: _start(2)],
-		["SETTINGS", _open_settings], ["CONTROLS", _open_controls], ["QUIT", func() -> void: quit_requested.emit()]])
+		["WEAPONS", _toggle_weapons], ["SETTINGS", _open_settings], ["CONTROLS", _open_controls],
+		["QUIT", func() -> void: quit_requested.emit()]])
+	_weapons_button = _main_menu.get_child(2)
+	_update_weapons_button()
 	_race_menu = _menu(root, [["FIRE TO ACCELERATE", func() -> void: _start(0)], ["FIRE TO BRAKE", func() -> void: _start(1)],
 		["BACK", _show_main]])
 	var race_title := HyperTheme.label("CHOOSE YOUR CONTROLS", 22, HyperTheme.GOLD, 700)
@@ -139,6 +146,26 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
+func _toggle_weapons() -> void:
+	_sfx_play("ui/ui_select")
+	weapons_on = not weapons_on
+	_update_weapons_button()
+	var cfg := ConfigFile.new()
+	cfg.load(settings.path)
+	cfg.set_value("game", "weapons", weapons_on)
+	cfg.save(settings.path)
+
+
+func _update_weapons_button() -> void:
+	_weapons_button.text = "WEAPONS: ON" if weapons_on else "WEAPONS: NO GUNS"
+
+
+func _load_weapons_pref() -> void:
+	var cfg := ConfigFile.new()
+	if cfg.load(settings.path) == OK:
+		weapons_on = bool(cfg.get_value("game", "weapons", true))
+
+
 func _start(choice: int) -> void:
 	_sfx_play("ui/ui_select")
 	start_requested.emit(choice)
@@ -190,7 +217,7 @@ func _menu(root: Control, items: Array) -> VBoxContainer:
 		b.mouse_entered.connect(b.grab_focus)
 		box.add_child(b)
 	box.reset_size()
-	box.position = Vector2((1280 - 380) * 0.5, 280)
+	box.position = Vector2((1280 - 380) * 0.5, 262)
 	return box
 
 

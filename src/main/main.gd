@@ -7,6 +7,8 @@ extends Node2D
 ## spectating the nine rivals race back to back, at normal or fast simulation.
 ## Presentation (scenery, effects, audio, HUD extras) only reads race state; it
 ## can be switched off with presentation_enabled without changing the race.
+## Combat (M3): Weapons ON / No Guns is chosen before each race; when on, every
+## car follows the same WeaponRules through one deterministic CombatWorld.
 
 ## Esc on the grid when allow_exit is set (the title screen listens).
 signal exit_requested
@@ -38,6 +40,7 @@ const CLASSIFY_AFTER_WINNER := 120.0
 @export var presentation_enabled := true
 ## Esc on the grid asks to leave (set by the title screen).
 @export var allow_exit := false
+@export var weapon_rules: WeaponRules = preload("res://src/combat/default_weapon_rules.tres")
 
 var resolver: AssetResolver
 var session: RaceSession
@@ -61,6 +64,11 @@ var effects: RaceEffects
 var race_audio: RaceAudio
 var scenery: TrackScenery
 var _seen_finishers := 0
+## Combat simulation for the current race (stepped only with weapons enabled).
+var combat: CombatWorld
+## Pre-race option: Weapons ON (true) / No Guns (false). Kept across races.
+var weapons_enabled := false
+var combat_view: CombatView
 
 @onready var track: Track = $Track
 @onready var car: Car = $Car
@@ -114,6 +122,7 @@ func _ready() -> void:
 		full_names[i] = RivalRoster.full_name(i)
 	for c in cars:
 		progress.append(RaceProgress.new(track.path))
+	combat = CombatWorld.new(weapon_rules, cars.size(), track.path, track.layout.road_width * 0.5)
 	history = RaceHistory.new(rival_ids)
 	hud.setup_history(resolver, history, car_textures, full_names)
 	car_textures[RaceSession.PLAYER_ID] = resolver.get_texture(AssetCatalog.CAR_PLAYER)
@@ -128,6 +137,10 @@ func _ready() -> void:
 		race_audio.name = "RaceAudio"
 		add_child(race_audio)
 		race_audio.setup(cars, resolver, self)
+		combat_view = CombatView.new()
+		combat_view.name = "CombatView"
+		add_child(combat_view)
+		combat_view.setup(combat, cars, resolver, race_audio)
 	_race_grid = first_grid(cars.size(), player_first_grid_slot)
 	_spectator_grid = rival_ids.duplicate()
 	grid_order = _race_grid
@@ -164,10 +177,23 @@ func set_sim_speed(multiplier: int) -> void:
 		effects.set_enabled(sim_speed == 1)
 	if race_audio != null:
 		race_audio.fast = sim_speed > 1
+	if combat_view != null:
+		combat_view.set_enabled(sim_speed == 1)
+
+
+## Weapons ON / No Guns; only changeable before the start.
+func set_weapons_enabled(on: bool) -> void:
+	if session.state != RaceSession.State.MODE_SELECT:
+		return
+	weapons_enabled = on
+	combat.enabled = on
+	hud.show_menu(choice_name(menu_choice), weapons_enabled)
 
 
 func reset_race() -> void:
 	session.reset()
+	combat.reset()
+	combat.enabled = weapons_enabled
 	_restart_timer = -1.0
 	_winner_time = -1.0
 	_show_player_car(not session.spectator)
@@ -187,7 +213,7 @@ func reset_race() -> void:
 	if race_audio != null:
 		race_audio.play_music("menu")
 	_refresh_hud()
-	hud.show_menu(choice_name(menu_choice))
+	hud.show_menu(choice_name(menu_choice), weapons_enabled)
 
 
 static func choice_name(choice: Choice) -> String:
@@ -208,7 +234,7 @@ func set_menu_choice(choice: Choice) -> void:
 		session.set_spectator(spectate)
 		grid_order = _spectator_grid if spectate else _race_grid
 		reset_race()
-	hud.show_menu(choice_name(menu_choice))
+	hud.show_menu(choice_name(menu_choice), weapons_enabled)
 
 
 func _physics_process(_delta: float) -> void:
@@ -219,6 +245,8 @@ func _physics_process(_delta: float) -> void:
 				set_menu_choice(posmod(menu_choice - 1, 3) as Choice)
 			elif Input.is_action_just_pressed(PlayerControls.STEER_RIGHT):
 				set_menu_choice(posmod(menu_choice + 1, 3) as Choice)
+			elif Input.is_action_just_pressed(PlayerControls.FIRE_FRONT) or Input.is_action_just_pressed(PlayerControls.FIRE_REAR):
+				set_weapons_enabled(not weapons_enabled)
 			elif Input.is_action_just_pressed(PlayerControls.FIRE):
 				start_race()
 			elif allow_exit and Input.is_action_just_pressed(PlayerControls.BACK):
@@ -242,6 +270,8 @@ func _physics_process(_delta: float) -> void:
 		return
 	_update_progress()
 	_drive_opponents(step)
+	if combat.enabled:
+		_combat_tick(step)
 	session.tick(step)
 	if session.spectator:
 		_spectator_tick(step)
@@ -300,7 +330,7 @@ func _spectator_tick(step: float) -> void:
 			session.classify_remaining()
 	if session.state == RaceSession.State.FINISHED:
 		if _restart_timer < 0.0:
-			history.add_race(session.finish_order)
+			history.add_race(session.finish_order, weapons_enabled)
 			hud.history_panel.refresh()
 			_restart_timer = RESTART_DELAY
 			hud.show_results(session.standings(), "Next race starting...")
@@ -369,12 +399,15 @@ func _refresh_hud() -> void:
 		var following := RivalRoster.short_name(director.target_id) if director.target_id > 0 else "-"
 		hud.update_spectator(history.race_count() + (0 if session.state == RaceSession.State.FINISHED else 1),
 			leader.tracker.current_lap() if leader != null else 1, session.racers[0].tracker.lap_count,
-			session.elapsed, "x%d" % sim_speed, following)
+			session.elapsed, "x%d" % sim_speed, following, weapons_enabled)
+		hud.update_combat(false, 0, 0, 0, 0, 0.0)
 		return
 	var p := session.racers[RaceSession.PLAYER_ID]
 	var time := p.finish_time if p.is_finished() else session.elapsed
 	hud.update_race(p.tracker.current_lap(), p.tracker.lap_count, time,
 		session.position_of(RaceSession.PLAYER_ID), session.racer_count())
+	hud.update_combat(weapons_enabled, weapon_rules.front_weapon, combat.ammo[0][CombatWorld.FRONT],
+		weapon_rules.rear_weapon, combat.ammo[0][CombatWorld.REAR], combat.wreck_left[0])
 	if session.state == RaceSession.State.FINISHED:
 		hud.show_results(session.standings())
 
@@ -407,3 +440,66 @@ func _on_checkpoint_reached(index: int, body: Node2D) -> void:
 	if c == null or not c.active:
 		return
 	session.checkpoint_reached(index, c.racer_id)
+
+
+## Combat for one tick: the player's Up/Down presses and the rivals' decisions
+## become fire requests, then the combat world advances; destroyed cars stop
+## where they are, respawned cars carry on.
+func _combat_tick(step: float) -> void:
+	var states := _combat_states()
+	if session.state == RaceSession.State.RACING and not session.spectator and not combat.is_wrecked(RaceSession.PLAYER_ID):
+		if Input.is_action_just_pressed(PlayerControls.FIRE_FRONT):
+			combat.request(RaceSession.PLAYER_ID, CombatWorld.FRONT, states)
+		if Input.is_action_just_pressed(PlayerControls.FIRE_REAR):
+			combat.request(RaceSession.PLAYER_ID, CombatWorld.REAR, states)
+	if session.state != RaceSession.State.MODE_SELECT:
+		_ai_weapons(step, states)
+	var result := combat.step(step, states)
+	for id in result.destroyed:
+		cars[id].active = false
+		cars[id].model.velocity = Vector2.ZERO
+		if drivers[id] != null:
+			drivers[id].on_destroyed()
+	for id in result.respawned:
+		cars[id].model.velocity = Vector2.ZERO
+		if session.state != RaceSession.State.MODE_SELECT:
+			cars[id].active = true
+
+
+func _combat_states() -> Array:
+	var states: Array = []
+	for i in cars.size():
+		states.append({"position": cars[i].global_position, "heading": cars[i].model.heading,
+			"present": grid_order.has(i)})
+	return states
+
+
+func _ai_weapons(step: float, states: Array) -> void:
+	for id in grid_order:
+		var d := drivers[id]
+		if d == null or combat.is_wrecked(id) or session.racers[id].is_finished():
+			continue
+		var front_ready := combat.can_fire(id, CombatWorld.FRONT)
+		var rear_ready := combat.can_fire(id, CombatWorld.REAR)
+		if not front_ready and not rear_ready:
+			continue
+		var targets: Array = []
+		for other in grid_order:
+			if other == id:
+				continue
+			targets.append({"position": cars[other].global_position, "velocity": cars[other].model.velocity,
+				"distance": progress[other].distance, "lateral": progress[other].lateral,
+				"speed": cars[other].model.forward_speed(), "wrecked": combat.is_wrecked(other)})
+		var me := {"position": cars[id].global_position, "heading": cars[id].model.heading,
+			"speed": cars[id].model.forward_speed(), "distance": progress[id].distance, "lateral": progress[id].lateral}
+		var r := session.racers[id]
+		var ctx := {"front_ready": front_ready, "rear_ready": rear_ready, "front_ammo": combat.ammo[id][CombatWorld.FRONT],
+			"front_start": weapon_rules.ammo_for(CombatWorld.FRONT), "laps_left": r.tracker.lap_count - r.tracker.laps_completed,
+			"lap_count": r.tracker.lap_count, "missile_speed": weapon_rules.missile_speed, "hit_radius": weapon_rules.hit_radius,
+			"mine_fuse": weapon_rules.mine_fuse,
+			"pressure": d.params.pressure_attack_drop > 0.0 and d.under_pressure(me, targets)}
+		var out := d.decide_weapons(me, targets, ctx, step)
+		if out.front:
+			combat.request(id, CombatWorld.FRONT, states)
+		if out.rear:
+			combat.request(id, CombatWorld.REAR, states)

@@ -1,13 +1,16 @@
 class_name PlayerControls
 extends RefCounted
-## Joystick-style controls for one player: left/right steer, one fire button.
-## Joystick up/down are weapon inputs in the original and are deliberately unbound
-## (no weapons in Milestone 1). Actions are only created if the project does not
-## already define them, so they can be rebound in Project Settings > Input Map.
+## Joystick-style controls for one player: left/right steer, one fire button,
+## joystick forward / backwards fire the front / rear weapon (original manual).
+## Actions are only created if the project does not already define them, so they
+## can be rebound in Project Settings > Input Map.
 
 const STEER_LEFT := "steer_left"
 const STEER_RIGHT := "steer_right"
 const FIRE := "fire"
+## Joystick forward / backwards: front / rear weapon (M3).
+const FIRE_FRONT := "fire_front"
+const FIRE_REAR := "fire_rear"
 ## Spectator mode only: switch history view, toggle simulation speed, leave.
 const HISTORY_VIEW := "history_view"
 const SIM_SPEED := "sim_speed"
@@ -21,6 +24,8 @@ static func ensure_actions() -> void:
 	_add(STEER_LEFT, [_key(KEY_LEFT), _key(KEY_A), _joy_button(JOY_BUTTON_DPAD_LEFT), _joy_axis(JOY_AXIS_LEFT_X, -1.0)])
 	_add(STEER_RIGHT, [_key(KEY_RIGHT), _key(KEY_D), _joy_button(JOY_BUTTON_DPAD_RIGHT), _joy_axis(JOY_AXIS_LEFT_X, 1.0)])
 	_add(FIRE, [_key(KEY_SPACE), _key(KEY_CTRL), _joy_button(JOY_BUTTON_A)])
+	_add(FIRE_FRONT, [_key(KEY_UP), _key(KEY_W), _joy_button(JOY_BUTTON_DPAD_UP), _joy_axis(JOY_AXIS_LEFT_Y, -1.0)])
+	_add(FIRE_REAR, [_key(KEY_DOWN), _key(KEY_S), _joy_button(JOY_BUTTON_DPAD_DOWN), _joy_axis(JOY_AXIS_LEFT_Y, 1.0)])
 	_add(HISTORY_VIEW, [_key(KEY_TAB), _joy_button(JOY_BUTTON_Y)])
 	_add(SIM_SPEED, [_key(KEY_F), _joy_button(JOY_BUTTON_X)])
 	_add(BACK, [_key(KEY_ESCAPE), _joy_button(JOY_BUTTON_B)])

@@ -13,3 +13,7 @@ disrupted_commitment = 0.9
 disrupted_recovery = 1.5
 pass_speed_margin = 8.0
 lane_return_rate = 30.0
+attack_min_confidence = 0.75
+attack_rate = 2.0
+ammo_pacing = true
+mine_min_quality = 0.7

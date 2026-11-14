@@ -48,7 +48,7 @@ func _on_tick() -> void:
 				s.append_array([d.lane_bias, d.commitment, d.fluster_time])
 		for r in main.session.racers:
 			s.append_array([r.progress, r.tracker.laps_completed, r.tracker.next_checkpoint])
-		if main.get("combat") != null:
+		if opts.weapons == "1" and main.get("combat") != null:
 			s.append(main.combat.state_snapshot())
 		print("PROBE ", var_to_bytes(s).hex_encode().md5_text())
 		main.set_sim_speed(1)

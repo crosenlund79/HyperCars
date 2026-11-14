@@ -145,11 +145,21 @@ func test_history_panel_shows_stars_for_podium_and_numbers_below() -> void:
 	var grid: GridContainer = panel.find_children("*", "GridContainer", true, false)[0]
 	var cells := grid.get_children()
 	assert_eq(grid.columns, 1)
-	assert_eq(cells.size(), 1 + 4, "header + one cell per driver")
-	assert_true(cells[1] is TextureRect, "driver 1 was 2nd: silver star")
-	assert_true(cells[2] is Label and cells[2].text == "4", "driver 2 was 4th")
-	assert_true(cells[3] is TextureRect, "driver 3 won: gold star")
+	assert_eq(cells.size(), 2 + 4, "race header + weapons row + one cell per driver")
+	assert_eq(cells[1].text, "off", "race recorded without weapons")
+	assert_true(cells[2] is TextureRect, "driver 1 was 2nd: silver star")
+	assert_true(cells[3] is Label and cells[3].text == "4", "driver 2 was 4th")
+	assert_true(cells[4] is TextureRect, "driver 3 won: gold star")
 	panel.toggle_view()
 	cells = grid.get_children()
 	assert_eq(grid.columns, 4)
 	assert_eq(cells[4 + 1].text, "1", "driver 1 (first row, after 4 headers): one 2nd place")
+
+
+func test_history_marks_races_run_with_weapons() -> void:
+	var h := RaceHistory.new([1, 2] as Array[int])
+	h.add_race([1, 2] as Array[int], true)
+	h.add_race([2, 1] as Array[int], false)
+	h.add_race([1, 2] as Array[int])
+	assert_eq(h.weapons, [true, false, false] as Array[bool])
+	assert_eq(h.weapon_race_count(), 1)

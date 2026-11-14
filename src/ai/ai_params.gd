@@ -78,3 +78,32 @@ extends Resource
 @export var disrupted_recovery := 0.0
 ## Chance per second of attempting a pass even without a speed advantage (impulse).
 @export var pass_impulse_chance := 0.0
+
+## --- M3 combat decisions (same weapons and rules for everyone; these only shape
+## when a driver chooses to fire). Defaults: a competent, neutral shooter.
+## Minimum shot quality (0..1: predicted miss distance vs hit radius) for a front shot.
+@export_range(0.0, 1.0) var attack_min_confidence := 0.6
+## How eagerly a valid shot is taken (attempts per second).
+@export var attack_rate := 2.0
+## Longest front shot considered (px).
+@export var attack_range := 600.0
+## Keep this many front rounds until the last lap.
+@export var ammo_reserve := 0
+## Spread ammunition evenly over the laps (fire only above the per-lap budget).
+@export var ammo_pacing := false
+## Chance per second of firing without a decent shot (wasted rounds).
+@export var waste_chance := 0.0
+## Only attack slow, recovering or very close targets.
+@export var opportunist := false
+## Random +- change of the confidence threshold per decision.
+@export var confidence_variation := 0.0
+## Under pressure (see pressure_distance) the threshold drops by this much (hasty shots).
+@export var pressure_attack_drop := 0.0
+## Minimum quality for dropping a mine (0..1: how well a follower's arrival matches the fuse).
+@export_range(0.0, 1.0) var mine_min_quality := 0.5
+## How eagerly a good mine drop is taken (attempts per second).
+@export var mine_rate := 1.5
+## After being destroyed: for retaliation_time s, rates are multiplied by
+## retaliation_boost and the thresholds lowered by 0.15. 0 disables.
+@export var retaliation_time := 0.0
+@export var retaliation_boost := 1.0

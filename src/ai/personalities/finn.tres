@@ -11,3 +11,7 @@ overcommit_extra = 0.12
 pass_impulse_chance = 0.8
 pass_speed_margin = 5.0
 lane_change_rate = 140.0
+attack_min_confidence = 0.55
+attack_rate = 2.0
+confidence_variation = 0.35
+waste_chance = 0.04

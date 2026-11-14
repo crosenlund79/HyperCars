@@ -45,6 +45,7 @@ func start_race(choice: int) -> void:
 	add_child(race)
 	race.camera.make_current()
 	race.set_menu_choice(choice)
+	race.set_weapons_enabled(title.weapons_on)
 	race.exit_requested.connect(back_to_title)
 	if choice == 2:
 		race.start_race()  # spectating starts straight away

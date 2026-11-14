@@ -32,6 +32,9 @@ const SMOKE := "fx/smoke"
 const DUST := "fx/dust"
 const SPARK := "fx/spark"
 const CONFETTI := "fx/confetti"
+const MISSILE := "weapons/missile"
+const MINE := "weapons/mine"
+const BLAST := "fx/blast"
 
 ## display_size: world/screen pixels the texture is scaled to (sprites, strips).
 ## tile_world_size: world pixels covered by one repeat of a seamless tile.
@@ -99,6 +102,12 @@ const SPECS := {
 	SPARK: {"template_size": Vector2i(24, 24), "display_size": Vector2(24, 24), "notes": "Impact spark particle."},
 	CONFETTI: {"template_size": Vector2i(12, 12), "display_size": Vector2(12, 12),
 		"notes": "White confetti piece; tinted at runtime, so keep it white/light."},
+	MISSILE: {"template_size": Vector2i(40, 16), "display_size": Vector2(30, 12),
+		"notes": "Missile, nose pointing right (+X), centred; also the HUD missile icon. Homing/super missiles are tinted."},
+	MINE: {"template_size": Vector2i(64, 32), "display_size": Vector2(26, 26), "frames": 2,
+		"notes": "Mine: horizontal strip of 2 frames (32x32 each: lamp off / lamp on), blinks while armed; also the HUD mine icon."},
+	BLAST: {"template_size": Vector2i(96, 96), "display_size": Vector2(110, 110),
+		"notes": "Explosion burst, centred, transparent; scaled up and faded out."},
 }
 
 ## Replaceable audio: logical name -> spec. bus: Music / Engine / Effects.
@@ -116,6 +125,10 @@ const AUDIO := {
 	"ambience/ambience": {"loop": true, "bus": "Effects", "notes": "Trackside ambience loop (wind, birds), stereo."},
 	"music/music_menu": {"loop": true, "bus": "Music", "notes": "Menu music loop, stereo."},
 	"music/music_race": {"loop": true, "bus": "Music", "notes": "Race music loop, stereo."},
+	"weapons/missile_launch": {"loop": false, "bus": "Effects", "notes": "Missile fired."},
+	"weapons/explosion": {"loop": false, "bus": "Effects", "notes": "Missile/mine explosion and car destroyed."},
+	"weapons/mine_drop": {"loop": false, "bus": "Effects", "notes": "Mine dropped (clunk + arming beep)."},
+	"weapons/empty": {"loop": false, "bus": "Effects", "notes": "Fire pressed with no ammunition left."},
 }
 
 

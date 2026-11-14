@@ -13,3 +13,7 @@ pass_speed_margin = 1.0
 follow_gap = 55.0
 traffic_distance = 170.0
 lane_change_rate = 135.0
+attack_min_confidence = 0.88
+attack_rate = 3.0
+attack_range = 350.0
+mine_min_quality = 0.8

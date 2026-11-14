@@ -35,7 +35,7 @@ func setup(cars: Array[Car], resolver: AssetResolver, sound_parent: Node2D) -> v
 	for i in cars.size():
 		_engines.append(_player2d(sound_parent, engine, "Engine", -6.0))
 		_squeals.append(_player2d(sound_parent, squeal, "Effects", -80.0))
-	for k in 6:
+	for k in 10:
 		_impacts.append(_player2d(sound_parent, null, "Effects", 0.0))
 	for c in cars:
 		c.wall_hit.connect(func(_n: Vector2, speed: float) -> void: _impact(c, speed, "vehicles/impact_wall"))
@@ -104,6 +104,19 @@ func _exit_tree() -> void:
 		if p != null:
 			p.stop()
 			p.stream = null
+
+
+## One-shot positional sound (weapons); skipped in fast simulation.
+func play_at(logical: String, pos: Vector2) -> void:
+	if fast:
+		return
+	var p := _impacts[_next_impact]
+	_next_impact = (_next_impact + 1) % _impacts.size()
+	p.stream = _resolver.get_audio(logical)
+	p.global_position = pos
+	p.volume_db = -2.0
+	p.pitch_scale = _rng.randf_range(0.95, 1.05)
+	p.play()
 
 
 func stop_cars() -> void:

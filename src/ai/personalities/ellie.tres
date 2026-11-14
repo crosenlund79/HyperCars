@@ -13,3 +13,7 @@ fluster_chance_per_second = 0.6
 fluster_duration = 1.2
 fluster_lift_chance = 0.35
 fluster_overcorrection = 0.6
+attack_min_confidence = 0.6
+attack_rate = 2.0
+pressure_attack_drop = 0.35
+mine_min_quality = 0.5

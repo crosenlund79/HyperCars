@@ -11,6 +11,8 @@ extends RefCounted
 var line: RacingLine
 var params: AiParams
 var rng := RandomNumberGenerator.new()
+## Separate generator for weapon decisions, so driving decisions are unchanged by combat.
+var weapon_rng := RandomNumberGenerator.new()
 ## Current sideways shift from the racing line (px), used for passing.
 var lane_bias := 0.0
 ## Commitment chosen for the current corner (1.0 outside corners).
@@ -31,6 +33,13 @@ var defends := 0
 var disruptions := 0
 var impulse_passes := 0
 var _defending := false
+## Combat counters / state.
+var front_shots := 0
+var wasted_shots := 0
+var mines_dropped := 0
+var held_for_reserve := 0
+## Seconds of retaliation left after being destroyed.
+var retaliating := 0.0
 
 
 func _init(p_line: RacingLine, p_params: AiParams) -> void:
@@ -42,6 +51,12 @@ func _init(p_line: RacingLine, p_params: AiParams) -> void:
 ## Resets per-race state and seeds the decision randomness.
 func begin_race(seed_value: int) -> void:
 	rng.seed = seed_value
+	weapon_rng.seed = seed_value + 7919
+	front_shots = 0
+	wasted_shots = 0
+	mines_dropped = 0
+	held_for_reserve = 0
+	retaliating = 0.0
 	lane_bias = 0.0
 	commitment = 1.0
 	in_corner = false
@@ -263,3 +278,93 @@ func choose_pass_lateral(my_lateral: float, other_lateral: float) -> float:
 		return NAN
 	options.sort_custom(func(a: float, b: float) -> bool: return absf(a - my_lateral) < absf(b - my_lateral))
 	return options[0]
+
+
+## Called when this driver's car was destroyed (starts retaliation if any).
+func on_destroyed() -> void:
+	retaliating = params.retaliation_time
+
+
+## Weapon decision for one tick. Only called when weapons are enabled.
+## me: as decide(). targets: Array of {position, velocity, distance, lateral, speed, wrecked}.
+## ctx: {front_ready, rear_ready, front_ammo, front_start, laps_left, lap_count,
+##       missile_speed, hit_radius, mine_fuse, pressure}.
+## Returns {front: bool, rear: bool}.
+func decide_weapons(me: Dictionary, targets: Array, ctx: Dictionary, delta: float) -> Dictionary:
+	retaliating = maxf(0.0, retaliating - delta)
+	var boost := params.retaliation_boost if retaliating > 0.0 else 1.0
+	var relief := 0.15 if retaliating > 0.0 else 0.0
+	var out := {"front": false, "rear": false}
+	if ctx.front_ready:
+		var threshold := params.attack_min_confidence - relief
+		if params.confidence_variation > 0.0:
+			threshold += weapon_rng.randf_range(-params.confidence_variation, params.confidence_variation)
+		if ctx.get("pressure", false):
+			threshold -= params.pressure_attack_drop
+		var quality := front_shot_quality(me, targets, ctx)
+		var hold := _hold_ammo(ctx)
+		if quality >= threshold and quality > 0.0 and not hold and weapon_rng.randf() < params.attack_rate * boost * delta:
+			out.front = true
+			front_shots += 1
+		elif params.waste_chance > 0.0 and not hold and weapon_rng.randf() < params.waste_chance * delta:
+			out.front = true
+			front_shots += 1
+			wasted_shots += 1
+		elif quality >= threshold and quality > 0.0 and hold:
+			held_for_reserve += 1
+	if ctx.rear_ready:
+		var mq := mine_quality(me, targets, ctx)
+		if mq >= params.mine_min_quality - relief and weapon_rng.randf() < params.mine_rate * boost * delta:
+			out.rear = true
+			mines_dropped += 1
+	return out
+
+
+## Best front-missile shot: 1 = the missile is predicted to pass through a target's
+## centre, 0 = no target it can reach.
+func front_shot_quality(me: Dictionary, targets: Array, ctx: Dictionary) -> float:
+	var fwd := Vector2.from_angle(me.heading)
+	var best := 0.0
+	for t in targets:
+		if t.wrecked:
+			continue
+		var rel: Vector2 = t.position - me.position
+		var along := rel.dot(fwd)
+		if along < 40.0 or along > params.attack_range:
+			continue
+		if params.opportunist and not (t.speed < me.speed * 0.6 or t.speed < 150.0 or along < 160.0):
+			continue
+		var time: float = along / maxf(1.0, ctx.missile_speed - t.velocity.dot(fwd))
+		var predicted: Vector2 = t.position + t.velocity * time - me.position
+		var miss := absf(predicted.cross(fwd))
+		var q := clampf(1.0 - miss / (ctx.hit_radius * 1.5), 0.0, 1.0) * (1.0 - 0.3 * along / params.attack_range)
+		best = maxf(best, q)
+	return best
+
+
+## Best mine drop: 1 = a following car reaches the drop point exactly when the fuse ends.
+func mine_quality(me: Dictionary, targets: Array, ctx: Dictionary) -> float:
+	var best := 0.0
+	for t in targets:
+		if t.wrecked or t.speed < 50.0:
+			continue
+		var gap: float = wrapf(me.distance - t.distance, -line.center.length * 0.5, line.center.length * 0.5)
+		if gap <= 20.0:
+			continue
+		if absf(t.lateral - me.lateral) > 45.0:
+			continue
+		var arrival: float = gap / t.speed
+		best = maxf(best, clampf(1.0 - absf(arrival - ctx.mine_fuse) / 0.8, 0.0, 1.0))
+	return best
+
+
+func _hold_ammo(ctx: Dictionary) -> bool:
+	var laps_left: int = ctx.laps_left
+	if params.ammo_reserve > 0 and laps_left > 1 and ctx.front_ammo <= params.ammo_reserve:
+		return true
+	if params.ammo_pacing and laps_left > 0:
+		var per_lap := float(ctx.front_start) / float(maxi(1, ctx.lap_count))
+		var keep := per_lap * (laps_left - 1)
+		if float(ctx.front_ammo) <= keep:
+			return true
+	return false

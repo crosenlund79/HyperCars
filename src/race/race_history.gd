@@ -8,6 +8,8 @@ extends RefCounted
 var driver_ids: Array[int] = []
 ## results[r] = driver ids in finishing order for race r.
 var results: Array = []
+## weapons[r] = true when race r was run with weapons enabled.
+var weapons: Array[bool] = []
 
 
 func _init(p_driver_ids: Array[int]) -> void:
@@ -18,8 +20,13 @@ func race_count() -> int:
 	return results.size()
 
 
-func add_race(finishing_order: Array[int]) -> void:
+func add_race(finishing_order: Array[int], with_weapons: bool = false) -> void:
 	results.append(finishing_order.duplicate())
+	weapons.append(with_weapons)
+
+
+func weapon_race_count() -> int:
+	return weapons.count(true)
 
 
 ## 1-based finishing position of a driver in race r (0 if absent).

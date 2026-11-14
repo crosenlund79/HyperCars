@@ -23,6 +23,7 @@ Any resolution is accepted as long as the **aspect ratio and orientation** match
 | `custom/graphics/decals/grid_box.png` | 72 x 48 | 72 x 48 | Painted grid-slot bracket; open side faces the driving direction (+X). |
 | `custom/graphics/decals/road_wear.png` | 160 x 64 | 240 x 96 | Semi-transparent road wear decal, long axis along the driving direction. |
 | `custom/graphics/decals/tire_mark.png` | 32 x 12 | 10 x 26 | Pair of rear-tyre marks along +X (stamped repeatedly while sliding); seamless left-right. |
+| `custom/graphics/fx/blast.png` | 96 x 96 | 110 x 110 | Explosion burst, centred, transparent; scaled up and faded out. |
 | `custom/graphics/fx/confetti.png` | 12 x 12 | 12 x 12 | White confetti piece; tinted at runtime, so keep it white/light. |
 | `custom/graphics/fx/dust.png` | 32 x 32 | 32 x 32 | Dust particle, soft, transparent. |
 | `custom/graphics/fx/smoke.png` | 32 x 32 | 32 x 32 | Tyre-smoke particle, soft, transparent. |
@@ -45,6 +46,8 @@ Any resolution is accepted as long as the **aspect ratio and orientation** match
 | `custom/graphics/ui/star_bronze.png` | 48 x 48 | 22 x 22 | 3rd place marker; same contract as the gold star. |
 | `custom/graphics/ui/star_gold.png` | 48 x 48 | 22 x 22 | 1st place marker in the race history; square, centred, transparent background. |
 | `custom/graphics/ui/star_silver.png` | 48 x 48 | 22 x 22 | 2nd place marker; same contract as the gold star. |
+| `custom/graphics/weapons/mine.png` | 64 x 32 | 26 x 26 | Mine: horizontal strip of 2 frames (32x32 each: lamp off / lamp on), blinks while armed; also the HUD mine icon. |
+| `custom/graphics/weapons/missile.png` | 40 x 16 | 30 x 12 | Missile, nose pointing right (+X), centred; also the HUD missile icon. Homing/super missiles are tinted. |
 
 ## Audio (OGG Vorbis or WAV)
 
@@ -64,6 +67,10 @@ Any resolution is accepted as long as the **aspect ratio and orientation** match
 | `custom/audio/vehicles/impact_car` | no | Effects | Car-to-car bump, < 1 s. |
 | `custom/audio/vehicles/impact_wall` | no | Effects | Car hits barrier, < 1 s. |
 | `custom/audio/vehicles/tire_squeal` | yes | Effects | Seamless tyre squeal loop; WAV recommended. |
+| `custom/audio/weapons/empty` | no | Effects | Fire pressed with no ammunition left. |
+| `custom/audio/weapons/explosion` | no | Effects | Missile/mine explosion and car destroyed. |
+| `custom/audio/weapons/mine_drop` | no | Effects | Mine dropped (clunk + arming beep). |
+| `custom/audio/weapons/missile_launch` | no | Effects | Missile fired. |
 
 ## Not replaceable through custom/
 

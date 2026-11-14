@@ -13,3 +13,7 @@ pass_offset = 48.0
 follow_gap = 80.0
 lane_change_rate = 95.0
 lane_return_rate = 35.0
+attack_min_confidence = 0.7
+attack_rate = 2.5
+opportunist = true
+mine_min_quality = 0.65

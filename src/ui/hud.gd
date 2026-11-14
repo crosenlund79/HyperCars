@@ -12,6 +12,13 @@ var _field_label: Label
 var _lap_label: Label
 var _time_label: Label
 var _mode_label: Label
+var _combat_box: HBoxContainer
+var _front_icon: TextureRect
+var _front_label: Label
+var _rear_icon: TextureRect
+var _rear_label: Label
+var _wreck_label: Label
+var _weapon_textures: Dictionary = {}
 var _tower: VBoxContainer
 var _tower_rows: Array = []
 var _message: PanelContainer
@@ -52,8 +59,32 @@ func setup(resolver: AssetResolver) -> void:
 	for l in [_lap_label, _time_label, _mode_label]:
 		box.add_child(l)
 
+	_combat_box = HBoxContainer.new()
+	_combat_box.add_theme_constant_override("separation", 8)
+	box.add_child(_combat_box)
+	_front_icon = _icon(Vector2(34, 20))
+	_front_label = HyperTheme.label("", 18, HyperTheme.CREAM, 700)
+	_rear_icon = _icon(Vector2(26, 26))
+	_rear_label = HyperTheme.label("", 18, HyperTheme.CREAM, 700)
+	for n in [_front_icon, _front_label, _rear_icon, _rear_label]:
+		_combat_box.add_child(n)
+	_combat_box.visible = false
+	_wreck_label = HyperTheme.label("", 44, HyperTheme.RED, 700)
+	_wreck_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_wreck_label.size = Vector2(1280, 60)
+	_wreck_label.position = Vector2(0, 470)
+	_wreck_label.visible = false
+	add_child(_wreck_label)
+	_weapon_textures = {
+		WeaponRules.Weapon.FRONT_MISSILE: resolver.get_texture(AssetCatalog.MISSILE),
+		WeaponRules.Weapon.REAR_MISSILE: resolver.get_texture(AssetCatalog.MISSILE),
+		WeaponRules.Weapon.HOMING_MISSILE: resolver.get_texture(AssetCatalog.MISSILE),
+		WeaponRules.Weapon.SUPER_MISSILE: resolver.get_texture(AssetCatalog.MISSILE),
+		WeaponRules.Weapon.MINE: resolver.get_texture(AssetCatalog.MINE),
+	}
+
 	_tower = VBoxContainer.new()
-	_tower.position = Vector2(22, 200)
+	_tower.position = Vector2(22, 232)
 	_tower.add_theme_constant_override("separation", 1)
 	add_child(_tower)
 
@@ -84,18 +115,48 @@ func show_mode_select(mode: CarModel.ControlMode) -> void:
 	show_menu(mode_name(mode))
 
 
-## Mode menu shown on the grid before the start.
-func show_menu(choice: String) -> void:
+## Mode menu shown on the grid before the start, with the Weapons ON / No Guns option.
+func show_menu(choice: String, weapons: bool = false) -> void:
 	_mode_label.text = choice
-	if _menu_key == choice and _message.visible:
+	var key := choice + str(weapons)
+	if _menu_key == key and _message.visible:
 		return
-	_menu_key = choice
+	_menu_key = key
 	_results_key = ""
 	_clear_message()
 	_message_box.add_child(_centered(HyperTheme.label("GET READY", 22, HyperTheme.CREAM_DIM, 600)))
 	_message_box.add_child(_centered(HyperTheme.label("<   %s   >" % choice, 34, HyperTheme.GOLD, 700)))
-	_message_box.add_child(_centered(HyperTheme.label("Left / Right: change    Fire: start    Esc: menu", 17, HyperTheme.CREAM_DIM, 500)))
+	_message_box.add_child(_centered(HyperTheme.label(weapons_text(weapons), 26,
+		HyperTheme.RED if weapons else HyperTheme.CREAM, 700)))
+	_message_box.add_child(_centered(HyperTheme.label("Left / Right: mode    Up / Down: weapons    Fire: start    Esc: menu", 17, HyperTheme.CREAM_DIM, 500)))
 	_present_message(Vector2(640, 0))
+
+
+static func weapons_text(on: bool) -> String:
+	return "WEAPONS ON" if on else "NO GUNS"
+
+
+## Player's weapons: icons + ammo, and the DESTROYED countdown while wrecked.
+func update_combat(enabled: bool, front: int, front_ammo: int, rear: int, rear_ammo: int, wreck_left: float) -> void:
+	_combat_box.visible = enabled
+	_wreck_label.visible = enabled and wreck_left > 0.0
+	if not enabled:
+		return
+	_front_icon.texture = _weapon_textures.get(front)
+	_front_label.text = "x%d" % front_ammo
+	_front_label.add_theme_color_override("font_color", HyperTheme.CREAM if front_ammo > 0 else HyperTheme.CREAM_DIM)
+	_rear_icon.texture = _weapon_textures.get(rear)
+	_rear_label.text = "x%d" % rear_ammo
+	_rear_label.add_theme_color_override("font_color", HyperTheme.CREAM if rear_ammo > 0 else HyperTheme.CREAM_DIM)
+	_wreck_label.text = "DESTROYED  %.1f" % wreck_left
+
+
+func _icon(min_size: Vector2) -> TextureRect:
+	var t := TextureRect.new()
+	t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	t.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	t.custom_minimum_size = min_size
+	return t
 
 
 func setup_history(resolver: AssetResolver, history: RaceHistory, car_textures: Dictionary, names: Dictionary) -> void:
@@ -115,12 +176,12 @@ func hide_message() -> void:
 
 
 ## Spectator info panel: race number, leader's lap, race time, speed, who the camera follows.
-func update_spectator(race_number: int, lap: int, lap_count: int, elapsed: float, speed_label: String, following: String) -> void:
+func update_spectator(race_number: int, lap: int, lap_count: int, elapsed: float, speed_label: String, following: String, weapons: bool = false) -> void:
 	_pos_label.text = "RACE %d" % race_number
 	_field_label.text = ""
 	_lap_label.text = "LAP %d / %d" % [lap, lap_count]
 	_time_label.text = format_time(elapsed)
-	_mode_label.text = "SPECTATING %s   camera: %s" % [speed_label, following]
+	_mode_label.text = "%s  %s   camera: %s" % [weapons_text(weapons), speed_label, following]
 
 
 func show_racing(mode: CarModel.ControlMode) -> void:
