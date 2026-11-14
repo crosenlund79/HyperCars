@@ -12,6 +12,8 @@ const FIRE := "fire"
 const HISTORY_VIEW := "history_view"
 const SIM_SPEED := "sim_speed"
 const BACK := "back"
+## Spectator: hide/show the race history panel.
+const TOGGLE_PANEL := "toggle_panel"
 const STICK_DEADZONE := 0.5
 
 
@@ -22,6 +24,7 @@ static func ensure_actions() -> void:
 	_add(HISTORY_VIEW, [_key(KEY_TAB), _joy_button(JOY_BUTTON_Y)])
 	_add(SIM_SPEED, [_key(KEY_F), _joy_button(JOY_BUTTON_X)])
 	_add(BACK, [_key(KEY_ESCAPE), _joy_button(JOY_BUTTON_B)])
+	_add(TOGGLE_PANEL, [_key(KEY_H), _joy_button(JOY_BUTTON_BACK)])
 
 
 ## Digital steering like a joystick: -1, 0 or +1.

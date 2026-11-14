@@ -6,7 +6,7 @@ config_version=5
 [application]
 
 config/name="HyperCars"
-run/main_scene="res://src/main/main.tscn"
+run/main_scene="res://src/main/game.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 
 [display]

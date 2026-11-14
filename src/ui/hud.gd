@@ -1,86 +1,221 @@
 class_name Hud
 extends CanvasLayer
-## Minimal race HUD: position, lap counter, race time, control mode, and the
-## centre message used for mode selection and the results. Built in code from the
-## painted panel texture so the panel can be overridden like any other asset.
+## Race HUD: info panel (position, lap, time, mode), live position tower,
+## centre panels for the mode menu and results, GO!/FINISH! banners and the
+## spectator history. Presentation only: it displays race state it is given.
 
-const TEXT_COLOR := Color("ead9b8")
-const OUTLINE_COLOR := Color("2a2220")
+const PLAYER_ID := 0
 
+var _theme: Theme
 var _pos_label: Label
+var _field_label: Label
 var _lap_label: Label
 var _time_label: Label
 var _mode_label: Label
-var _message_panel: NinePatchRect
-var _message_label: Label
+var _tower: VBoxContainer
+var _tower_rows: Array = []
+var _message: PanelContainer
+var _message_box: VBoxContainer
+var _banner: Label
+var _stars: Array[Texture2D] = []
+var _car_textures: Dictionary = {}
+var _full_names: Dictionary = {}
+var _results_key := ""
+var _menu_key := ""
 ## Spectator race history (created by setup_history).
 var history_panel: HistoryPanel
 
 
 func setup(resolver: AssetResolver) -> void:
-	var texture := resolver.get_texture(AssetCatalog.HUD_PANEL)
-	var info := _panel(texture, Vector2(24, 20), Vector2(300, 170))
+	_theme = HyperTheme.build(resolver)
+	_stars = [resolver.get_texture(AssetCatalog.STAR_GOLD), resolver.get_texture(AssetCatalog.STAR_SILVER),
+		resolver.get_texture(AssetCatalog.STAR_BRONZE)]
+	var info := PanelContainer.new()
+	info.theme = _theme
+	info.position = Vector2(20, 16)
+	info.custom_minimum_size = Vector2(250, 0)
+	add_child(info)
 	var box := VBoxContainer.new()
-	box.position = Vector2(26, 18)
-	box.add_theme_constant_override("separation", 2)
+	box.add_theme_constant_override("separation", -2)
 	info.add_child(box)
-	_pos_label = _label(30)
-	_lap_label = _label(26)
-	_time_label = _label(22)
-	_mode_label = _label(18)
-	for l in [_pos_label, _lap_label, _time_label, _mode_label]:
+	var pos_row := HBoxContainer.new()
+	pos_row.alignment = BoxContainer.ALIGNMENT_BEGIN
+	_pos_label = HyperTheme.label("P1", 44, HyperTheme.GOLD, 700)
+	_field_label = HyperTheme.label("/ 10", 24, HyperTheme.CREAM_DIM, 600)
+	_field_label.size_flags_vertical = Control.SIZE_SHRINK_END
+	pos_row.add_child(_pos_label)
+	pos_row.add_child(_field_label)
+	box.add_child(pos_row)
+	_lap_label = HyperTheme.label("LAP 1 / 3", 24, HyperTheme.CREAM, 600)
+	_time_label = HyperTheme.label("00:00.00", 22, HyperTheme.CREAM, 500)
+	_mode_label = HyperTheme.label("", 15, HyperTheme.CREAM_DIM, 500)
+	for l in [_lap_label, _time_label, _mode_label]:
 		box.add_child(l)
 
-	_message_panel = _panel(texture, Vector2(340, 250), Vector2(600, 220))
-	_message_label = _label(28)
-	_message_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_message_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_message_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_message_panel.add_child(_message_label)
+	_tower = VBoxContainer.new()
+	_tower.position = Vector2(22, 200)
+	_tower.add_theme_constant_override("separation", 1)
+	add_child(_tower)
+
+	_message = PanelContainer.new()
+	_message.theme = _theme
+	_message.visible = false
+	add_child(_message)
+	_message_box = VBoxContainer.new()
+	_message_box.add_theme_constant_override("separation", 6)
+	_message.add_child(_message_box)
+
+	_banner = HyperTheme.label("", 96, HyperTheme.GOLD, 700)
+	_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_banner.size = Vector2(1280, 140)
+	_banner.position = Vector2(0, 210)
+	_banner.pivot_offset = Vector2(640, 70)
+	_banner.modulate.a = 0.0
+	add_child(_banner)
+
+
+## Car icons and full names for the tower and results (keyed by racer id).
+func set_field(car_textures: Dictionary, full_names: Dictionary) -> void:
+	_car_textures = car_textures
+	_full_names = full_names
 
 
 func show_mode_select(mode: CarModel.ControlMode) -> void:
 	show_menu(mode_name(mode))
-	_mode_label.text = mode_name(mode)
 
 
-## Mode menu: the choice is a control mode or spectating.
+## Mode menu shown on the grid before the start.
 func show_menu(choice: String) -> void:
-	_show_message("MODE\n<  %s  >\n\nLeft / Right to change - Fire to start" % choice)
 	_mode_label.text = choice
+	if _menu_key == choice and _message.visible:
+		return
+	_menu_key = choice
+	_results_key = ""
+	_clear_message()
+	_message_box.add_child(_centered(HyperTheme.label("GET READY", 22, HyperTheme.CREAM_DIM, 600)))
+	_message_box.add_child(_centered(HyperTheme.label("<   %s   >" % choice, 34, HyperTheme.GOLD, 700)))
+	_message_box.add_child(_centered(HyperTheme.label("Left / Right: change    Fire: start    Esc: menu", 17, HyperTheme.CREAM_DIM, 500)))
+	_present_message(Vector2(640, 0))
 
 
 func setup_history(resolver: AssetResolver, history: RaceHistory, car_textures: Dictionary, names: Dictionary) -> void:
 	history_panel = HistoryPanel.new()
-	history_panel.position = Vector2(676, 20)
-	history_panel.size = Vector2(580, 350)
+	history_panel.theme = _theme
+	history_panel.position = Vector2(656, 16)
+	history_panel.size = Vector2(604, 372)
 	add_child(history_panel)
 	history_panel.setup(resolver, history, car_textures, names)
 	history_panel.visible = false
 
 
 func hide_message() -> void:
-	_message_panel.visible = false
+	_message.visible = false
+	_menu_key = ""
+	_results_key = ""
 
 
 ## Spectator info panel: race number, leader's lap, race time, speed, who the camera follows.
 func update_spectator(race_number: int, lap: int, lap_count: int, elapsed: float, speed_label: String, following: String) -> void:
 	_pos_label.text = "RACE %d" % race_number
+	_field_label.text = ""
 	_lap_label.text = "LAP %d / %d" % [lap, lap_count]
 	_time_label.text = format_time(elapsed)
-	_mode_label.text = "SPECTATING %s  > %s" % [speed_label, following]
+	_mode_label.text = "SPECTATING %s   camera: %s" % [speed_label, following]
 
 
 func show_racing(mode: CarModel.ControlMode) -> void:
-	_message_panel.visible = false
+	hide_message()
 	_mode_label.text = mode_name(mode)
 
 
-## Results table: finished cars with their time, the rest by running order.
+func update_race(lap: int, lap_count: int, elapsed: float, position: int = 1, field: int = 1) -> void:
+	_pos_label.text = "P%d" % position
+	_field_label.text = "/ %d" % field
+	_lap_label.text = "LAP %d / %d" % [lap, lap_count]
+	_time_label.text = format_time(elapsed)
+
+
+## Live position tower (one row per car, player highlighted).
+func update_tower(standings: Array[RacerState]) -> void:
+	while _tower_rows.size() < standings.size():
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 6)
+		var pos := HyperTheme.label("", 17, HyperTheme.CREAM, 700)
+		pos.custom_minimum_size = Vector2(26, 0)
+		pos.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		var icon := TextureRect.new()
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.custom_minimum_size = Vector2(34, 20)
+		var name := HyperTheme.label("", 17, HyperTheme.CREAM, 600)
+		row.add_child(pos)
+		row.add_child(icon)
+		row.add_child(name)
+		_tower.add_child(row)
+		_tower_rows.append([row, pos, icon, name])
+	for i in _tower_rows.size():
+		var parts: Array = _tower_rows[i]
+		var visible_row := i < standings.size()
+		parts[0].visible = visible_row
+		if not visible_row:
+			continue
+		var r := standings[i]
+		parts[1].text = str(i + 1)
+		parts[2].texture = _car_textures.get(r.id)
+		parts[3].text = "YOU" if r.is_player else r.display_name
+		var col := HyperTheme.GOLD if r.is_player else (HyperTheme.CREAM_DIM if r.is_finished() else HyperTheme.CREAM)
+		parts[3].add_theme_color_override("font_color", col)
+
+
+func set_tower_visible(on: bool) -> void:
+	_tower.visible = on
+
+
+## Results card: podium stars, car icons, names with nicknames, time or gap.
 func show_results(standings: Array[RacerState], footer: String = "Fire to race again (reversed grid)") -> void:
-	_show_message(results_text(standings, footer), 22)
+	var key := footer
+	for r in standings:
+		key += "|%d:%d:%.3f" % [r.id, r.finish_position, r.finish_time]
+	if key == _results_key and _message.visible:
+		return
+	_results_key = key
+	_menu_key = ""
+	_clear_message()
+	_message_box.add_child(_centered(HyperTheme.label("RESULTS", 34, HyperTheme.GOLD, 700)))
+	var grid := GridContainer.new()
+	grid.columns = 4
+	grid.add_theme_constant_override("h_separation", 14)
+	grid.add_theme_constant_override("v_separation", 2)
+	_message_box.add_child(grid)
+	var winner_time := standings[0].finish_time if not standings.is_empty() and standings[0].is_finished() else -1.0
+	for i in standings.size():
+		var r := standings[i]
+		grid.add_child(_position_marker(i + 1))
+		var icon := TextureRect.new()
+		icon.texture = _car_textures.get(r.id)
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.custom_minimum_size = Vector2(44, 26)
+		grid.add_child(icon)
+		var name: String = "YOU" if r.is_player else _full_names.get(r.id, r.display_name)
+		grid.add_child(HyperTheme.label(name, 20, HyperTheme.GOLD if r.is_player else HyperTheme.CREAM, 600))
+		var time := "running"
+		if r.is_finished():
+			if r.finish_time < 0.0:
+				time = "classified"
+			elif i == 0 or winner_time < 0.0:
+				time = format_time(r.finish_time)
+			else:
+				time = "+%.2f" % (r.finish_time - winner_time)
+		var t := HyperTheme.label(time, 20, HyperTheme.CREAM if r.is_finished() else HyperTheme.CREAM_DIM, 500)
+		t.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		t.custom_minimum_size = Vector2(110, 0)
+		grid.add_child(t)
+	_message_box.add_child(_centered(HyperTheme.label(footer, 17, HyperTheme.CREAM_DIM, 500)))
+	_present_message(Vector2(640, 0))
 
 
+## Plain-text results (kept for logs and tests).
 static func results_text(standings: Array[RacerState], footer: String = "Fire to race again (reversed grid)") -> String:
 	var lines := PackedStringArray(["RESULTS"])
 	for i in standings.size():
@@ -94,20 +229,16 @@ static func results_text(standings: Array[RacerState], footer: String = "Fire to
 	return "\n".join(lines)
 
 
-func update_race(lap: int, lap_count: int, elapsed: float, position: int = 1, field: int = 1) -> void:
-	_pos_label.text = "POS %d / %d" % [position, field]
-	_lap_label.text = "LAP %d / %d" % [lap, lap_count]
-	_time_label.text = format_time(elapsed)
-
-
-## Centre panel sized to its text (about 1.5 x font size per line).
-func _show_message(text: String, font_size: int = 28) -> void:
-	_message_label.text = text
-	_message_label.add_theme_font_size_override("font_size", font_size)
-	var line_height := font_size * 1.5
-	_message_panel.size.y = 56.0 + line_height * (text.count("\n") + 1)
-	_message_panel.position.y = 360.0 - _message_panel.size.y * 0.5
-	_message_panel.visible = true
+## Big animated banner ("GO!", "FINISH!"). Purely visual.
+func flash_banner(text: String, color: Color = HyperTheme.GOLD) -> void:
+	_banner.text = text
+	_banner.add_theme_color_override("font_color", color)
+	_banner.modulate.a = 1.0
+	_banner.scale = Vector2(0.6, 0.6)
+	var tw := create_tween()
+	tw.tween_property(_banner, "scale", Vector2.ONE, 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_interval(0.6)
+	tw.tween_property(_banner, "modulate:a", 0.0, 0.4)
 
 
 static func mode_name(mode: CarModel.ControlMode) -> String:
@@ -119,24 +250,35 @@ static func format_time(seconds: float) -> String:
 	return "%02d:%02d.%02d" % [total_ms / 60000, (total_ms / 1000) % 60, (total_ms % 1000) / 10]
 
 
-func _panel(texture: Texture2D, pos: Vector2, size: Vector2) -> NinePatchRect:
-	var panel := NinePatchRect.new()
-	panel.texture = texture
-	var margin: int = int(AssetCatalog.SPECS[AssetCatalog.HUD_PANEL].patch_margin * texture.get_width() / 96.0)
-	panel.patch_margin_left = margin
-	panel.patch_margin_right = margin
-	panel.patch_margin_top = margin
-	panel.patch_margin_bottom = margin
-	panel.position = pos
-	panel.size = size
-	add_child(panel)
-	return panel
-
-
-func _label(font_size: int) -> Label:
-	var l := Label.new()
-	l.add_theme_font_size_override("font_size", font_size)
-	l.add_theme_color_override("font_color", TEXT_COLOR)
-	l.add_theme_color_override("font_outline_color", OUTLINE_COLOR)
-	l.add_theme_constant_override("outline_size", 6)
+func _position_marker(position: int) -> Control:
+	if position >= 1 and position <= 3:
+		var star := TextureRect.new()
+		star.texture = _stars[position - 1]
+		star.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		star.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		star.custom_minimum_size = Vector2(30, 26)
+		return star
+	var l := HyperTheme.label(str(position), 20, HyperTheme.CREAM, 700)
+	l.custom_minimum_size = Vector2(30, 0)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	return l
+
+
+func _centered(l: Label) -> Label:
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	return l
+
+
+func _clear_message() -> void:
+	for c in _message_box.get_children():
+		c.free()
+
+
+## Centres the panel on screen and fades it in.
+func _present_message(_anchor: Vector2) -> void:
+	_message.visible = true
+	_message.reset_size()
+	_message.size = _message.get_combined_minimum_size()
+	_message.position = (Vector2(1280, 720) - _message.size) * 0.5
+	_message.modulate.a = 0.0
+	create_tween().tween_property(_message, "modulate:a", 1.0, 0.2)

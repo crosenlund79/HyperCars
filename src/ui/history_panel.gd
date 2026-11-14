@@ -3,7 +3,8 @@ extends NinePatchRect
 ## Spectator race history for the current session: fixed driver rows, one
 ## column per completed race (stars for 1st-3rd, numbers for 4th-9th), or the
 ## Position Counts view (finishes in each position). Race columns scroll
-## horizontally as races accumulate.
+## horizontally as races accumulate; rows are striped and the latest race
+## column is highlighted.
 
 enum View { HISTORY, COUNTS }
 
@@ -20,6 +21,7 @@ var _title: Label
 var _hint: Label
 var _scroll: ScrollContainer
 var _grid: GridContainer
+var _name_rows: Array[Control] = []
 
 
 ## driver_ids in row order; car_textures/names keyed by driver id.
@@ -41,7 +43,7 @@ func setup(resolver: AssetResolver, history: RaceHistory, car_textures: Dictiona
 	_title = _label(18, TEXT_COLOR)
 	box.add_child(_title)
 	_hint = _label(13, DIM_COLOR)
-	_hint.text = "Tab: switch view   Left/Right: scroll   F: speed   Esc: menu"
+	_hint.text = "Tab: view   Left/Right: scroll   H: hide   F: speed   Esc: menu"
 	box.add_child(_hint)
 	var row := HBoxContainer.new()
 	row.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -65,6 +67,7 @@ func setup(resolver: AssetResolver, history: RaceHistory, car_textures: Dictiona
 		n.text = names[id]
 		r.add_child(n)
 		names_col.add_child(r)
+		_name_rows.append(r)
 
 	_scroll = ScrollContainer.new()
 	_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -74,6 +77,7 @@ func setup(resolver: AssetResolver, history: RaceHistory, car_textures: Dictiona
 	_grid.add_theme_constant_override("h_separation", 0)
 	_grid.add_theme_constant_override("v_separation", 0)
 	_scroll.add_child(_grid)
+	_scroll.get_h_scroll_bar().value_changed.connect(func(_v: float) -> void: queue_redraw())
 	refresh()
 
 
@@ -95,6 +99,7 @@ func refresh() -> void:
 		_grid.columns = maxi(1, _history.race_count())
 		if _history.race_count() == 0:
 			_grid.add_child(_text_cell("-", DIM_COLOR))
+			queue_redraw()
 			return
 		for r in _history.race_count():
 			_grid.add_child(_text_cell("R%d" % (r + 1), DIM_COLOR))
@@ -112,10 +117,30 @@ func refresh() -> void:
 			var counts := _history.position_counts(id)
 			for p in positions:
 				_grid.add_child(_text_cell(str(counts[p]) if counts[p] > 0 else "-", TEXT_COLOR if counts[p] > 0 else DIM_COLOR))
+		queue_redraw.call_deferred()
 
 
 func _scroll_to_end() -> void:
 	_scroll.scroll_horizontal = int(_grid.size.x)
+	queue_redraw()
+
+
+## Row stripes and the latest-race highlight, drawn under the cells.
+func _draw() -> void:
+	var right := size.x - 16.0
+	for i in _name_rows.size():
+		var r := _name_rows[i].get_global_rect()
+		var top := r.position.y - global_position.y
+		if i % 2 == 0:
+			draw_rect(Rect2(16.0, top, right - 16.0, r.size.y), Color(1, 1, 1, 0.05))
+	if view == View.HISTORY and _history != null and _history.race_count() > 0 and _grid.get_child_count() > 0:
+		var header := _grid.get_child(_history.race_count() - 1) as Control
+		var col := header.get_global_rect()
+		var area := _scroll.get_global_rect()
+		var x0 := maxf(col.position.x, area.position.x) - global_position.x
+		var x1 := minf(col.end.x, area.end.x) - global_position.x
+		if x1 > x0:
+			draw_rect(Rect2(x0, area.position.y - global_position.y, x1 - x0, area.size.y), Color(0.89, 0.7, 0.24, 0.16))
 
 
 func _position_cell(position: int) -> Control:
@@ -146,12 +171,7 @@ func _cell_spacer() -> Control:
 
 
 func _label(font_size: int, color: Color) -> Label:
-	var l := Label.new()
-	l.add_theme_font_size_override("font_size", font_size)
-	l.add_theme_color_override("font_color", color)
-	l.add_theme_color_override("font_outline_color", OUTLINE_COLOR)
-	l.add_theme_constant_override("outline_size", 5)
-	return l
+	return HyperTheme.label("", font_size, color, 600 if font_size >= 16 else 500)
 
 
 static func _ordinal(n: int) -> String:

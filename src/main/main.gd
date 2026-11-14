@@ -5,6 +5,11 @@ extends Node2D
 ## the rivals of RivalRoster.
 ## Modes (chosen on the menu): a race with the player in either control mode, or
 ## spectating the nine rivals race back to back, at normal or fast simulation.
+## Presentation (scenery, effects, audio, HUD extras) only reads race state; it
+## can be switched off with presentation_enabled without changing the race.
+
+## Esc on the grid when allow_exit is set (the title screen listens).
+signal exit_requested
 
 enum Choice { FIRE_TO_ACCELERATE, FIRE_TO_BRAKE, SPECTATE }
 
@@ -29,6 +34,10 @@ const CLASSIFY_AFTER_WINNER := 120.0
 @export var base_seed := 1991
 ## Simulation multiplier used by the spectator "fast" option.
 @export_range(2, 16) var fast_multiplier := 4
+## Scenery, effects and audio. Off = bare race (used to prove they change nothing).
+@export var presentation_enabled := true
+## Esc on the grid asks to leave (set by the title screen).
+@export var allow_exit := false
 
 var resolver: AssetResolver
 var session: RaceSession
@@ -48,6 +57,10 @@ var _race_grid: Array[int] = []
 var _spectator_grid: Array[int] = []
 var _restart_timer := -1.0
 var _winner_time := -1.0
+var effects: RaceEffects
+var race_audio: RaceAudio
+var scenery: TrackScenery
+var _seen_finishers := 0
 
 @onready var track: Track = $Track
 @onready var car: Car = $Car
@@ -65,6 +78,16 @@ func _ready() -> void:
 		names.append(RivalRoster.short_name(i))
 	session = RaceSession.new(track.checkpoint_count(), track.layout.lap_count, names)
 	hud.setup(resolver)
+	var decals := Node2D.new()
+	decals.name = "Decals"
+	add_child(decals)
+	move_child(decals, track.get_index() + 1)
+	if presentation_enabled:
+		scenery = TrackScenery.new()
+		scenery.name = "Scenery"
+		add_child(scenery)
+		move_child(scenery, decals.get_index() + 1)
+		scenery.build(track, resolver, decals)
 	camera.target = car
 	racing_line = RacingLine.new(track.path, track.layout.road_width, driving_params, ai_params)
 
@@ -93,6 +116,18 @@ func _ready() -> void:
 		progress.append(RaceProgress.new(track.path))
 	history = RaceHistory.new(rival_ids)
 	hud.setup_history(resolver, history, car_textures, full_names)
+	car_textures[RaceSession.PLAYER_ID] = resolver.get_texture(AssetCatalog.CAR_PLAYER)
+	full_names[RaceSession.PLAYER_ID] = "YOU"
+	hud.set_field(car_textures, full_names)
+	if presentation_enabled:
+		effects = RaceEffects.new()
+		effects.name = "Effects"
+		add_child(effects)
+		effects.setup(cars, resolver, decals)
+		race_audio = RaceAudio.new()
+		race_audio.name = "RaceAudio"
+		add_child(race_audio)
+		race_audio.setup(cars, resolver, self)
 	_race_grid = first_grid(cars.size(), player_first_grid_slot)
 	_spectator_grid = rival_ids.duplicate()
 	grid_order = _race_grid
@@ -125,6 +160,10 @@ func set_sim_speed(multiplier: int) -> void:
 	Engine.physics_ticks_per_second = BASE_TICKS * sim_speed
 	Engine.time_scale = sim_speed
 	Engine.max_physics_steps_per_frame = maxi(8, sim_speed * 2)
+	if effects != null:
+		effects.set_enabled(sim_speed == 1)
+	if race_audio != null:
+		race_audio.fast = sim_speed > 1
 
 
 func reset_race() -> void:
@@ -142,6 +181,11 @@ func reset_race() -> void:
 	_update_camera_target()
 	camera.snap_to_target()
 	hud.history_panel.visible = session.spectator
+	_seen_finishers = 0
+	if effects != null:
+		effects.clear_marks()
+	if race_audio != null:
+		race_audio.play_music("menu")
 	_refresh_hud()
 	hud.show_menu(choice_name(menu_choice))
 
@@ -177,6 +221,8 @@ func _physics_process(_delta: float) -> void:
 				set_menu_choice(posmod(menu_choice + 1, 3) as Choice)
 			elif Input.is_action_just_pressed(PlayerControls.FIRE):
 				start_race()
+			elif allow_exit and Input.is_action_just_pressed(PlayerControls.BACK):
+				exit_requested.emit()
 			return
 		RaceSession.State.RACING:
 			if not session.spectator:
@@ -213,6 +259,10 @@ func start_race() -> void:
 			drivers[id].begin_race(race_seed(races_started, id))
 	session.start()
 	hud.hide_message()
+	hud.flash_banner("GO!")
+	if race_audio != null:
+		race_audio.play_cue("race/start_go")
+		race_audio.play_music("race")
 
 
 ## Seed of a rival's decisions in a given race (stable across sessions).
@@ -231,6 +281,8 @@ func _spectator_input() -> bool:
 		set_sim_speed(1 if sim_speed > 1 else fast_multiplier)
 	if Input.is_action_just_pressed(PlayerControls.HISTORY_VIEW):
 		hud.history_panel.toggle_view()
+	if Input.is_action_just_pressed(PlayerControls.TOGGLE_PANEL):
+		hud.history_panel.visible = not hud.history_panel.visible
 	if Input.is_action_just_pressed(PlayerControls.STEER_LEFT):
 		hud.history_panel.scroll_columns(-3)
 	if Input.is_action_just_pressed(PlayerControls.STEER_RIGHT):
@@ -288,9 +340,30 @@ func _update_camera_target(step: float = 0.0) -> void:
 
 func _process(_delta: float) -> void:
 	_refresh_hud()
+	_present_finishers()
+
+
+## Finish celebrations (presentation only): the player's finish in a race, the
+## winner's finish when spectating.
+func _present_finishers() -> void:
+	var count := session.finish_order.size()
+	if count <= _seen_finishers:
+		_seen_finishers = mini(_seen_finishers, count)
+		return
+	for k in range(_seen_finishers, count):
+		var id: int = session.finish_order[k]
+		var celebrate := (id == RaceSession.PLAYER_ID and not session.spectator) or (session.spectator and k == 0)
+		if celebrate:
+			hud.flash_banner("FINISH!" if not session.spectator else "%s WINS!" % RivalRoster.short_name(id).to_upper())
+			if effects != null:
+				effects.celebrate(track.checkpoint_transform(0).origin)
+			if race_audio != null:
+				race_audio.play_cue("race/finish")
+	_seen_finishers = count
 
 
 func _refresh_hud() -> void:
+	hud.update_tower(session.standings())
 	if session.spectator:
 		var leader := session.standings()[0] if session.racer_count() > 0 else null
 		var following := RivalRoster.short_name(director.target_id) if director.target_id > 0 else "-"

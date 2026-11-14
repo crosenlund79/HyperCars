@@ -1,10 +1,12 @@
 class_name AssetResolver
 extends RefCounted
-## Single entry point for replaceable graphics (contract: assets/README.md).
+## Single entry point for replaceable graphics and audio (contract: assets/README.md).
 ##
 ## A logical name such as "cars/car_player" resolves to:
 ##   1. user override  <override_root>/graphics/cars/car_player.png
 ##   2. packaged fallback  res://assets/graphics/cars/template_car_player.png
+## Audio works the same way under <override_root>/audio/ (OGG Vorbis or WAV,
+## both loadable at runtime in Godot 4.7) with fallbacks in res://assets/audio/.
 ## Missing or invalid overrides fall back with a warning. Results are cached for
 ## the session; override changes take effect after a game restart.
 
@@ -12,9 +14,14 @@ const GRAPHICS_DIR := "graphics"
 const FALLBACK_ROOT := "res://assets/graphics"
 ## Supported override formats for graphics.
 const GRAPHICS_EXTENSIONS: Array[String] = ["png"]
+const AUDIO_DIR := "audio"
+const AUDIO_FALLBACK_ROOT := "res://assets/audio"
+## Supported override formats for audio, in lookup order.
+const AUDIO_EXTENSIONS: Array[String] = ["ogg", "wav"]
 
 var override_root: String
 var _cache: Dictionary = {}
+var _audio_cache: Dictionary = {}
 
 
 func _init(p_override_root: String = "") -> void:
@@ -77,3 +84,69 @@ func _load_fallback(logical_name: String) -> Texture2D:
 		push_error("AssetResolver: missing template asset '%s'." % path)
 		return null
 	return load(path) as Texture2D
+
+
+## Audio stream for a logical name such as "vehicles/engine_loop". When loop is
+## true the stream is set to loop over its whole length (override or template).
+func get_audio(logical_name: String, loop: bool = false) -> AudioStream:
+	if not _audio_cache.has(logical_name):
+		var stream := _load_audio_override(logical_name)
+		if stream == null:
+			stream = _load_audio_fallback(logical_name)
+		_audio_cache[logical_name] = stream
+	var result: AudioStream = _audio_cache[logical_name]
+	if loop and result != null:
+		set_looping(result)
+	return result
+
+
+func audio_override_path(logical_name: String, extension: String) -> String:
+	return override_root.path_join(AUDIO_DIR).path_join(logical_name + "." + extension)
+
+
+## Packaged template for an audio name, whichever supported format it uses ("" if none).
+static func audio_fallback_path(logical_name: String) -> String:
+	var dir := logical_name.get_base_dir()
+	for extension in AUDIO_EXTENSIONS:
+		var file := "template_" + logical_name.get_file() + "." + extension
+		var path := AUDIO_FALLBACK_ROOT.path_join(dir).path_join(file) if not dir.is_empty() else AUDIO_FALLBACK_ROOT.path_join(file)
+		if ResourceLoader.exists(path):
+			return path
+	return ""
+
+
+static func set_looping(stream: AudioStream) -> void:
+	if stream is AudioStreamOggVorbis:
+		stream.loop = true
+	elif stream is AudioStreamWAV:
+		var wav := stream as AudioStreamWAV
+		wav.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		wav.loop_begin = 0
+		wav.loop_end = int(round(wav.get_length() * wav.mix_rate))
+
+
+func _load_audio_override(logical_name: String) -> AudioStream:
+	for extension in AUDIO_EXTENSIONS:
+		var path := audio_override_path(logical_name, extension)
+		if not FileAccess.file_exists(path):
+			continue
+		var bytes := FileAccess.get_file_as_bytes(path)
+		var stream: AudioStream = null
+		if extension == "ogg" and bytes.size() > 4 and bytes.slice(0, 4).get_string_from_ascii() == "OggS":
+			stream = AudioStreamOggVorbis.load_from_buffer(bytes)
+		elif extension == "wav" and bytes.size() > 12 and bytes.slice(0, 4).get_string_from_ascii() == "RIFF" \
+				and bytes.slice(8, 12).get_string_from_ascii() == "WAVE":
+			stream = AudioStreamWAV.load_from_buffer(bytes)
+		if stream == null or stream.get_length() <= 0.0:
+			push_warning("AssetResolver: invalid audio override '%s'; using template." % path)
+			continue
+		return stream
+	return null
+
+
+func _load_audio_fallback(logical_name: String) -> AudioStream:
+	var path := audio_fallback_path(logical_name)
+	if path.is_empty():
+		push_error("AssetResolver: missing template audio for '%s'." % logical_name)
+		return null
+	return load(path) as AudioStream

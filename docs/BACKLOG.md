@@ -29,3 +29,11 @@ Record only observations found during approved work. An item here is **not** per
 | 2026-11-14 | Spectator safety net: cars still running 120 s after the winner are classified in running order without a time (prevents an endless race); never triggered in validation. Not an original rule. | M2.1 spectator |
 | 2026-11-14 | Original Super Cars II opponents had no documented names or personalities here; the nine rivals and their traits are HyperCars additions approved by the user, not claimed originals. | M2.1 identities |
 | 2026-11-14 | The history panel covers part of the track at top right; spectators cannot hide it (not requested). | M2.1 UI |
+| 2026-11-14 | M2.2 audio is procedurally synthesised (numpy) and was checked by analysis only (levels, clipping, loop seams, spectrograms), not by ear; quality must be judged by the user. Music loops: 39 s menu, 26 s race. | M2.2 audio |
+| 2026-11-14 | OGG Vorbis encoding trims a few samples, so short sample-exact loops (engine, tyre squeal) ship as WAV; users replacing them should prefer WAV too. | M2.2 audio |
+| 2026-11-14 | Headless runs that quit while audio is playing (or GUT freeing players in the same frame) make Godot report leaked audio playback objects at exit; tests still pass and the game's own quit path stops audio first. | M2.2 audio / tests |
+| 2026-11-14 | Performance under software OpenGL (llvmpipe, no GPU): ~82 fps racing with 10 cars and all effects (~101 fps without presentation), ~60 fps spectating. Not measured on real GPUs. | M2.2 performance |
+| 2026-11-14 | The M2.1 report's first normal-vs-fast checksum baseline was recorded before Rocco's final tuning; re-checked in M2.2: the committed M2.1 and M2.2 give identical results over 3 full spectator races (all checksums), and M2.2 is identical with presentation on or off. | Validation note |
+| 2026-11-14 | There is no in-race pause or in-race settings menu (settings are on the title screen); not requested. | M2.2 UI |
+| 2026-11-14 | Car roof numbers are rotated with the car and are small on screen (about 10 px); colour and shape carry most of the identification. | M2.2 art |
+| 2026-11-14 | Starter pack: no guidance on third-party content licences for fonts or other bundled assets (Fredoka is SIL OFL 1.1; licence shipped next to the font). | Framework |
