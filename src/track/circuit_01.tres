@@ -4,9 +4,10 @@
 
 [resource]
 script = ExtResource("1")
-control_points = PackedVector2Array(0, 0, 600, 0, 1100, 40, 1480, 260, 1560, 680, 1320, 960, 960, 900, 700, 1060, 760, 1420, 450, 1660, 0, 1580, -320, 1260, -200, 900, -480, 640, -560, 280, -340, 40)
+control_points = PackedVector2Array(2200, 0, 2200, 900, 1500, 900, 1500, 1500, 300, 1500, 300, 1100, -400, 1100, -400, 0)
+corner_radii = PackedFloat32Array(300, 140, 140, 350, 200, 140, 400, 250)
 road_width = 150.0
-samples_per_segment = 12
-checkpoint_count = 8
+sample_spacing = 20.0
+checkpoint_count = 12
 lap_count = 3
 start_offset = 70.0
