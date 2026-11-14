@@ -10,6 +10,7 @@ const ROWS := [
 	["Fire", "Space / Ctrl   (pad A)"],
 	["Fire to Accelerate", "Hold Fire to accelerate, release to brake"],
 	["Fire to Brake", "Accelerates by itself, hold Fire to brake hard"],
+	["Weapons / laps", "Up / Down and Tab on the grid panel"],
 	["Back to menu", "Esc on the grid or results"],
 	["SPECTATING", ""],
 	["History / Counts", "Tab"],

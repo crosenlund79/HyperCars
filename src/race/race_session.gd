@@ -80,6 +80,18 @@ func all_finished() -> bool:
 	return true
 
 
+## Race length (laps); only changeable while choosing the mode. Rebuilds the racers.
+func set_lap_count(laps: int) -> void:
+	if state != State.MODE_SELECT or laps < 1:
+		return
+	_lap_count = laps
+	reset()
+
+
+func lap_count() -> int:
+	return _lap_count
+
+
 func toggle_mode() -> void:
 	if state != State.MODE_SELECT:
 		return

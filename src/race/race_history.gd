@@ -10,6 +10,8 @@ var driver_ids: Array[int] = []
 var results: Array = []
 ## weapons[r] = true when race r was run with weapons enabled.
 var weapons: Array[bool] = []
+## laps[r] = race length of race r.
+var laps: Array[int] = []
 
 
 func _init(p_driver_ids: Array[int]) -> void:
@@ -20,9 +22,10 @@ func race_count() -> int:
 	return results.size()
 
 
-func add_race(finishing_order: Array[int], with_weapons: bool = false) -> void:
+func add_race(finishing_order: Array[int], with_weapons: bool = false, lap_count: int = 3) -> void:
 	results.append(finishing_order.duplicate())
 	weapons.append(with_weapons)
+	laps.append(lap_count)
 
 
 func weapon_race_count() -> int:

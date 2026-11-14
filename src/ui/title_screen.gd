@@ -8,6 +8,9 @@ signal start_requested(choice: int)
 ## Weapons ON / No Guns preference for both racing and spectating (saved).
 var weapons_on := true
 var _weapons_button: Button
+## Race length preference (laps) for racing and spectating (saved).
+var laps := 3
+var _laps_button: Button
 signal quit_requested
 
 const TRACK_SCRIPT := preload("res://src/track/track.gd")
@@ -63,10 +66,12 @@ func setup(p_resolver: AssetResolver, p_settings: AudioSettings) -> void:
 
 	_load_weapons_pref()
 	_main_menu = _menu(root, [["RACE", _open_race], ["SPECTATE RIVALS", func() -> void: _start(2)],
-		["WEAPONS", _toggle_weapons], ["SETTINGS", _open_settings], ["CONTROLS", _open_controls],
+		["WEAPONS", _toggle_weapons], ["LAPS", _cycle_laps], ["SETTINGS", _open_settings], ["CONTROLS", _open_controls],
 		["QUIT", func() -> void: quit_requested.emit()]])
 	_weapons_button = _main_menu.get_child(2)
+	_laps_button = _main_menu.get_child(3)
 	_update_weapons_button()
+	_update_laps_button()
 	_race_menu = _menu(root, [["FIRE TO ACCELERATE", func() -> void: _start(0)], ["FIRE TO BRAKE", func() -> void: _start(1)],
 		["BACK", _show_main]])
 	var race_title := HyperTheme.label("CHOOSE YOUR CONTROLS", 22, HyperTheme.GOLD, 700)
@@ -156,6 +161,21 @@ func _toggle_weapons() -> void:
 	cfg.save(settings.path)
 
 
+func _cycle_laps() -> void:
+	_sfx_play("ui/ui_select")
+	var options: Array[int] = [3, 7, 20, 50]
+	laps = options[(options.find(laps) + 1) % options.size()]
+	_update_laps_button()
+	var cfg := ConfigFile.new()
+	cfg.load(settings.path)
+	cfg.set_value("game", "laps", laps)
+	cfg.save(settings.path)
+
+
+func _update_laps_button() -> void:
+	_laps_button.text = "LAPS: %d" % laps
+
+
 func _update_weapons_button() -> void:
 	_weapons_button.text = "WEAPONS: ON" if weapons_on else "WEAPONS: NO GUNS"
 
@@ -164,6 +184,8 @@ func _load_weapons_pref() -> void:
 	var cfg := ConfigFile.new()
 	if cfg.load(settings.path) == OK:
 		weapons_on = bool(cfg.get_value("game", "weapons", true))
+		var saved := int(cfg.get_value("game", "laps", 3))
+		laps = saved if [3, 7, 20, 50].has(saved) else 3
 
 
 func _start(choice: int) -> void:
@@ -211,13 +233,13 @@ func _menu(root: Control, items: Array) -> VBoxContainer:
 	for item in items:
 		var b := Button.new()
 		b.text = item[0]
-		b.custom_minimum_size = Vector2(380, 54)
+		b.custom_minimum_size = Vector2(380, 50)
 		b.pressed.connect(item[1])
 		b.focus_entered.connect(func() -> void: _sfx_play("ui/ui_move"))
 		b.mouse_entered.connect(b.grab_focus)
 		box.add_child(b)
 	box.reset_size()
-	box.position = Vector2((1280 - 380) * 0.5, 262)
+	box.position = Vector2((1280 - 380) * 0.5, 252)
 	return box
 
 

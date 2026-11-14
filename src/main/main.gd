@@ -20,9 +20,12 @@ const MAX_OPPONENTS := 9
 const BASE_TICKS := 60
 ## Spectator: simulated seconds the result stays up before the next race starts.
 const RESTART_DELAY := 3.0
-## Spectator safety net: if cars are still running this long after the winner
-## finished, they are classified in running order (prevents an endless race).
-const CLASSIFY_AFTER_WINNER := 120.0
+## Spectator safety net (not an original rule): only if no unfinished car has
+## made any progress for this long (a genuinely stuck race) are the remaining
+## cars classified in running order. Long races are never cut short.
+const STUCK_RACE_TIMEOUT := 60.0
+## Selectable race lengths (laps); the default is the first.
+const LAP_OPTIONS: Array[int] = [3, 7, 20, 50]
 
 @export var driving_params: DrivingParams = preload("res://src/driving/default_driving_params.tres")
 @export var ai_params: AiParams = preload("res://src/ai/default_ai_params.tres")
@@ -59,7 +62,8 @@ var sim_speed := 1
 var _race_grid: Array[int] = []
 var _spectator_grid: Array[int] = []
 var _restart_timer := -1.0
-var _winner_time := -1.0
+var _stuck_time := 0.0
+var _best_progress := -INF
 var effects: RaceEffects
 var race_audio: RaceAudio
 var scenery: TrackScenery
@@ -181,13 +185,26 @@ func set_sim_speed(multiplier: int) -> void:
 		combat_view.set_enabled(sim_speed == 1)
 
 
+## Race length in laps (3 / 7 / 20 / 50); only before the start. Kept for every
+## following race, including spectator auto-restarts.
+func set_lap_count(laps: int) -> void:
+	if session.state != RaceSession.State.MODE_SELECT:
+		return
+	session.set_lap_count(laps)
+	reset_race()
+
+
+func lap_count() -> int:
+	return session.lap_count()
+
+
 ## Weapons ON / No Guns; only changeable before the start.
 func set_weapons_enabled(on: bool) -> void:
 	if session.state != RaceSession.State.MODE_SELECT:
 		return
 	weapons_enabled = on
 	combat.enabled = on
-	hud.show_menu(choice_name(menu_choice), weapons_enabled)
+	hud.show_menu(choice_name(menu_choice), weapons_enabled, session.lap_count())
 
 
 func reset_race() -> void:
@@ -195,7 +212,8 @@ func reset_race() -> void:
 	combat.reset()
 	combat.enabled = weapons_enabled
 	_restart_timer = -1.0
-	_winner_time = -1.0
+	_stuck_time = 0.0
+	_best_progress = -INF
 	_show_player_car(not session.spectator)
 	for slot in grid_order.size():
 		var id := grid_order[slot]
@@ -213,7 +231,7 @@ func reset_race() -> void:
 	if race_audio != null:
 		race_audio.play_music("menu")
 	_refresh_hud()
-	hud.show_menu(choice_name(menu_choice), weapons_enabled)
+	hud.show_menu(choice_name(menu_choice), weapons_enabled, session.lap_count())
 
 
 static func choice_name(choice: Choice) -> String:
@@ -234,7 +252,7 @@ func set_menu_choice(choice: Choice) -> void:
 		session.set_spectator(spectate)
 		grid_order = _spectator_grid if spectate else _race_grid
 		reset_race()
-	hud.show_menu(choice_name(menu_choice), weapons_enabled)
+	hud.show_menu(choice_name(menu_choice), weapons_enabled, session.lap_count())
 
 
 func _physics_process(_delta: float) -> void:
@@ -247,6 +265,9 @@ func _physics_process(_delta: float) -> void:
 				set_menu_choice(posmod(menu_choice + 1, 3) as Choice)
 			elif Input.is_action_just_pressed(PlayerControls.FIRE_FRONT) or Input.is_action_just_pressed(PlayerControls.FIRE_REAR):
 				set_weapons_enabled(not weapons_enabled)
+			elif Input.is_action_just_pressed(PlayerControls.HISTORY_VIEW):
+				var i := LAP_OPTIONS.find(session.lap_count())
+				set_lap_count(LAP_OPTIONS[(i + 1) % LAP_OPTIONS.size()])
 			elif Input.is_action_just_pressed(PlayerControls.FIRE):
 				start_race()
 			elif allow_exit and Input.is_action_just_pressed(PlayerControls.BACK):
@@ -324,13 +345,20 @@ func _spectator_input() -> bool:
 ## race from the reversed grid.
 func _spectator_tick(step: float) -> void:
 	if session.state == RaceSession.State.RACING:
-		if _winner_time < 0.0 and not session.finish_order.is_empty():
-			_winner_time = session.elapsed
-		if _winner_time >= 0.0 and session.elapsed - _winner_time > CLASSIFY_AFTER_WINNER:
+		var furthest := -INF
+		for r in session.participants():
+			if not r.is_finished():
+				furthest = maxf(furthest, r.progress + r.tracker.laps_completed * 100000.0)
+		if furthest > _best_progress + 1.0:
+			_best_progress = furthest
+			_stuck_time = 0.0
+		else:
+			_stuck_time += step
+		if _stuck_time > STUCK_RACE_TIMEOUT:
 			session.classify_remaining()
 	if session.state == RaceSession.State.FINISHED:
 		if _restart_timer < 0.0:
-			history.add_race(session.finish_order, weapons_enabled)
+			history.add_race(session.finish_order, weapons_enabled, session.lap_count())
 			hud.history_panel.refresh()
 			_restart_timer = RESTART_DELAY
 			hud.show_results(session.standings(), "Next race starting...")

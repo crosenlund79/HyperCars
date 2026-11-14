@@ -116,9 +116,9 @@ func show_mode_select(mode: CarModel.ControlMode) -> void:
 
 
 ## Mode menu shown on the grid before the start, with the Weapons ON / No Guns option.
-func show_menu(choice: String, weapons: bool = false) -> void:
+func show_menu(choice: String, weapons: bool = false, laps: int = 3) -> void:
 	_mode_label.text = choice
-	var key := choice + str(weapons)
+	var key := choice + str(weapons) + str(laps)
 	if _menu_key == key and _message.visible:
 		return
 	_menu_key = key
@@ -126,9 +126,9 @@ func show_menu(choice: String, weapons: bool = false) -> void:
 	_clear_message()
 	_message_box.add_child(_centered(HyperTheme.label("GET READY", 22, HyperTheme.CREAM_DIM, 600)))
 	_message_box.add_child(_centered(HyperTheme.label("<   %s   >" % choice, 34, HyperTheme.GOLD, 700)))
-	_message_box.add_child(_centered(HyperTheme.label(weapons_text(weapons), 26,
+	_message_box.add_child(_centered(HyperTheme.label("%s     %d LAPS" % [weapons_text(weapons), laps], 26,
 		HyperTheme.RED if weapons else HyperTheme.CREAM, 700)))
-	_message_box.add_child(_centered(HyperTheme.label("Left / Right: mode    Up / Down: weapons    Fire: start    Esc: menu", 17, HyperTheme.CREAM_DIM, 500)))
+	_message_box.add_child(_centered(HyperTheme.label("Left / Right: mode    Up / Down: weapons    Tab: laps    Fire: start    Esc: menu", 17, HyperTheme.CREAM_DIM, 500)))
 	_present_message(Vector2(640, 0))
 
 
@@ -242,7 +242,8 @@ func show_results(standings: Array[RacerState], footer: String = "Fire to race a
 	_results_key = key
 	_menu_key = ""
 	_clear_message()
-	_message_box.add_child(_centered(HyperTheme.label("RESULTS", 34, HyperTheme.GOLD, 700)))
+	var laps: int = standings[0].tracker.lap_count if not standings.is_empty() else 0
+	_message_box.add_child(_centered(HyperTheme.label("RESULTS  -  %d LAPS" % laps, 34, HyperTheme.GOLD, 700)))
 	var grid := GridContainer.new()
 	grid.columns = 4
 	grid.add_theme_constant_override("h_separation", 14)

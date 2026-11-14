@@ -23,6 +23,7 @@ var _scroll: ScrollContainer
 var _grid: GridContainer
 var _name_rows: Array[Control] = []
 var _weapons_name: Label
+var _laps_name: Label
 
 
 ## driver_ids in row order; car_textures/names keyed by driver id.
@@ -59,6 +60,10 @@ func setup(resolver: AssetResolver, history: RaceHistory, car_textures: Dictiona
 	_weapons_name.text = "  weapons"
 	_weapons_name.custom_minimum_size = Vector2(NAME_WIDTH, CELL.y)
 	names_col.add_child(_weapons_name)
+	_laps_name = _label(14, DIM_COLOR)
+	_laps_name.text = "  laps"
+	_laps_name.custom_minimum_size = Vector2(NAME_WIDTH, CELL.y)
+	names_col.add_child(_laps_name)
 	for id in history.driver_ids:
 		var r := HBoxContainer.new()
 		r.custom_minimum_size.y = CELL.y
@@ -102,6 +107,7 @@ func refresh() -> void:
 	if view == View.HISTORY:
 		_title.text = "RACE HISTORY  (%d races, %d with weapons)" % [_history.race_count(), _history.weapon_race_count()]
 		_weapons_name.visible = true
+		_laps_name.visible = true
 		_grid.columns = maxi(1, _history.race_count())
 		if _history.race_count() == 0:
 			_grid.add_child(_text_cell("-", DIM_COLOR))
@@ -114,6 +120,10 @@ func refresh() -> void:
 			var mark := _text_cell("ON" if armed else "off", HyperTheme.RED if armed else DIM_COLOR)
 			mark.tooltip_text = "Weapons ON" if armed else "No Guns"
 			_grid.add_child(mark)
+		for r in _history.race_count():
+			var lap_cell := _text_cell(str(_history.laps[r]), DIM_COLOR)
+			lap_cell.tooltip_text = "%d laps" % _history.laps[r]
+			_grid.add_child(lap_cell)
 		for id in _history.driver_ids:
 			for r in _history.race_count():
 				_grid.add_child(_position_cell(_history.position_in(r, id)))
@@ -121,6 +131,7 @@ func refresh() -> void:
 	else:
 		_title.text = "POSITION COUNTS  (%d races, %d with weapons)" % [_history.race_count(), _history.weapon_race_count()]
 		_weapons_name.visible = false
+		_laps_name.visible = false
 		var positions := _history.driver_ids.size()
 		_grid.columns = positions
 		for p in positions:
