@@ -66,24 +66,11 @@ func test_full_spectator_race_records_history_and_restarts() -> void:
 
 
 func test_fast_simulation_matches_normal_simulation_exactly() -> void:
-	var ticks := 900
-	var normal := await _new_main()
-	normal.set_menu_choice(2)
-	normal.start_race()
-	await wait_physics_frames(ticks)
-	var normal_state := _state_bytes(normal)
-	var normal_progress: Array = normal.progress.map(func(p: RaceProgress) -> float: return p.distance)
-	normal.queue_free()
-	await wait_physics_frames(2)
-
-	var fast := await _new_main()
-	fast.set_menu_choice(2)
-	fast.set_sim_speed(4)
-	fast.start_race()
-	await wait_physics_frames(ticks)
-	assert_eq(Engine.physics_ticks_per_second, 240)
-	assert_eq(_state_bytes(fast), normal_state, "bit-identical cars and drivers after %d ticks" % ticks)
-	assert_eq(fast.progress.map(func(p: RaceProgress) -> float: return p.distance), normal_progress)
+	# Each run in a fresh process (same initial conditions, including engine state).
+	var normal := ProbeRunner.run(["mode=spectate", "speed=1", "ticks=900"])
+	var fast := ProbeRunner.run(["mode=spectate", "speed=4", "ticks=900"])
+	assert_eq(normal.length(), 32, normal)
+	assert_eq(fast, normal, "bit-identical cars and drivers after 900 ticks at x1 and x4")
 
 
 func test_back_leaves_spectating_and_resets_speed() -> void:

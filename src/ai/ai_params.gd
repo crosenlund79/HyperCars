@@ -59,3 +59,22 @@ extends Resource
 @export var fluster_lift_chance := 0.0
 ## ... and over-correction: look-ahead shrinks by this fraction and the steering deadband vanishes.
 @export var fluster_overcorrection := 0.0
+
+## --- M2.3 traits (neutral defaults: no effect).
+## Defending: when a closing car is within defend_distance behind, move towards
+## its line by defend_strength (0..1) and scale corner commitment by
+## defend_commitment (gives up speed to keep the position). 0 disables.
+@export var defend_distance := 0.0
+@export var defend_strength := 0.0
+@export var defend_commitment := 1.0
+## Only pass into a lane with no other car nearby (no forcing).
+@export var pass_check_clearance := false
+## Passing side: 0 = nearest side, 1 = outside of the coming corner, 2 = random per attempt.
+@export_range(0, 2) var pass_side := 0
+## Disrupted line: when pushed more than disrupted_threshold px off the planned
+## line, corner commitment is scaled by disrupted_commitment for disrupted_recovery s. 0 disables.
+@export var disrupted_threshold := 0.0
+@export var disrupted_commitment := 1.0
+@export var disrupted_recovery := 0.0
+## Chance per second of attempting a pass even without a speed advantage (impulse).
+@export var pass_impulse_chance := 0.0

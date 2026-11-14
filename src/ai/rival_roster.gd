@@ -2,20 +2,20 @@ class_name RivalRoster
 extends RefCounted
 ## The nine recurring rivals. Racer id n (1..9) is always the same driver, car
 ## colour (cars/car_ai_n) and personality, in every race and every session.
-## Drivers without a personality file use the shared default AI (pending the
-## personality pilot's approval).
+## Every rival has a personality file (M2.1 pilot: Victor, Rocco, Ellie; M2.3:
+## the other six). A rival without one would use the shared default AI.
 
 const DEFAULT_PARAMS := "res://src/ai/default_ai_params.tres"
 const RIVALS := [
 	{"name": "Victor", "nickname": "The Professor", "params": "res://src/ai/personalities/victor.tres"},
 	{"name": "Rocco", "nickname": "Mad Dog", "params": "res://src/ai/personalities/rocco.tres"},
 	{"name": "Ellie", "nickname": "Sparrow", "params": "res://src/ai/personalities/ellie.tres"},
-	{"name": "Hank", "nickname": "The Wall", "params": ""},
-	{"name": "Maya", "nickname": "Ghost", "params": ""},
-	{"name": "Dante", "nickname": "Showboat", "params": ""},
-	{"name": "Greta", "nickname": "Clockwork", "params": ""},
-	{"name": "Finn", "nickname": "Wildcard", "params": ""},
-	{"name": "Nina", "nickname": "The Hunter", "params": ""},
+	{"name": "Hank", "nickname": "The Wall", "params": "res://src/ai/personalities/hank.tres"},
+	{"name": "Maya", "nickname": "Ghost", "params": "res://src/ai/personalities/maya.tres"},
+	{"name": "Dante", "nickname": "Showboat", "params": "res://src/ai/personalities/dante.tres"},
+	{"name": "Greta", "nickname": "Clockwork", "params": "res://src/ai/personalities/greta.tres"},
+	{"name": "Finn", "nickname": "Wildcard", "params": "res://src/ai/personalities/finn.tres"},
+	{"name": "Nina", "nickname": "The Hunter", "params": "res://src/ai/personalities/nina.tres"},
 ]
 
 

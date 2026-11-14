@@ -52,8 +52,7 @@ func test_rivals_without_personality_use_neutral_traits() -> void:
 	assert_eq(neutral.overcommit_chance, 0.0)
 	assert_eq(neutral.pressure_distance, 0.0)
 	assert_eq(neutral.brake_anticipation, 0.1, "same braking read-ahead as the M2 driver")
-	for id in range(4, 10):
-		assert_false(RivalRoster.has_personality(id), RivalRoster.short_name(id))
+	assert_false(neutral.pass_check_clearance)
 
 
 func test_neutral_driver_ignores_seed() -> void:

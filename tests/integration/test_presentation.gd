@@ -46,31 +46,18 @@ func _drive_player(ticks: int) -> void:
 
 
 func test_normal_race_is_identical_with_and_without_presentation() -> void:
-	var states := []
-	for presentation in [false, true]:
-		var m := await _main(presentation)
-		Input.action_press(PlayerControls.FIRE)
-		await wait_physics_frames(2)
-		await _drive_player(600)
-		states.append(_state(m))
-		Input.action_release(PlayerControls.FIRE)
-		Input.action_release(PlayerControls.STEER_RIGHT)
-		m.queue_free()
-		await wait_physics_frames(2)
-	assert_eq(states[1], states[0], "presentation must not change a normal race")
+	# Fresh process per run: same initial conditions, including physics-engine state.
+	var off := ProbeRunner.run(["mode=race", "presentation=0", "ticks=600"])
+	var on := ProbeRunner.run(["mode=race", "presentation=1", "ticks=600"])
+	assert_eq(off.length(), 32, off)
+	assert_eq(on, off, "presentation must not change a normal race")
 
 
 func test_spectating_is_identical_with_and_without_presentation() -> void:
-	var states := []
-	for presentation in [false, true]:
-		var m := await _main(presentation)
-		m.set_menu_choice(2)
-		m.start_race()
-		await wait_physics_frames(900)
-		states.append(_state(m))
-		m.queue_free()
-		await wait_physics_frames(2)
-	assert_eq(states[1], states[0], "presentation must not change spectating")
+	var off := ProbeRunner.run(["mode=spectate", "presentation=0", "ticks=900"])
+	var on := ProbeRunner.run(["mode=spectate", "presentation=1", "ticks=900"])
+	assert_eq(off.length(), 32, off)
+	assert_eq(on, off, "presentation must not change spectating")
 
 
 func test_driving_physics_and_personalities_are_unchanged() -> void:
@@ -84,8 +71,8 @@ func test_driving_physics_and_personalities_are_unchanged() -> void:
 	assert_eq([victor.brake_anticipation, victor.corner_commitment, victor.pass_on_straights_only], [0.2, 0.97, true])
 	var ellie: AiParams = load(RivalRoster.params_path(3))
 	assert_eq([ellie.pressure_distance, ellie.fluster_chance_per_second], [110.0, 0.6])
-	for id in range(4, 10):
-		assert_false(RivalRoster.has_personality(id), "the other six still have no personality")
+	assert_eq([victor.pass_lookahead, victor.pass_speed_margin, victor.follow_gap, victor.lane_change_rate],
+		[120.0, 6.0, 95.0, 105.0], "Victor's latest adjustment (8d58ccd)")
 
 
 func test_scenery_is_decorative_and_clear_of_the_track() -> void:

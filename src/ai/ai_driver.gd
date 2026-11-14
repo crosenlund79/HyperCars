@@ -19,9 +19,18 @@ var commitment := 1.0
 var in_corner := false
 ## Seconds of fluster left (hesitation / over-correction under pressure).
 var fluster_time := 0.0
+## Seconds left of reduced commitment after the planned line was disrupted.
+var disrupted_time := 0.0
+## Side chosen for the current pass attempt (-1/+1, 0 = none).
+var pass_side_choice := 0.0
+var _was_passing := false
 ## Counters for validation and tests.
 var overcommits := 0
 var flusters := 0
+var defends := 0
+var disruptions := 0
+var impulse_passes := 0
+var _defending := false
 
 
 func _init(p_line: RacingLine, p_params: AiParams) -> void:
@@ -39,6 +48,13 @@ func begin_race(seed_value: int) -> void:
 	fluster_time = 0.0
 	overcommits = 0
 	flusters = 0
+	disrupted_time = 0.0
+	pass_side_choice = 0.0
+	_was_passing = false
+	defends = 0
+	disruptions = 0
+	impulse_passes = 0
+	_defending = false
 
 
 ## me: {position, heading, speed, distance, lateral}
@@ -53,15 +69,33 @@ func decide(me: Dictionary, others: Array, delta: float) -> Dictionary:
 	var lift := false
 
 	var ahead := _nearest_car_ahead(me, others)
+	var passing := false
 	if not ahead.is_empty():
 		var pass_lateral := NAN
-		if ahead.speed < speed - params.pass_speed_margin and _may_start_pass(s):
-			pass_lateral = choose_pass_lateral(me.lateral, ahead.lateral)
+		var wants: bool = ahead.speed < speed - params.pass_speed_margin
+		if not wants and params.pass_impulse_chance > 0.0 and rng.randf() < params.pass_impulse_chance * delta:
+			wants = true
+			impulse_passes += 1
+		if wants and _may_start_pass(s):
+			pass_lateral = _pass_lateral(me, ahead, others, s)
 		if not is_nan(pass_lateral):
 			blocked = true
+			passing = true
 			target_lateral = pass_lateral
 		elif ahead.gap < params.follow_gap:
 			lift = true
+	_was_passing = passing
+	if not passing and params.defend_distance > 0.0:
+		var chaser := _closing_car_behind(me, others)
+		if not chaser.is_empty():
+			var limit_d := line.road_half_width - params.pass_margin
+			target_lateral = lerpf(target_lateral, clampf(chaser.lateral, -limit_d, limit_d), params.defend_strength)
+			blocked = true
+			if not _defending:
+				defends += 1
+			_defending = true
+		else:
+			_defending = false
 
 	_update_fluster(me, others, delta)
 	var flustered := fluster_time > 0.0
@@ -89,6 +123,16 @@ func decide(me: Dictionary, others: Array, delta: float) -> Dictionary:
 	var planned := line.speed_at(speed_point)
 	_update_corner(planned < line.top_speed - 1.0, not _nearest_car_ahead(me, others, true).is_empty())
 	var target_speed := planned * commitment if in_corner else planned
+	if in_corner and _defending:
+		target_speed *= params.defend_commitment
+	if params.disrupted_threshold > 0.0:
+		disrupted_time = maxf(0.0, disrupted_time - delta)
+		if absf(lane_bias) > params.disrupted_threshold and not passing:
+			if disrupted_time <= 0.0:
+				disruptions += 1
+			disrupted_time = params.disrupted_recovery
+		if in_corner and disrupted_time > 0.0:
+			target_speed *= params.disrupted_commitment
 	var fire := speed < target_speed and not lift
 	return {"steer": steer, "fire": fire}
 
@@ -127,6 +171,53 @@ func under_pressure(me: Dictionary, others: Array) -> bool:
 		if gap <= 0.0 and gap > -params.pressure_distance and absf(o.lateral - me.lateral) < params.car_clearance * 2.0:
 			return true
 	return false
+
+
+## Pass position honouring the driver's side preference and lane-clearance check.
+func _pass_lateral(me: Dictionary, ahead: Dictionary, others: Array, s: float) -> float:
+	var lateral := choose_pass_lateral(me.lateral, ahead.lateral)
+	if params.pass_side != 0:
+		if not _was_passing or pass_side_choice == 0.0:
+			if params.pass_side == 2:
+				pass_side_choice = -1.0 if rng.randf() < 0.5 else 1.0
+			else:
+				pass_side_choice = -_turn_direction(s)
+		var candidate: float = ahead.lateral + pass_side_choice * params.pass_offset
+		if absf(candidate) <= line.road_half_width - params.pass_margin:
+			lateral = candidate
+	if not is_nan(lateral) and params.pass_check_clearance:
+		for o in others:
+			var gap := _gap(me, o)
+			if is_equal_approx(gap, ahead.gap) and is_equal_approx(o.lateral, ahead.lateral):
+				continue
+			if gap > -60.0 and gap < params.traffic_distance and absf(o.lateral - lateral) < params.car_clearance:
+				return NAN
+	return lateral
+
+
+## Sign of the next corner's turn (+1 right, -1 left, 0 straight) within pass_lookahead + 300 px.
+func _turn_direction(s: float) -> float:
+	var t0 := line.center.tangent_at(s)
+	var d := 100.0
+	while d <= params.pass_lookahead + 300.0:
+		var t1 := line.center.tangent_at(s + d)
+		var turn := t0.cross(t1)
+		if absf(turn) > 0.2:
+			return signf(turn)
+		d += 50.0
+	return 0.0
+
+
+## Nearest car behind within defend_distance that is at least as fast; empty if none.
+func _closing_car_behind(me: Dictionary, others: Array) -> Dictionary:
+	var best := {}
+	for o in others:
+		var gap := _gap(me, o)
+		if gap >= 0.0 or gap < -params.defend_distance or o.speed < me.speed - 10.0:
+			continue
+		if best.is_empty() or gap > best.gap:
+			best = {"gap": gap, "lateral": o.lateral, "speed": o.speed}
+	return best
 
 
 func _may_start_pass(s: float) -> bool:

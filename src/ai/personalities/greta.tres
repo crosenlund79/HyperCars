@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="AiParams" format=3]
+
+[ext_resource type="Script" path="res://src/ai/ai_params.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+brake_anticipation = 0.12
+steer_deadband_degrees = 3.0
+corner_commitment = 1.0
+commitment_variation = 0.0
+disrupted_threshold = 18.0
+disrupted_commitment = 0.9
+disrupted_recovery = 1.5
+pass_speed_margin = 8.0
+lane_return_rate = 30.0
