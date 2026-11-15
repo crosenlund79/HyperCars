@@ -55,6 +55,21 @@ static func decode(bytes: PackedByteArray) -> Array:
 	return v if v is Array else []
 
 
+## Structure check before a received snapshot is used.
+static func is_valid(snap: Array, car_count: int, racer_count: int) -> bool:
+	if snap.size() < 6 or snap.size() > 7:
+		return false
+	if typeof(snap[0]) != TYPE_INT or typeof(snap[1]) != TYPE_INT or snap[1] < 0 or snap[1] > 2:
+		return false
+	if not snap[3] is PackedFloat32Array or snap[3].size() != car_count * CAR_FIELDS:
+		return false
+	if not snap[4] is PackedFloat32Array or snap[4].size() != racer_count * RACER_FIELDS:
+		return false
+	if not snap[5] is PackedInt32Array:
+		return false
+	return snap.size() == 6 or snap[6] is Array
+
+
 static func tick_of(snap: Array) -> int:
 	return snap[0]
 

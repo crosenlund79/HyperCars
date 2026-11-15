@@ -10,9 +10,11 @@ extends Node
 
 enum Role { HOST, CLIENT }
 ## Message types ([type, ...] arrays over NetLink).
-enum Msg { WELCOME, HELLO, SETUP, READY, START, SNAP, INPUT, RESULTS, EVENTS, BYE, REJECT }
+enum Msg { WELCOME, HELLO, SETUP, READY, START, SNAP, INPUT, RESULTS, EVENTS, BYE, REJECT, JOINED }
 
-const PROTOCOL := 1
+## Wire protocol version and game build: both must match before a session starts.
+const PROTOCOL := 2
+const GAME_BUILD := "hypercars-m5.2"
 const SNAP_INTERVAL := 2
 ## Client renders this many ticks behind the newest snapshot (smoothness vs delay).
 const INTERP_DELAY := 4.0
@@ -65,7 +67,7 @@ func attach(p_race: Node) -> void:
 	link.peer_left.connect(_on_peer_left)
 	link.server_closed.connect(_on_server_closed)
 	if is_client():
-		link.send([Msg.HELLO, PROTOCOL], true)
+		link.send([Msg.JOINED], true)  # ask for the grid (covers either scene being ready first)
 	else:
 		var p := link.peers()
 		peer_id = p[0] if p.size() > 0 else 0
@@ -247,40 +249,95 @@ func _interpolate_cars() -> void:
 
 # ------------------------------------------------------------------ messages
 
+## Expected sender: the host only listens to its client, the client only to the host.
+func _from_expected(from: int) -> bool:
+	if is_client():
+		return from == 1
+	if peer_id == 0:
+		var p := link.peers()
+		peer_id = p[0] if p.size() > 0 else 0
+	return from == peer_id
+
+
+## Shape check for a received message: msg[k + 1] must have type types[k]
+## (TYPE_FLOAT also accepts ints).
+static func valid(msg: Array, types: Array) -> bool:
+	if msg.size() != types.size() + 1:
+		return false
+	for k in types.size():
+		var t: int = typeof(msg[k + 1])
+		if t != types[k] and not (types[k] == TYPE_FLOAT and t == TYPE_INT):
+			return false
+	return true
+
+
+static func valid_setup(cfg: Variant, car_count: int) -> bool:
+	if not cfg is Dictionary:
+		return false
+	for k in ["laps", "weapons", "style", "round", "grid", "races"]:
+		if not cfg.has(k):
+			return false
+	if typeof(cfg.laps) != TYPE_INT or cfg.laps < 1 or cfg.laps > 99 or typeof(cfg.weapons) != TYPE_BOOL:
+		return false
+	if typeof(cfg.style) != TYPE_INT or cfg.style < 0 or cfg.style > 1 or typeof(cfg.round) != TYPE_INT or cfg.round < 0:
+		return false
+	if typeof(cfg.races) != TYPE_INT or cfg.races < 0 or not cfg.grid is Array or cfg.grid.size() != 10:
+		return false
+	var seen := {}
+	for id in cfg.grid:
+		if typeof(id) != TYPE_INT or id < 0 or id >= car_count or seen.has(id):
+			return false
+		seen[id] = true
+	return true
+
+
 func _on_message(from: int, msg: Array) -> void:
+	if typeof(msg[0]) != TYPE_INT or not _from_expected(from):
+		return  # unknown sender or malformed: ignored
+	var state: int = race.session.state
 	match msg[0]:
 		Msg.INPUT:
-			if is_host() and msg.size() >= 6:
-				remote_input.receive(msg[1], msg[2], msg[3], msg[4], msg[5])
+			if is_host() and valid(msg, [TYPE_INT, TYPE_FLOAT, TYPE_BOOL, TYPE_INT, TYPE_INT]) \
+					and state != RaceSession.State.MODE_SELECT:
+				# presses can only grow, and by a plausible amount per message
+				var f := clampi(msg[4], 0, remote_input._front_total + 20)
+				var r := clampi(msg[5], 0, remote_input._rear_total + 20)
+				remote_input.receive(msg[1], msg[2], msg[3], f, r)
 		Msg.READY:
-			if is_host() and msg.size() >= 3 and race.session.state == RaceSession.State.MODE_SELECT:
+			if is_host() and valid(msg, [TYPE_BOOL, TYPE_INT]) and state == RaceSession.State.MODE_SELECT \
+					and msg[2] >= 0 and msg[2] <= 1:
 				client_ready = msg[1]
 				client_mode = msg[2]
 				race.set_player_control_mode(RaceSession.PLAYER_2_ID, client_mode)
 				race.on_network_peer_ready(client_ready)
-		Msg.HELLO:
+		Msg.JOINED:
 			if is_host():
-				peer_id = from
 				send_setup()
 		Msg.SETUP:
-			if is_client() and race.session.state != RaceSession.State.RACING:
+			if is_client() and state != RaceSession.State.RACING and msg.size() == 2 \
+					and valid_setup(msg[1], race.cars.size()):
 				local_ready = false
 				snapshots.clear()
 				render_tick = -1.0
 				race.apply_network_setup(msg[1])
 		Msg.START:
-			if is_client():
+			if is_client() and valid(msg, [TYPE_INT]) and state == RaceSession.State.MODE_SELECT:
 				race.on_network_start(msg[1])
 		Msg.SNAP:
-			if is_client():
+			if is_client() and valid(msg, [TYPE_PACKED_BYTE_ARRAY]):
 				var snap := RaceSnapshot.decode(msg[1])
-				if snap.size() >= 6:
+				if RaceSnapshot.is_valid(snap, race.cars.size(), race.session.racers.size()):
 					_push_snapshot(snap)
 		Msg.EVENTS:
-			if is_client() and msg.size() >= 4 and msg[1] == race.races_started:
+			if is_client() and valid(msg, [TYPE_INT, TYPE_INT, TYPE_ARRAY]) and msg[1] == race.races_started:
 				var events: Array = race.combat.events
 				if msg[2] == events.size():  # in order, no gaps or repeats
 					events.append_array(msg[3])
 		Msg.RESULTS:
-			if is_client():
+			if is_client() and valid(msg, [TYPE_PACKED_INT32_ARRAY, TYPE_PACKED_FLOAT64_ARRAY]) \
+					and msg[1].size() == msg[2].size() and msg[1].size() <= race.session.racers.size() \
+					and state != RaceSession.State.MODE_SELECT:
+				for id in msg[1]:
+					if id < 0 or id >= race.session.racers.size():
+						return
 				race.apply_network_results(msg[1], msg[2])

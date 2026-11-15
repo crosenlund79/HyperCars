@@ -9,7 +9,8 @@ extends SceneTree
 ## (finishing order, positions, times) and its own counters to `out`.
 
 var opts := {"role": "host", "port": "24690", "laps": "1", "weapons": "0", "style": "0", "out": "",
-	"latency": "0", "loss": "0", "races": "1", "fire_every": "0", "timeout": "120"}
+	"latency": "0", "loss": "0", "races": "1", "fire_every": "0", "timeout": "120", "track": "1", "jitter": "0",
+	"mode": "0"}
 var link: NetLink
 var main: Node2D
 var autopilot: AiDriver
@@ -31,11 +32,13 @@ func _initialize() -> void:
 	link = NetLink.new()
 	link.sim_latency_ms = int(opts.latency)
 	link.sim_loss = float(opts.loss)
+	link.sim_jitter_ms = int(opts.jitter)
 	root.add_child(link)
 	t0 = Time.get_ticks_msec()
 	if opts.role == "host":
 		link.host(int(opts.port))
 		link.peer_joined.connect(_on_joined)
+		link.message.connect(_on_host_message)
 	else:
 		link.message.connect(_on_client_message)
 		_try_join()
@@ -50,7 +53,12 @@ func _try_join() -> void:
 
 
 func _on_joined(_id: int) -> void:
-	link.send([NetRace.Msg.WELCOME, NetRace.PROTOCOL, {"track_variant": 1}], true)
+	link.send([NetRace.Msg.WELCOME, NetRace.PROTOCOL, NetRace.GAME_BUILD, {"track_variant": int(opts.track)}], true)
+
+
+func _on_host_message(_from: int, msg: Array) -> void:
+	if msg[0] != NetRace.Msg.HELLO or main != null:
+		return
 	main = _make_race(NetRace.Role.HOST)
 	main.set_lap_count(int(opts.laps))
 	main.set_weapons_enabled(opts.weapons == "1")
@@ -60,17 +68,19 @@ func _on_joined(_id: int) -> void:
 
 func _on_client_message(_from: int, msg: Array) -> void:
 	if msg[0] == NetRace.Msg.WELCOME and main == null:
-		main = _make_race(NetRace.Role.CLIENT)
+		link.send([NetRace.Msg.HELLO, NetRace.PROTOCOL, NetRace.GAME_BUILD], true)
+		main = _make_race(NetRace.Role.CLIENT, int(msg[3].track_variant))
 		autopilot = AiDriver.new(main.racing_line, AiParams.new())
 		for c in main.cars:
 			progress.append(RaceProgress.new(main.track.path))
 		main.net.input_source = _client_autopilot
 
 
-func _make_race(role: NetRace.Role) -> Node2D:
+func _make_race(role: NetRace.Role, track: int = int(opts.track)) -> Node2D:
 	var m: Node2D = load("res://src/main/main.tscn").instantiate()
 	m.presentation_enabled = false
 	m.human_count = 2
+	m.track_variant = track
 	m.net = NetRace.new(link, role)
 	root.add_child(m)
 	return m

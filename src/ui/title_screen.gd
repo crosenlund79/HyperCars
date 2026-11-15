@@ -103,7 +103,7 @@ func setup(p_resolver: AssetResolver, p_settings: AudioSettings) -> void:
 		["GARAGE RACE: FIRE TO ACCELERATE", func() -> void: _start(0, true)],
 		["GARAGE RACE: FIRE TO BRAKE", func() -> void: _start(1, true)],
 		["TWO PLAYERS: SPLIT SCREEN", _open_join],
-		["TWO PLAYERS: LAN (TWO COMPUTERS)", _open_lan],
+		["TWO PLAYERS: LAN / ONLINE", _open_lan],
 		["BACK", _show_main]], 520)
 	var race_title := HyperTheme.label("QUICK RACE: standard weapons\nGARAGE RACE: prize money and your own weapons", 18, HyperTheme.GOLD, 600)
 	race_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

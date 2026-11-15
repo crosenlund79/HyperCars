@@ -120,8 +120,8 @@ func test_joining_a_race_in_progress_is_refused() -> void:
 
 func test_bad_address_and_unreachable_host_give_clear_messages() -> void:
 	assert_ne(client_game.join_lan("not an address"), OK)
-	assert_string_contains(client_game.title.lan_panel._status.text, "IP address")
+	assert_string_contains(client_game.title.lan_panel._status.text, "IPv4 address")
 	assert_eq(client_game.join_lan("127.0.0.1"), OK)  # nobody hosting on this port
-	await _real_wait(12000, func() -> bool: return client_game.title.lan_panel._status.text.begins_with("Could not connect"))
+	await _real_wait(25000, func() -> bool: return client_game.title.lan_panel._status.text.begins_with("Could not connect"))
 	assert_string_contains(client_game.title.lan_panel._status.text, "Could not connect")
 	assert_null(client_game.race)

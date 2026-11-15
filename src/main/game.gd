@@ -23,6 +23,12 @@ var _starting := false
 ## LAN races (M5.1): the connection, kept from the title into the race scene.
 var link: NetLink
 var lan_port := NetLink.DEFAULT_PORT
+## Host: the peer that connected and must say HELLO (matching version) in time.
+var _pending_peer := 0
+## Client: when connecting started (ms) and to where, for the progress message.
+var _connect_started := -1
+var _connect_target := ""
+const HELLO_TIMEOUT := 8.0
 var garage_screen: GarageScreen
 ## Achievements (M3.5): one persistent store for the installation, the toast.
 var achievements: AchievementStore
@@ -144,8 +150,9 @@ func _lan_link() -> NetLink:
 		link.peer_joined.connect(_on_lan_peer_joined)
 		link.connected.connect(func() -> void: title.lan_panel.show_status("Connected. Getting the race ready..."))
 		link.connection_failed.connect(func() -> void:
+			_connect_started = -1
 			title.lan_panel.set_busy(false)
-			title.lan_panel.show_status("Could not connect. Check the address, that the host is waiting, and that both computers are on the same network.", true))
+			title.lan_panel.show_status("Could not connect to %s. Check the address, that the host is waiting, and (over the internet) the host's port forwarding and firewall - see docs/NETWORK_PLAY.md." % _connect_target, true))
 		link.server_closed.connect(func() -> void:
 			if race == null:
 				title.lan_panel.set_busy(false)
@@ -161,25 +168,41 @@ func host_lan() -> Error:
 		title.lan_panel.show_status("Could not host on port %d (error %d). Is another game already hosting on this computer?" % [lan_port, err], true)
 		return err
 	title.lan_panel.set_busy(true)
-	title.lan_panel.show_status("Hosting. Your address: %s (port %d). Waiting for the other player..." % [", ".join(local_addresses()), lan_port])
+	title.lan_panel.show_status("Hosting on UDP port %d. Local network address: %s. Over the internet, give your friend your public IP address (port forwarding needed - see docs/NETWORK_PLAY.md). Waiting for the other player..." % [lan_port, ", ".join(local_addresses())])
 	return OK
 
 
-## Joins the LAN race hosted at `address`.
+## Joins the race hosted at `address`: an IPv4 address on this computer, the
+## local network or the internet, optionally with ":port" (default 24680).
 func join_lan(address: String) -> Error:
-	if not address.is_valid_ip_address():
-		title.lan_panel.show_status("Please type the host's IP address, e.g. 192.168.1.20.", true)
+	var a := NetLink.parse_address(address, lan_port)
+	if not a.ok:
+		title.lan_panel.show_status(a.error, true)
 		return ERR_INVALID_PARAMETER
-	var err := _lan_link().join(address, lan_port)
+	var err := _lan_link().join(a.ip, a.port)
 	if err != OK:
 		title.lan_panel.show_status("Could not start connecting (error %d)." % err, true)
 		return err
 	title.lan_panel.set_busy(true)
-	title.lan_panel.show_status("Connecting to %s..." % address)
+	_connect_started = Time.get_ticks_msec()
+	_connect_target = "%s:%d" % [a.ip, a.port]
+	title.lan_panel.show_status("Connecting to %s..." % _connect_target)
 	return OK
 
 
+## Connection progress on the title while a join is pending.
+func _process(_delta: float) -> void:
+	if _connect_started >= 0 and link != null and link.is_open() and race == null:
+		var s := (Time.get_ticks_msec() - _connect_started) / 1000
+		if link.peers().is_empty():
+			title.lan_panel.show_status("Connecting to %s... %d s (Cancel to stop)" % [_connect_target, s])
+	elif _connect_started >= 0 and race != null:
+		_connect_started = -1
+
+
 func close_lan() -> void:
+	_pending_peer = 0
+	_connect_started = -1
 	if link != null:
 		link.close()
 
@@ -195,32 +218,68 @@ static func local_addresses() -> PackedStringArray:
 	return out
 
 
+## Host: a computer connected. It gets WELCOME (version + the host's track)
+## and must answer HELLO with the same version within HELLO_TIMEOUT seconds;
+## only then does the session start. Anyone joining a race in progress (or a
+## second visitor while one is being greeted) is refused.
 func _on_lan_peer_joined(peer_id: int) -> void:
-	if race != null or _starting:
-		link.send([NetRace.Msg.REJECT, "A race is already in progress."], true, peer_id)
-		# kick shortly after, so the refusal is delivered first
-		get_tree().create_timer(0.5, true, false, true).timeout.connect(link.disconnect_peer.bind(peer_id))
+	if race != null or _starting or _pending_peer != 0:
+		_refuse(peer_id, "busy")
 		return
-	link.send([NetRace.Msg.WELCOME, NetRace.PROTOCOL, {"track_variant": title.track_variant}], true, peer_id)
-	start_race(0, false, [], NetRace.new(link, NetRace.Role.HOST))
+	_pending_peer = peer_id
+	link.send([NetRace.Msg.WELCOME, NetRace.PROTOCOL, NetRace.GAME_BUILD, {"track_variant": title.track_variant}], true, peer_id)
+	title.lan_panel.show_status("Player connected - checking versions...")
+	get_tree().create_timer(HELLO_TIMEOUT, true, false, true).timeout.connect(_hello_timeout.bind(peer_id))
 
 
-func _on_lan_message(_from: int, msg: Array) -> void:
+func _hello_timeout(peer_id: int) -> void:
+	if _pending_peer == peer_id and race == null and link != null:
+		_pending_peer = 0
+		link.disconnect_peer(peer_id)
+		title.lan_panel.show_status("The other computer did not answer. Still waiting for a player...")
+
+
+## Tells a peer why it cannot join, then disconnects it shortly after (so the
+## message arrives first).
+func _refuse(peer_id: int, reason: String) -> void:
+	link.send([NetRace.Msg.REJECT, reason], true, peer_id)
+	get_tree().create_timer(0.5, true, false, true).timeout.connect(link.disconnect_peer.bind(peer_id))
+
+
+func _on_lan_message(from: int, msg: Array) -> void:
+	if typeof(msg[0]) != TYPE_INT:
+		return
 	if link.is_host:
+		if msg[0] != NetRace.Msg.HELLO or from != _pending_peer or race != null:
+			return
+		if not NetRace.valid(msg, [TYPE_INT, TYPE_STRING]) or msg[1] != NetRace.PROTOCOL or msg[2] != NetRace.GAME_BUILD:
+			_pending_peer = 0
+			_refuse(from, "version")
+			title.lan_panel.show_status("A player with a different version of HyperCars tried to join. Still waiting...")
+			return
+		_pending_peer = 0
+		start_race(0, false, [], NetRace.new(link, NetRace.Role.HOST))
+		return
+	if from != 1:
 		return
 	match msg[0]:
 		NetRace.Msg.WELCOME:
-			if msg.size() < 3 or msg[1] != NetRace.PROTOCOL:
+			if not NetRace.valid(msg, [TYPE_INT, TYPE_STRING, TYPE_DICTIONARY]) or msg[1] != NetRace.PROTOCOL \
+					or msg[2] != NetRace.GAME_BUILD:
 				close_lan()
 				title.lan_panel.set_busy(false)
-				title.lan_panel.show_status("The host runs a different version of HyperCars.", true)
+				title.lan_panel.show_status("The host runs a different version of HyperCars (both computers need the same build).", true)
 				return
-			if race == null:
-				start_race(0, false, [], NetRace.new(link, NetRace.Role.CLIENT), int(msg[2].get("track_variant", 1)))
+			if race == null and not _starting:
+				link.send([NetRace.Msg.HELLO, NetRace.PROTOCOL, NetRace.GAME_BUILD], true)
+				var track: int = clampi(int(msg[3].get("track_variant", 1)), 1, TrackTheme.VARIANT_COUNT)
+				start_race(0, false, [], NetRace.new(link, NetRace.Role.CLIENT), track)
 		NetRace.Msg.REJECT:
+			var why: String = str(msg[1]) if msg.size() > 1 else ""
 			close_lan()
 			title.lan_panel.set_busy(false)
-			title.lan_panel.show_status("The host is already racing. Try again when their race is over.", true)
+			title.lan_panel.show_status("The host runs a different version of HyperCars." if why == "version"
+				else "The host is already racing. Try again when their race is over.", true)
 
 
 func quit_game() -> void:

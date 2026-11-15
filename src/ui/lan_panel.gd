@@ -22,7 +22,7 @@ func setup(saved_address: String) -> void:
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 12)
 	add_child(box)
-	var title := HyperTheme.label("LAN RACE - TWO COMPUTERS", 30, HyperTheme.GOLD, 700)
+	var title := HyperTheme.label("NETWORK RACE - LAN OR INTERNET", 30, HyperTheme.GOLD, 700)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(title)
 	var row := HBoxContainer.new()
@@ -32,7 +32,7 @@ func setup(saved_address: String) -> void:
 	row.add_child(HyperTheme.label("Host address:", 20, HyperTheme.CREAM, 600))
 	_address = LineEdit.new()
 	_address.text = saved_address
-	_address.placeholder_text = "192.168.1.20"
+	_address.placeholder_text = "192.168.1.20 or 203.0.113.7"
 	_address.custom_minimum_size = Vector2(260, 40)
 	_address.add_theme_font_size_override("font_size", 20)
 	row.add_child(_address)
@@ -62,7 +62,7 @@ func address() -> String:
 
 func open() -> void:
 	set_busy(false)
-	show_status("Host: share the address shown after HOST GAME.  Join: type the host's address, then JOIN GAME.")
+	show_status("Host: HOST GAME and share your address (internet: your public IP + UDP port 24680 forwarded).  Join: type the host's address, then JOIN GAME.")
 	_host_button.grab_focus()
 
 
