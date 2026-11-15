@@ -5,6 +5,11 @@ extends CanvasLayer
 ## spectator history. Presentation only: it displays race state it is given.
 
 const PLAYER_ID := 0
+## GO! / FINISH! banner: top of the screen, clear of the starting grid and the
+## cars around the camera centre; low between the views in split-screen.
+const BANNER_Y := 56.0
+const BANNER_Y_SPLIT := 530.0
+const BANNER_HOLD := 0.6
 ## Spectator camera: a standings row was clicked (racer id), or an arrow was
 ## pressed (-1 previous / +1 next in the starting-grid order).
 signal follow_requested(id: int)
@@ -28,7 +33,19 @@ var _rear_bar: ColorRect
 var _wreck_label: Label
 var _weapon_textures: Dictionary = {}
 var _tower: VBoxContainer
+var _tower_box: VBoxContainer
+var _tower_panel: PanelContainer
 var _tower_rows: Array = []
+## Tower text size (smaller in a split-screen view).
+var _row_font := 18
+## Split-screen view: the compact tower sits in the view's bottom outer corner
+## (away from the car at the centre and the info panel at the top).
+var _split_view := false
+var _tower_right_width := 0.0
+## Human racers: id -> identity colour; _own_ids are the humans this HUD
+## belongs to (row box highlight in the tower and results).
+var _human_colors: Dictionary = {}
+var _own_ids: Array[int] = []
 ## Spectator: the followed driver's id, the arrow buttons and row highlight style.
 var _followed := -1
 var _follow_controls: HBoxContainer
@@ -39,6 +56,10 @@ var _no_highlight: StyleBoxEmpty
 var _message: PanelContainer
 var _message_box: VBoxContainer
 var _banner: Label
+var _banner_tween: Tween
+## Results wait for the banner to fade before they appear.
+var _message_waiting := false
+var _message_tween: Tween
 var _stars: Array[Texture2D] = []
 var _car_textures: Dictionary = {}
 var _full_names: Dictionary = {}
@@ -99,14 +120,28 @@ func setup(resolver: AssetResolver) -> void:
 	_weapon_textures = weapon_icons(resolver)
 
 	var tower_box := VBoxContainer.new()
-	tower_box.position = Vector2(22, 232)
+	_tower_box = tower_box
+	tower_box.position = Vector2(16, 226)
 	tower_box.add_theme_constant_override("separation", 6)
 	tower_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(tower_box)
+	# Translucent backing (the replaceable HUD panel, lighter) so the names
+	# stay readable over road, barrier and every track variant.
+	_tower_panel = PanelContainer.new()
+	_tower_panel.theme = _theme
+	_tower_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var backing: StyleBox = _theme.get_stylebox("panel", "PanelContainer").duplicate()
+	backing.content_margin_left = 8
+	backing.content_margin_right = 12
+	backing.content_margin_top = 7
+	backing.content_margin_bottom = 7
+	_tower_panel.add_theme_stylebox_override("panel", backing)
+	_tower_panel.self_modulate = Color(1, 1, 1, 0.78)
+	tower_box.add_child(_tower_panel)
 	_tower = VBoxContainer.new()
 	_tower.add_theme_constant_override("separation", 1)
 	_tower.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	tower_box.add_child(_tower)
+	_tower_panel.add_child(_tower)
 	_highlight = StyleBoxFlat.new()
 	_highlight.bg_color = Color(HyperTheme.GOLD, 0.28)
 	_highlight.border_color = HyperTheme.GOLD
@@ -142,7 +177,7 @@ func setup(resolver: AssetResolver) -> void:
 	_banner = HyperTheme.label("", 96, HyperTheme.GOLD, 700)
 	_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_banner.size = Vector2(1280, 140)
-	_banner.position = Vector2(0, 210)
+	_banner.position = Vector2(0, BANNER_Y)
 	_banner.pivot_offset = Vector2(640, 70)
 	_banner.modulate.a = 0.0
 	add_child(_banner)
@@ -281,6 +316,7 @@ func setup_history(resolver: AssetResolver, history: RaceHistory, car_textures: 
 
 func hide_message() -> void:
 	_message.visible = false
+	_message_waiting = false
 	_menu_key = ""
 	_results_key = ""
 
@@ -316,17 +352,17 @@ func update_tower(standings: Array[RacerState]) -> void:
 		var row := HBoxContainer.new()
 		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		panel.add_child(row)
-		row.add_theme_constant_override("separation", 6)
-		var pos := HyperTheme.label("", 17, HyperTheme.CREAM, 700)
-		pos.custom_minimum_size = Vector2(26, 0)
+		row.add_theme_constant_override("separation", 6 if _row_font >= 18 else 4)
+		var pos := HyperTheme.label("", _row_font, HyperTheme.CREAM, 700)
+		pos.custom_minimum_size = Vector2(_row_font * 1.5, 0)
 		pos.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		var icon := TextureRect.new()
 		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		icon.custom_minimum_size = Vector2(34, 20)
+		icon.custom_minimum_size = Vector2(_row_font * 1.9, _row_font * 1.12)
 		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var name := HyperTheme.label("", 17, HyperTheme.CREAM, 600)
-		name.custom_minimum_size = Vector2(70, 0)
+		var name := HyperTheme.label("", _row_font, HyperTheme.CREAM, 600)
+		name.custom_minimum_size = Vector2(_row_font * 3.9, 0)
 		row.add_child(pos)
 		row.add_child(icon)
 		row.add_child(name)
@@ -345,8 +381,17 @@ func update_tower(standings: Array[RacerState]) -> void:
 		parts[3].text = r.display_name
 		var followed: bool = _follow_controls.visible and r.id == _followed
 		var col := HyperTheme.GOLD if r.is_player or followed else (HyperTheme.CREAM_DIM if r.is_finished() else HyperTheme.CREAM)
+		var box: StyleBox = _highlight if followed else _no_highlight
+		if _human_colors.has(r.id):
+			col = _human_colors[r.id]
+			if _own_ids.has(r.id):
+				box = _row_highlight(col)
 		parts[3].add_theme_color_override("font_color", col)
-		parts[0].add_theme_stylebox_override("panel", _highlight if followed else _no_highlight)
+		parts[0].add_theme_stylebox_override("panel", box)
+	if _split_view:
+		var size := _tower_box.get_combined_minimum_size()
+		_tower_box.position = Vector2(_tower_right_width - size.x - 12.0 if _tower_right_width > 0.0 else 12.0,
+			720.0 - size.y - 12.0)
 
 
 ## Spectator follow controls: clickable rows, arrows and the highlighted
@@ -386,27 +431,54 @@ func _arrow_button(text: String, direction: int) -> Button:
 
 
 func set_tower_visible(on: bool) -> void:
-	_tower.visible = on
+	_tower_box.visible = on
+
+
+## Human racers and their identity colours; own_ids are the humans this HUD
+## belongs to (their rows get a highlight box in the tower and the results).
+func set_humans(colors: Dictionary, own_ids: Array[int]) -> void:
+	_human_colors = colors
+	_own_ids = own_ids
+
+
+## Box highlight for a human's row, in their identity colour.
+static func _row_highlight(color: Color) -> StyleBoxFlat:
+	var s := StyleBoxFlat.new()
+	s.bg_color = Color(color, 0.24)
+	s.border_color = Color(color, 0.9)
+	s.set_border_width_all(2)
+	s.set_corner_radius_all(6)
+	s.set_content_margin_all(1)
+	return s
 
 
 ## Two-player: a HUD for one player's half of the screen (info panel, weapons,
-## DESTROYED countdown); the shared HUD keeps the tower, menus and results.
-func configure_player_view(width: float, title: String) -> void:
-	_tower.get_parent().visible = false
+## DESTROYED countdown centred in the view, and a compact standings tower at
+## the view's outer edge: left for the left view, right for the right one);
+## the shared HUD keeps the menus, banners and results.
+func configure_player_view(width: float, title: String, index: int = 0, right_edge: bool = false) -> void:
 	_message.visible = false
 	_banner.visible = false
 	_wreck_label.size.x = width
 	_mode_label.text = title
-	_mode_label.add_theme_color_override("font_color", HyperTheme.GOLD)
+	_mode_label.add_theme_color_override("font_color", HyperTheme.player_color(index))
+	_row_font = 14
+	_split_view = true
+	_tower_right_width = width if right_edge else 0.0
+
+
+## The car icons and names of the field, shared from another HUD (split views).
+func copy_field_from(other: Hud) -> void:
+	set_field(other._car_textures, other._full_names)
+
+
+## Split-screen shared HUD: the banner sits low, between the two views.
+func set_banner_low(on: bool) -> void:
+	_banner.position.y = BANNER_Y_SPLIT if on else BANNER_Y
 
 
 func set_info_visible(on: bool) -> void:
 	_info.visible = on
-
-
-## Two-player shared HUD: the live tower moves to the top centre, between the views.
-func set_tower_position(pos: Vector2) -> void:
-	_tower.get_parent().position = pos
 
 
 ## Results card: podium stars, car icons, names with nicknames, time or gap.
@@ -421,14 +493,28 @@ func show_results(standings: Array[RacerState], footer: String = "Fire to race a
 	_clear_message()
 	var laps: int = standings[0].tracker.lap_count if not standings.is_empty() else 0
 	_message_box.add_child(_centered(HyperTheme.label("RESULTS  -  %d LAPS" % laps, 34, HyperTheme.GOLD, 700)))
-	var grid := GridContainer.new()
-	grid.columns = 4
-	grid.add_theme_constant_override("h_separation", 14)
-	grid.add_theme_constant_override("v_separation", 2)
-	_message_box.add_child(grid)
+	# One row per car (same columns as before); the HUD's own human rows get a
+	# box in their identity colour, other humans their colour.
+	var rows := VBoxContainer.new()
+	rows.add_theme_constant_override("separation", 0)
+	_message_box.add_child(rows)
+	var names: Array[Label] = []
 	var winner_time := standings[0].finish_time if not standings.is_empty() and standings[0].is_finished() else -1.0
 	for i in standings.size():
 		var r := standings[i]
+		var color: Color = _human_colors.get(r.id, HyperTheme.GOLD if r.is_player else HyperTheme.CREAM)
+		var own := _own_ids.has(r.id) or (_own_ids.is_empty() and r.is_player)
+		var panel := PanelContainer.new()
+		var box: StyleBox = _row_highlight(color) if own else StyleBoxEmpty.new()
+		box.content_margin_left = 4
+		box.content_margin_right = 8
+		box.content_margin_top = 1
+		box.content_margin_bottom = 1
+		panel.add_theme_stylebox_override("panel", box)
+		rows.add_child(panel)
+		var grid := HBoxContainer.new()
+		grid.add_theme_constant_override("separation", 14)
+		panel.add_child(grid)
 		grid.add_child(_position_marker(i + 1))
 		var icon := TextureRect.new()
 		icon.texture = _car_textures.get(r.id)
@@ -437,7 +523,10 @@ func show_results(standings: Array[RacerState], footer: String = "Fire to race a
 		icon.custom_minimum_size = Vector2(44, 26)
 		grid.add_child(icon)
 		var name: String = _full_names.get(r.id, r.display_name)
-		grid.add_child(HyperTheme.label(name, 20, HyperTheme.GOLD if r.is_player else HyperTheme.CREAM, 600))
+		var name_label := HyperTheme.label(name, 20, color, 700 if own else 600)
+		name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		names.append(name_label)
+		grid.add_child(name_label)
 		var time := "running"
 		if r.is_finished():
 			if r.finish_time < 0.0:
@@ -450,8 +539,13 @@ func show_results(standings: Array[RacerState], footer: String = "Fire to race a
 		t.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		t.custom_minimum_size = Vector2(110, 0)
 		grid.add_child(t)
+	var name_width := 0.0
+	for l in names:
+		name_width = maxf(name_width, l.get_combined_minimum_size().x)
+	for l in names:
+		l.custom_minimum_size.x = name_width
 	_message_box.add_child(_centered(HyperTheme.label(footer, 17, HyperTheme.CREAM_DIM, 500)))
-	_present_message(Vector2(640, 0))
+	_present_message(Vector2(640, 0), true)
 
 
 ## Plain-text results (kept for logs and tests).
@@ -468,16 +562,25 @@ static func results_text(standings: Array[RacerState], footer: String = "Fire to
 	return "\n".join(lines)
 
 
-## Big animated banner ("GO!", "FINISH!"). Purely visual.
-func flash_banner(text: String, color: Color = HyperTheme.GOLD) -> void:
+## Big animated banner ("GO!", "FINISH!"). Purely visual. Results waiting
+## for it appear once it has faded.
+func flash_banner(text: String, color: Color = HyperTheme.GOLD, hold: float = BANNER_HOLD) -> void:
+	if _banner_tween != null and _banner_tween.is_valid():
+		_banner_tween.kill()
 	_banner.text = text
 	_banner.add_theme_color_override("font_color", color)
 	_banner.modulate.a = 1.0
 	_banner.scale = Vector2(0.6, 0.6)
 	var tw := create_tween()
+	_banner_tween = tw
 	tw.tween_property(_banner, "scale", Vector2.ONE, 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	tw.tween_interval(0.6)
+	tw.tween_interval(hold)
 	tw.tween_property(_banner, "modulate:a", 0.0, 0.4)
+	tw.finished.connect(_release_message)
+
+
+func banner_showing() -> bool:
+	return _banner_tween != null and _banner_tween.is_valid() and _banner_tween.is_running()
 
 
 static func mode_name(mode: CarModel.ControlMode) -> String:
@@ -513,11 +616,28 @@ func _clear_message() -> void:
 		c.free()
 
 
-## Centres the panel on screen and fades it in.
-func _present_message(_anchor: Vector2) -> void:
+## Centres the panel on screen and fades it in; with after_banner, only once
+## a GO! / FINISH! banner still on screen has faded (never on top of it).
+func _present_message(_anchor: Vector2, after_banner: bool = false) -> void:
 	_message.visible = true
 	_message.reset_size()
 	_message.size = _message.get_combined_minimum_size()
 	_message.position = (Vector2(1280, 720) - _message.size) * 0.5
+	if _message_tween != null and _message_tween.is_valid():
+		_message_tween.kill()  # an earlier panel's fade-in must not reveal this one
 	_message.modulate.a = 0.0
-	create_tween().tween_property(_message, "modulate:a", 1.0, 0.2)
+	_message_waiting = after_banner and banner_showing()
+	if not _message_waiting:
+		_fade_in_message()
+
+
+func _release_message() -> void:
+	if _message_waiting:
+		_message_waiting = false
+		if _message.visible:
+			_fade_in_message()
+
+
+func _fade_in_message() -> void:
+	_message_tween = create_tween()
+	_message_tween.tween_property(_message, "modulate:a", 1.0, 0.2)

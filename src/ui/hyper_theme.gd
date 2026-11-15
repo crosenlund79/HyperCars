@@ -10,6 +10,14 @@ const OUTLINE := Color("2a2220")
 const GOLD := Color("e2b23c")
 const RED := Color("b23a22")
 const PANEL_TINT := Color(1, 1, 1, 0.96)
+## Human player identity colours (HUD rows, results, car marker): Player 1 /
+## the local player gold, Player 2 sky blue (matches the blue P2 car).
+const P2_BLUE := Color("74bdf2")
+
+
+## Colour of a human by player index (0 = Player 1 / you, 1 = Player 2).
+static func player_color(index: int) -> Color:
+	return P2_BLUE if index == 1 else GOLD
 
 ## Fredoka at a weight (300 light .. 700 bold). The font file itself is cached
 ## by the resource loader; the small variation wrapper is created per use.

@@ -85,7 +85,8 @@ func test_each_hud_shows_its_own_player() -> void:
 	assert_ne(h1._front_label.text, h2._front_label.text, "P2 fired, P1 did not")
 	assert_gt(_main._cooldown_fraction(CombatWorld.FRONT, P2), 0.0)
 	assert_false(_main.hud._info.visible, "shared HUD has no single-player panel")
-	assert_true(_main.hud._tower.visible, "shared tower")
+	assert_false(_main.hud._tower_box.visible, "no shared tower over the divider (P1)")
+	assert_true(h1._tower_box.visible and h2._tower_box.visible, "each view shows the standings")
 
 
 func test_split_screen_race_completes_and_shows_results() -> void:

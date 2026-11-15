@@ -9,6 +9,9 @@ signal race_requested
 signal closed
 
 const W := WeaponRules.Weapon
+## Disabled buttons (cannot buy / sell): a dimmed plate and faint text.
+const DISABLED_PLATE := Color(0.55, 0.5, 0.47, 0.5)
+const DISABLED_TEXT := Color(0.95, 0.91, 0.81, 0.32)
 
 var garage: PlayerGarage
 var _resolver: AssetResolver
@@ -77,10 +80,18 @@ func setup(p_garage: PlayerGarage, resolver: AssetResolver) -> void:
 		_play("ui/ui_select")
 		race_requested.emit())
 	fbox.add_child(_race_button)
+	# Controls hint on a soft dark strip so it reads over the workshop floor.
+	var strip := ColorRect.new()
+	strip.color = Color(0.1, 0.07, 0.06, 0.55)
+	strip.size = Vector2(1280, 34)
+	strip.position = Vector2(0, 680)
+	strip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_root.add_child(strip)
 	var hint := HyperTheme.label("Arrows: move    Enter / Space: choose    Esc: grid panel    Prices are per round; selling pays half",
-		15, HyperTheme.CREAM_DIM, 500)
+		17, Color(HyperTheme.CREAM, 0.88), 600)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hint.size = Vector2(1280, 24)
+	hint.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	hint.size = Vector2(1280, 34)
 	hint.position = Vector2(0, 680)
 	_root.add_child(hint)
 	_sfx = AudioStreamPlayer.new()
@@ -126,6 +137,8 @@ func refresh() -> void:
 		var mounted: bool = garage.equipped[slot] == w
 		c.equip.text = "EQUIPPED" if mounted else "EQUIP"
 		c.equip.disabled = mounted
+		# equipped is a state, not an unavailable action: gold, not greyed out
+		c.equip.add_theme_color_override("font_disabled_color", HyperTheme.GOLD if mounted else DISABLED_TEXT)
 		c.panel.self_modulate = Color(1.15, 1.05, 0.8) if mounted else Color.WHITE
 
 
@@ -191,6 +204,11 @@ func _small_button(text: String) -> Button:
 			var box: StyleBox = _root.theme.get_stylebox(state, "Button").duplicate()
 			box.set("content_margin_" + side, 12)
 			b.add_theme_stylebox_override(state, box)
+	# unavailable actions read clearly as inactive: darker, more transparent plate, faint text
+	var off: StyleBox = b.get_theme_stylebox("disabled")
+	if off is StyleBoxTexture:
+		off.modulate_color = DISABLED_PLATE
+	b.add_theme_color_override("font_disabled_color", DISABLED_TEXT)
 	b.custom_minimum_size = Vector2(87, 44)
 	return b
 

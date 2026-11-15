@@ -29,6 +29,8 @@ const MAX_OPPONENTS := 9
 const BASE_TICKS := 60
 ## Spectator: simulated seconds the result stays up before the next race starts.
 const RESTART_DELAY := 3.0
+## GO! stays briefly (seconds before it fades): the start is the busiest moment.
+const GO_BANNER_HOLD := 0.3
 ## Spectator safety net (not an original rule): only if no unfinished car has
 ## made any progress for this long (a genuinely stuck race) are the remaining
 ## cars classified in running order. Long races are never cut short.
@@ -267,6 +269,7 @@ func _ready() -> void:
 		add_child(net)
 	if two and split_screen:
 		_setup_split_screen()
+	_set_hud_humans()
 	_race_grid = first_grid_two_players(sitting_out_rival(0)) if two else first_grid(cars.size(), player_first_grid_slot)
 	_spectator_grid = rival_ids.duplicate()
 	grid_order = _race_grid
@@ -282,6 +285,25 @@ func _exit_tree() -> void:
 		garage.abandon_race()
 
 
+## Presentation: identity colours of the humans in the standings and results
+## (Player 1 gold, Player 2 blue; over the network each computer shows itself
+## gold). Each HUD box-highlights its own human(s).
+func _set_hud_humans() -> void:
+	var colors := {}
+	for k in session.human_ids.size():
+		var id: int = session.human_ids[k]
+		colors[id] = HyperTheme.player_color(k)
+		if net != null:
+			colors[id] = HyperTheme.player_color(0 if id == local_player_id else 1)
+	var own: Array[int] = [local_player_id]
+	if player_views != null:
+		own = session.human_ids.duplicate()
+		for v in player_views.views:
+			v.hud.copy_field_from(hud)
+			v.hud.set_humans(colors, [v.racer_id] as Array[int])
+	hud.set_humans(colors, own)
+
+
 func is_two_player() -> bool:
 	return human_count > 1
 
@@ -293,7 +315,8 @@ func _setup_split_screen() -> void:
 	player_views.setup(session.human_ids, cars, get_viewport().world_2d, resolver)
 	hud.layer = 4
 	hud.set_info_visible(false)
-	hud.set_tower_position(Vector2(572, 468))
+	hud.set_tower_visible(false)  # each view shows its own standings at its outer edge
+	hud.set_banner_low(true)
 	_park = Node2D.new()
 	_park.name = "CameraPark"
 	_park.position = Vector2(-1000000, -1000000)
@@ -534,7 +557,7 @@ func on_network_start(race_number: int = races_started) -> void:
 	combat.style = combat_style
 	_apply_loadouts()
 	hud.hide_message()
-	hud.flash_banner("GO!")
+	hud.flash_banner("GO!", HyperTheme.GOLD, GO_BANNER_HOLD)
 	if race_audio != null:
 		race_audio.play_cue("race/start_go")
 		race_audio.play_music("race")
@@ -741,7 +764,7 @@ func start_race() -> void:
 	if garage != null and not session.spectator:
 		garage.begin_race()
 	hud.hide_message()
-	hud.flash_banner("GO!")
+	hud.flash_banner("GO!", HyperTheme.GOLD, GO_BANNER_HOLD)
 	if race_audio != null:
 		race_audio.play_cue("race/start_go")
 		race_audio.play_music("race")
@@ -909,8 +932,10 @@ func _refresh_hud() -> void:
 		hud.update_combat(false, 0, 0, 0, 0, 0.0)
 		return
 	if player_views != null:
+		var standings := session.standings()
 		for v in player_views.views:
 			_refresh_player_hud(v.hud, v.racer_id)
+			v.hud.update_tower(standings)
 		if session.state == RaceSession.State.FINISHED:
 			hud.show_results(session.standings())
 		return

@@ -49,7 +49,7 @@ func setup(racer_ids: Array[int], cars: Array[Car], world: World2D, resolver: As
 		hud.offset = container.position
 		add_child(hud)
 		hud.setup(resolver)
-		hud.configure_player_view(width, "PLAYER %d" % (k + 1))
+		hud.configure_player_view(width, "PLAYER %d" % (k + 1), k, k > 0 and k == racer_ids.size() - 1)
 		views.append({"racer_id": id, "container": container, "viewport": vp, "camera": cam, "hud": hud,
 			"base_size": Vector2(width, BASE.y)})
 	_fit()
