@@ -101,6 +101,8 @@ func _client_autopilot() -> Dictionary:
 	var cmd := autopilot.decide({"position": c.global_position, "heading": c.model.heading,
 		"speed": c.model.velocity.dot(Vector2.from_angle(c.model.heading)),
 		"distance": progress[me_id].distance, "lateral": progress[me_id].lateral}, others, 1.0 / 60.0)
+	if opts.mode == "1":
+		cmd.fire = not cmd.fire  # the autopilot thinks in Fire to Accelerate; in Fire to Brake, fire means brake
 	var fe := int(opts.fire_every)
 	cmd["front"] = fe > 0 and tick % fe == 0
 	return cmd
@@ -137,6 +139,7 @@ func _tick() -> void:
 				quit()
 	else:
 		if s.state == RaceSession.State.MODE_SELECT and not main.net.local_ready and main.races_started == races_done:
+			main.set_menu_choice(int(opts.mode))  # 0 Fire to Accelerate, 1 Fire to Brake
 			main.net.local_ready = true
 			main.net._send_ready()
 		if main.network_results.size() > 0 and finished_at < 0:

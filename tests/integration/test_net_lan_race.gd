@@ -89,3 +89,15 @@ func test_internet_like_conditions_with_prediction() -> void:
 	assert_eq(r[1].results, r[0].results, "authoritative result, shots and destructions agree")
 	assert_gt(r[1].corrections, 100.0, "client reconciled continuously")
 	assert_lt(r[1].avg_error, 20.0, "average correction stays small")
+
+
+func test_high_latency_and_loss_fire_to_brake() -> void:
+	# ~150-180 ms round trip (75 ms + 0-15 ms jitter each way), 5 % loss, the
+	# client in Fire to Brake: still one authoritative result on both.
+	var r := await _run(24717, ["laps=1", "weapons=1", "style=0", "fire_every=60", "latency=75", "jitter=15", "loss=0.05",
+		"predict=1", "mode=1"])
+	if not r[0].has("results") or not r[1].has("results"):
+		fail_test("no results: %s / %s" % [str(r[0]), str(r[1])])
+		return
+	assert_eq(r[1].results, r[0].results)
+	assert_has(r[0].results[0].order, float(RaceSession.PLAYER_2_ID), "the client's car finished")

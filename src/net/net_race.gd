@@ -60,6 +60,9 @@ var hard_snaps := 0
 var input_source: Callable
 var _tick := 0
 var _last_rx_ms := -1
+## CLIENT: the host's final result arrived; later snapshots must not overwrite it
+## (snapshots carry times at lower precision).
+var _results_final := false
 ## HOST: combat events already sent for the current race.
 var _sent_events := 0
 var _events_race := -1
@@ -329,7 +332,8 @@ func _push_snapshot(snap: Array) -> void:
 	snapshots.append(snap)
 	while snapshots.size() > BUFFER:
 		snapshots.pop_front()
-	RaceSnapshot.apply_race(race, snap)
+	if not _results_final:
+		RaceSnapshot.apply_race(race, snap)
 
 
 ## Cars shown INTERP_DELAY ticks behind the newest snapshot, blended between
@@ -450,6 +454,7 @@ func _on_message(from: int, msg: Array) -> void:
 				render_tick = -1.0
 				_history.clear()
 				_last_ack = -1
+				_results_final = false
 				race.apply_network_setup(msg[1])
 		Msg.START:
 			# a newer race number only (a snapshot may already have shown RACING:
@@ -477,3 +482,4 @@ func _on_message(from: int, msg: Array) -> void:
 					if id < 0 or id >= race.session.racers.size():
 						return
 				race.apply_network_results(msg[1], msg[2])
+				_results_final = true
