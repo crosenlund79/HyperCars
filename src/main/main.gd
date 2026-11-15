@@ -124,6 +124,12 @@ var player_devices: Array[int] = [0, 1]
 ## Two-player races run so far in this session (drives the rival rotation).
 var multiplayer_round := 0
 var _human_stuck_time := 0.0
+## Two-player split-screen views (M4 Stage 2); null in single-player.
+var player_views: PlayerViews
+## Two-player: the main camera looks at an empty spot far away (the views draw
+## the race); positional sound is heard from between the two players.
+var _park: Node2D
+var _listener: AudioListener2D
 var _human_best := -INF
 
 @onready var track: Track = $Track
@@ -236,6 +242,8 @@ func _ready() -> void:
 		achievement_tracker.name = "AchievementTracker"
 		add_child(achievement_tracker)
 		achievement_tracker.setup(self, achievements)
+	if two:
+		_setup_split_screen()
 	_race_grid = first_grid_two_players(sitting_out_rival(0)) if two else first_grid(cars.size(), player_first_grid_slot)
 	_spectator_grid = rival_ids.duplicate()
 	grid_order = _race_grid
@@ -251,6 +259,23 @@ func _exit_tree() -> void:
 
 func is_two_player() -> bool:
 	return human_count > 1
+
+
+func _setup_split_screen() -> void:
+	player_views = PlayerViews.new()
+	player_views.name = "PlayerViews"
+	add_child(player_views)
+	player_views.setup(session.human_ids, cars, get_viewport().world_2d, resolver)
+	hud.layer = 4
+	hud.set_info_visible(false)
+	hud.set_tower_position(Vector2(572, 468))
+	_park = Node2D.new()
+	_park.name = "CameraPark"
+	_park.position = Vector2(-1000000, -1000000)
+	add_child(_park)
+	_listener = AudioListener2D.new()
+	add_child(_listener)
+	_listener.make_current()
 
 
 ## Two-player rotation: the rival sitting out race r (0-based), Victor first,
@@ -681,6 +706,10 @@ func follow_step(direction: int) -> void:
 
 
 func _update_camera_target(step: float = 0.0) -> void:
+	if player_views != null:
+		camera.target = _park
+		camera.position_smoothing_enabled = false
+		return
 	if not session.spectator:
 		camera.target = car
 		camera.position_smoothing_enabled = false
@@ -702,6 +731,11 @@ func _process(_delta: float) -> void:
 		lighting.set_enabled(not lighting.enabled)
 	_refresh_hud()
 	_present_finishers()
+	if _listener != null:
+		var mid := Vector2.ZERO
+		for id in session.human_ids:
+			mid += cars[id].global_position
+		_listener.global_position = mid / session.human_ids.size()
 
 
 ## Finish celebrations (presentation only): the player's finish in a race, the
@@ -740,6 +774,12 @@ func _refresh_hud() -> void:
 			session.elapsed, "x%d" % sim_speed, following, weapons_enabled)
 		hud.update_combat(false, 0, 0, 0, 0, 0.0)
 		return
+	if player_views != null:
+		for v in player_views.views:
+			_refresh_player_hud(v.hud, v.racer_id)
+		if session.state == RaceSession.State.FINISHED:
+			hud.show_results(session.standings())
+		return
 	var p := session.racers[RaceSession.PLAYER_ID]
 	var time := p.finish_time if p.is_finished() else session.elapsed
 	hud.update_race(p.tracker.current_lap(), p.tracker.lap_count, time,
@@ -754,10 +794,20 @@ func _refresh_hud() -> void:
 			hud.show_results(session.standings())
 
 
-## 0 = ready, 1 = just fired (player's slot, for the HUD bar).
-func _cooldown_fraction(slot: int) -> float:
+## One human's HUD: their own position, lap, time, weapons and cooldowns.
+func _refresh_player_hud(view_hud: Hud, id: int) -> void:
+	var r := session.racers[id]
+	view_hud.update_race(r.tracker.current_lap(), r.tracker.lap_count, r.finish_time if r.is_finished() else session.elapsed,
+		session.position_of(id), session.racer_count())
+	view_hud.update_combat(weapons_enabled, combat.weapon_of(id, CombatWorld.FRONT), combat.ammo[id][CombatWorld.FRONT],
+		combat.weapon_of(id, CombatWorld.REAR), combat.ammo[id][CombatWorld.REAR], combat.wreck_left[id],
+		_cooldown_fraction(CombatWorld.FRONT, id), _cooldown_fraction(CombatWorld.REAR, id))
+
+
+## 0 = ready, 1 = just fired (a human's slot, for the HUD bar).
+func _cooldown_fraction(slot: int, id: int = RaceSession.PLAYER_ID) -> float:
 	var length := combat.slot_cooldown_length(slot)
-	return clampf(combat.slot_wait(RaceSession.PLAYER_ID, slot) / maxf(0.001, length), 0.0, 1.0)
+	return clampf(combat.slot_wait(id, slot) / maxf(0.001, length), 0.0, 1.0)
 
 
 func _update_progress() -> void:

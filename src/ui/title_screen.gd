@@ -6,6 +6,8 @@ extends Node
 
 ## choice: 0 Fire to Accelerate, 1 Fire to Brake, 2 Spectate; garage: garage race.
 signal start_requested(choice: int, garage: bool)
+## Two-player split-screen with the joined devices (Player 1 first).
+signal two_player_requested(devices: Array[int])
 ## Weapons ON / No Guns preference for both racing and spectating (saved).
 var weapons_on := true
 var _weapons_button: Button
@@ -37,6 +39,7 @@ var _race_menu: VBoxContainer
 var _settings_panel: SettingsPanel
 var _controls_panel: ControlsPanel
 var _achievements_panel: AchievementsPanel
+var _join_panel: JoinPanel
 ## Achievement store shown by the ACHIEVEMENTS panel (set before setup; may be null).
 var achievements: AchievementStore
 var _music: AudioStreamPlayer
@@ -94,6 +97,7 @@ func setup(p_resolver: AssetResolver, p_settings: AudioSettings) -> void:
 		["QUICK RACE: FIRE TO BRAKE", func() -> void: _start(1)],
 		["GARAGE RACE: FIRE TO ACCELERATE", func() -> void: _start(0, true)],
 		["GARAGE RACE: FIRE TO BRAKE", func() -> void: _start(1, true)],
+		["TWO PLAYERS: SPLIT SCREEN", _open_join],
 		["BACK", _show_main]], 520)
 	var race_title := HyperTheme.label("QUICK RACE: standard weapons\nGARAGE RACE: prize money and your own weapons", 18, HyperTheme.GOLD, 600)
 	race_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -108,6 +112,15 @@ func setup(p_resolver: AssetResolver, p_settings: AudioSettings) -> void:
 	root.add_child(_controls_panel)
 	_controls_panel.setup()
 	_controls_panel.closed.connect(_show_main)
+	_join_panel = JoinPanel.new()
+	root.add_child(_join_panel)
+	_join_panel.setup()
+	_join_panel.closed.connect(_open_race)
+	_join_panel.confirmed.connect(func(devices: Array[int]) -> void:
+		_sfx_play("ui/ui_select")
+		two_player_requested.emit(devices))
+	_join_panel.reset_size()
+	_join_panel.position = Vector2((1280 - _join_panel.size.x) * 0.5, 300)
 	_achievements_panel = AchievementsPanel.new()
 	root.add_child(_achievements_panel)
 	_achievements_panel.setup(achievements if achievements != null else AchievementStore.new("user://unused_achievements.cfg"), resolver)
@@ -267,6 +280,13 @@ func _open_settings() -> void:
 	_settings_panel.focus_first()
 
 
+func _open_join() -> void:
+	_sfx_play("ui/ui_select")
+	_join_panel.open()
+	_show_only(_join_panel)
+	_join_panel.reset_size()
+
+
 func _open_achievements() -> void:
 	_sfx_play("ui/ui_select")
 	_achievements_panel.refresh()
@@ -286,7 +306,7 @@ func _show_main() -> void:
 
 
 func _show_only(node: Control) -> void:
-	for n in [_main_menu, _race_menu, _settings_panel, _controls_panel, _achievements_panel]:
+	for n in [_main_menu, _race_menu, _settings_panel, _controls_panel, _achievements_panel, _join_panel]:
 		n.visible = n == node
 	_logo.visible = node != _controls_panel and node != _achievements_panel
 	_tagline.visible = _logo.visible

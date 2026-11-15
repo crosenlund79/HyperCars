@@ -43,6 +43,7 @@ func _ready() -> void:
 	add_child(title)
 	title.setup(resolver, settings)
 	title.start_requested.connect(start_race)
+	title.two_player_requested.connect(func(devices: Array[int]) -> void: start_race(0, false, devices))
 	title.quit_requested.connect(quit_game)
 	garage = PlayerGarage.new(load("res://src/garage/default_garage_rules.tres"))
 	garage_screen = GarageScreen.new()
@@ -64,14 +65,21 @@ func _ready() -> void:
 
 ## choice: 0 Fire to Accelerate, 1 Fire to Brake, 2 Spectate rivals.
 ## with_garage: a garage race (money and the player's own weapons).
-func start_race(choice: int, with_garage: bool = false) -> void:
+## devices: two-player split-screen with these controllers (no garage or
+## achievements in two-player races).
+func start_race(choice: int, with_garage: bool = false, devices: Array[int] = []) -> void:
 	await _fade_to(1.0)
 	title.hide_title()
 	race = MAIN_SCENE.instantiate()
 	race.allow_exit = true
-	if with_garage and choice != 2:
+	var two := devices.size() == 2
+	if two:
+		race.human_count = 2
+		race.player_devices = devices
+	elif with_garage and choice != 2:
 		race.garage = garage
-	race.achievements = achievements
+	if not two:
+		race.achievements = achievements
 	race.track_variant = title.track_variant
 	add_child(race)
 	race.garage_requested.connect(_open_garage)

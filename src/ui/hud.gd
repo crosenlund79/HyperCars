@@ -11,6 +11,7 @@ signal follow_requested(id: int)
 signal follow_step_requested(direction: int)
 
 var _theme: Theme
+var _info: PanelContainer
 var _pos_label: Label
 var _field_label: Label
 var _lap_label: Label
@@ -54,6 +55,7 @@ func setup(resolver: AssetResolver) -> void:
 	_stars = [resolver.get_texture(AssetCatalog.STAR_GOLD), resolver.get_texture(AssetCatalog.STAR_SILVER),
 		resolver.get_texture(AssetCatalog.STAR_BRONZE)]
 	var info := PanelContainer.new()
+	_info = info
 	info.theme = _theme
 	info.position = Vector2(20, 16)
 	info.custom_minimum_size = Vector2(250, 0)
@@ -358,6 +360,26 @@ func _arrow_button(text: String, direction: int) -> Button:
 
 func set_tower_visible(on: bool) -> void:
 	_tower.visible = on
+
+
+## Two-player: a HUD for one player's half of the screen (info panel, weapons,
+## DESTROYED countdown); the shared HUD keeps the tower, menus and results.
+func configure_player_view(width: float, title: String) -> void:
+	_tower.get_parent().visible = false
+	_message.visible = false
+	_banner.visible = false
+	_wreck_label.size.x = width
+	_mode_label.text = title
+	_mode_label.add_theme_color_override("font_color", HyperTheme.GOLD)
+
+
+func set_info_visible(on: bool) -> void:
+	_info.visible = on
+
+
+## Two-player shared HUD: the live tower moves to the top centre, between the views.
+func set_tower_position(pos: Vector2) -> void:
+	_tower.get_parent().position = pos
 
 
 ## Results card: podium stars, car icons, names with nicknames, time or gap.
