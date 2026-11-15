@@ -4,6 +4,10 @@ extends RefCounted
 ## the super missile, hits, wrecks and respawns. Pure logic (no physics bodies,
 ## no randomness), advanced once per fixed physics tick, so fast simulation and
 ## tests reproduce it exactly. Every car follows exactly the same rules.
+## Each car carries its own loadout (one front and one rear weapon type and
+## their ammunition); by default everyone gets the WeaponRules loadout (M3).
+## Style CLASSIC: one shared cooldown per car (M3). Style TACTICAL: separate
+## front / rear slot cooldowns and a brief shared lock after any shot.
 ## Projectiles explode on a car within hit_radius or at the barrier line.
 
 const FRONT := 0
@@ -12,6 +16,7 @@ const W := WeaponRules.Weapon
 
 var rules: WeaponRules
 var enabled := false
+var style: WeaponRules.Style = WeaponRules.Style.CLASSIC
 var path: ClosedPath
 var road_half_width := 75.0
 ## Per car: ammo [front, rear], cooldown, wreck and grace timers, counters.
@@ -21,6 +26,12 @@ var wreck_left := PackedFloat32Array()
 var grace_left := PackedFloat32Array()
 var destroyed_count := PackedInt32Array()
 var shots_fired := PackedInt32Array()
+## Per car: [front weapon, rear weapon] and the ammunition it started the race with.
+var loadout: Array = []
+var start_ammo: Array = []
+## Per car (Tactical): [front, rear] slot cooldowns. cooldown[] is the shared lock.
+var slot_cooldown: Array = []
+var _custom_loadouts := false
 ## Live projectiles: {type, owner, pos, dir, age, target, angle}.
 var projectiles: Array = []
 ## Live mines: {owner, pos, age}.
@@ -42,11 +53,19 @@ func _init(p_rules: WeaponRules, car_count: int, p_path: ClosedPath = null, p_ro
 	reset()
 
 
-## New race: full ammunition, no projectiles, nobody wrecked.
+## New race: default loadout and full ammunition, no projectiles, nobody wrecked.
+## Loadouts for the race (set_loadout) are applied after reset.
 func reset() -> void:
 	ammo.clear()
+	loadout.clear()
+	start_ammo.clear()
+	slot_cooldown.clear()
+	_custom_loadouts = false
 	for i in cooldown.size():
 		ammo.append([rules.ammo_for(FRONT), rules.ammo_for(REAR)])
+		loadout.append([rules.weapon_for(FRONT), rules.weapon_for(REAR)])
+		start_ammo.append([rules.ammo_for(FRONT), rules.ammo_for(REAR)])
+		slot_cooldown.append([0.0, 0.0])
 	cooldown.fill(0.0)
 	wreck_left.fill(0.0)
 	grace_left.fill(0.0)
@@ -65,9 +84,41 @@ func is_wrecked(id: int) -> bool:
 	return wreck_left[id] > 0.0
 
 
+## Sets one car's weapons and ammunition for this race (before the start).
+## A weapon that does not fit its slot is not mounted.
+func set_loadout(id: int, front_weapon: int, front_ammo: int, rear_weapon: int, rear_ammo: int) -> void:
+	var f: int = front_weapon if WeaponRules.compatible(front_weapon, FRONT) else W.NONE
+	var r: int = rear_weapon if WeaponRules.compatible(rear_weapon, REAR) else W.NONE
+	var fa := maxi(0, front_ammo) if f != W.NONE else 0
+	var ra := maxi(0, rear_ammo) if r != W.NONE else 0
+	loadout[id] = [f, r]
+	ammo[id] = [fa, ra]
+	start_ammo[id] = [fa, ra]
+	_custom_loadouts = true
+
+
+func weapon_of(id: int, slot: int) -> int:
+	return loadout[id][slot]
+
+
 func can_fire(id: int, slot: int) -> bool:
 	return enabled and not is_wrecked(id) and cooldown[id] <= 0.0 and ammo[id][slot] > 0 \
-		and rules.weapon_for(slot) != W.NONE
+		and weapon_of(id, slot) != W.NONE \
+		and (style == WeaponRules.Style.CLASSIC or slot_cooldown[id][slot] <= 0.0)
+
+
+## Seconds until this slot can fire again (the longer of the slot cooldown and the shared lock).
+func slot_wait(id: int, slot: int) -> float:
+	if style == WeaponRules.Style.CLASSIC:
+		return cooldown[id]
+	return maxf(cooldown[id], slot_cooldown[id][slot])
+
+
+## Full length of this slot's cooldown (for HUD bars).
+func slot_cooldown_length(slot: int) -> float:
+	if style == WeaponRules.Style.CLASSIC:
+		return rules.fire_cooldown
+	return rules.tactical_front_cooldown if slot == FRONT else rules.tactical_rear_cooldown
 
 
 ## Fire request from a car (player key or AI decision). cars: see step().
@@ -75,15 +126,22 @@ func can_fire(id: int, slot: int) -> bool:
 func request(id: int, slot: int, cars: Array) -> bool:
 	if not enabled or is_wrecked(id) or cooldown[id] > 0.0:
 		return false
-	var weapon := rules.weapon_for(slot)
+	var tactical := style == WeaponRules.Style.TACTICAL
+	if tactical and slot_cooldown[id][slot] > 0.0:
+		return false
+	var weapon: int = weapon_of(id, slot)
 	if weapon == W.NONE:
 		return false
 	if ammo[id][slot] <= 0:
 		events.append({"kind": "empty", "type": weapon, "pos": cars[id].position, "car": id, "owner": id})
-		cooldown[id] = rules.fire_cooldown
+		cooldown[id] = rules.tactical_shared_lock if tactical else rules.fire_cooldown
 		return false
 	ammo[id][slot] -= 1
-	cooldown[id] = rules.fire_cooldown
+	if tactical:
+		cooldown[id] = rules.tactical_shared_lock
+		slot_cooldown[id][slot] = rules.tactical_front_cooldown if slot == FRONT else rules.tactical_rear_cooldown
+	else:
+		cooldown[id] = rules.fire_cooldown
 	shots_fired[id] += 1
 	var c: Dictionary = cars[id]
 	var fwd := Vector2.from_angle(c.heading)
@@ -128,6 +186,9 @@ func step(dt: float, cars: Array) -> Dictionary:
 		return {"destroyed": destroyed, "respawned": respawned}
 	for i in cooldown.size():
 		cooldown[i] = maxf(0.0, cooldown[i] - dt)
+		if style == WeaponRules.Style.TACTICAL:
+			slot_cooldown[i][FRONT] = maxf(0.0, slot_cooldown[i][FRONT] - dt)
+			slot_cooldown[i][REAR] = maxf(0.0, slot_cooldown[i][REAR] - dt)
 		grace_left[i] = maxf(0.0, grace_left[i] - dt)
 		if wreck_left[i] > 0.0:
 			wreck_left[i] = maxf(0.0, wreck_left[i] - dt)
@@ -224,6 +285,8 @@ func _outside_road(p: Dictionary) -> bool:
 ## Exact combat state for determinism checks.
 func state_snapshot() -> Array:
 	var out := [ammo, cooldown, wreck_left, grace_left, destroyed_count, shots_fired]
+	if style != WeaponRules.Style.CLASSIC or _custom_loadouts:
+		out.append([style, loadout, slot_cooldown])
 	for p in projectiles:
 		out.append([p.type, p.owner, p.pos, p.dir, p.age])
 	for m in mines:

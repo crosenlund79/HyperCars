@@ -9,6 +9,8 @@ extends Node2D
 ## can be switched off with presentation_enabled without changing the race.
 ## Combat (M3): Weapons ON / No Guns is chosen before each race; when on, every
 ## car follows the same WeaponRules through one deterministic CombatWorld.
+## Combat style (M3.5), chosen before the race and independent of No Guns:
+## Classic (M3 rules and AI) or Tactical (per-slot cooldowns).
 
 ## Esc on the grid when allow_exit is set (the title screen listens).
 signal exit_requested
@@ -72,6 +74,8 @@ var _seen_finishers := 0
 var combat: CombatWorld
 ## Pre-race option: Weapons ON (true) / No Guns (false). Kept across races.
 var weapons_enabled := false
+## Pre-race option: Classic / Tactical combat. Kept across races.
+var combat_style: WeaponRules.Style = WeaponRules.Style.CLASSIC
 var combat_view: CombatView
 ## Lighting pilot (presentation experiment; L toggles). Off by default.
 var lighting: LightingPilot
@@ -213,13 +217,27 @@ func set_weapons_enabled(on: bool) -> void:
 		return
 	weapons_enabled = on
 	combat.enabled = on
-	hud.show_menu(choice_name(menu_choice), weapons_enabled, session.lap_count())
+	_show_menu()
+
+
+## Classic / Tactical combat; only changeable before the start.
+func set_combat_style(style: WeaponRules.Style) -> void:
+	if session.state != RaceSession.State.MODE_SELECT:
+		return
+	combat_style = style
+	reset_race()
+
+
+func _show_menu() -> void:
+	hud.show_menu(choice_name(menu_choice), weapons_enabled, session.lap_count(), combat_style)
 
 
 func reset_race() -> void:
 	session.reset()
 	combat.reset()
 	combat.enabled = weapons_enabled
+	combat.style = combat_style
+	_apply_loadouts()
 	_restart_timer = -1.0
 	_stuck_time = 0.0
 	_best_progress = -INF
@@ -240,7 +258,12 @@ func reset_race() -> void:
 	if race_audio != null:
 		race_audio.play_music("menu")
 	_refresh_hud()
-	hud.show_menu(choice_name(menu_choice), weapons_enabled, session.lap_count())
+	_show_menu()
+
+
+## Weapons each car carries this race. Classic: everyone gets the M3 loadout.
+func _apply_loadouts() -> void:
+	pass
 
 
 static func choice_name(choice: Choice) -> String:
@@ -261,7 +284,7 @@ func set_menu_choice(choice: Choice) -> void:
 		session.set_spectator(spectate)
 		grid_order = _spectator_grid if spectate else _race_grid
 		reset_race()
-	hud.show_menu(choice_name(menu_choice), weapons_enabled, session.lap_count())
+	_show_menu()
 
 
 func _physics_process(_delta: float) -> void:
@@ -274,6 +297,8 @@ func _physics_process(_delta: float) -> void:
 				set_menu_choice(posmod(menu_choice + 1, 3) as Choice)
 			elif Input.is_action_just_pressed(PlayerControls.FIRE_FRONT) or Input.is_action_just_pressed(PlayerControls.FIRE_REAR):
 				set_weapons_enabled(not weapons_enabled)
+			elif Input.is_action_just_pressed(PlayerControls.TOGGLE_STYLE):
+				set_combat_style(WeaponRules.Style.TACTICAL if combat_style == WeaponRules.Style.CLASSIC else WeaponRules.Style.CLASSIC)
 			elif Input.is_action_just_pressed(PlayerControls.HISTORY_VIEW):
 				var i := LAP_OPTIONS.find(session.lap_count())
 				set_lap_count(LAP_OPTIONS[(i + 1) % LAP_OPTIONS.size()])
@@ -445,10 +470,17 @@ func _refresh_hud() -> void:
 	var time := p.finish_time if p.is_finished() else session.elapsed
 	hud.update_race(p.tracker.current_lap(), p.tracker.lap_count, time,
 		session.position_of(RaceSession.PLAYER_ID), session.racer_count())
-	hud.update_combat(weapons_enabled, weapon_rules.front_weapon, combat.ammo[0][CombatWorld.FRONT],
-		weapon_rules.rear_weapon, combat.ammo[0][CombatWorld.REAR], combat.wreck_left[0])
+	hud.update_combat(weapons_enabled, combat.weapon_of(0, CombatWorld.FRONT), combat.ammo[0][CombatWorld.FRONT],
+		combat.weapon_of(0, CombatWorld.REAR), combat.ammo[0][CombatWorld.REAR], combat.wreck_left[0],
+		_cooldown_fraction(CombatWorld.FRONT), _cooldown_fraction(CombatWorld.REAR))
 	if session.state == RaceSession.State.FINISHED:
 		hud.show_results(session.standings())
+
+
+## 0 = ready, 1 = just fired (player's slot, for the HUD bar).
+func _cooldown_fraction(slot: int) -> float:
+	var length := combat.slot_cooldown_length(slot)
+	return clampf(combat.slot_wait(RaceSession.PLAYER_ID, slot) / maxf(0.001, length), 0.0, 1.0)
 
 
 func _update_progress() -> void:
@@ -533,7 +565,7 @@ func _ai_weapons(step: float, states: Array) -> void:
 			"speed": cars[id].model.forward_speed(), "distance": progress[id].distance, "lateral": progress[id].lateral}
 		var r := session.racers[id]
 		var ctx := {"front_ready": front_ready, "rear_ready": rear_ready, "front_ammo": combat.ammo[id][CombatWorld.FRONT],
-			"front_start": weapon_rules.ammo_for(CombatWorld.FRONT), "laps_left": r.tracker.lap_count - r.tracker.laps_completed,
+			"front_start": combat.start_ammo[id][CombatWorld.FRONT], "laps_left": r.tracker.lap_count - r.tracker.laps_completed,
 			"lap_count": r.tracker.lap_count, "missile_speed": weapon_rules.missile_speed, "hit_radius": weapon_rules.hit_radius,
 			"mine_fuse": weapon_rules.mine_fuse,
 			"pressure": d.params.pressure_attack_drop > 0.0 and d.under_pressure(me, targets)}

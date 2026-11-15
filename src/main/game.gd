@@ -46,6 +46,7 @@ func start_race(choice: int) -> void:
 	race.camera.make_current()
 	race.set_menu_choice(choice)
 	race.set_weapons_enabled(title.weapons_on)
+	race.set_combat_style(title.combat_style)
 	race.set_lap_count(title.laps)
 	race.exit_requested.connect(back_to_title)
 	if choice == 2:

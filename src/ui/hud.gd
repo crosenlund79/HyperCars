@@ -17,6 +17,9 @@ var _front_icon: TextureRect
 var _front_label: Label
 var _rear_icon: TextureRect
 var _rear_label: Label
+## Cooldown bars under each weapon (fill = time until the slot is ready).
+var _front_bar: ColorRect
+var _rear_bar: ColorRect
 var _wreck_label: Label
 var _weapon_textures: Dictionary = {}
 var _tower: VBoxContainer
@@ -60,14 +63,16 @@ func setup(resolver: AssetResolver) -> void:
 		box.add_child(l)
 
 	_combat_box = HBoxContainer.new()
-	_combat_box.add_theme_constant_override("separation", 8)
+	_combat_box.add_theme_constant_override("separation", 14)
 	box.add_child(_combat_box)
-	_front_icon = _icon(Vector2(34, 20))
+	_front_icon = _icon(Vector2(34, 22))
 	_front_label = HyperTheme.label("", 18, HyperTheme.CREAM, 700)
-	_rear_icon = _icon(Vector2(26, 26))
+	_rear_icon = _icon(Vector2(34, 22))
 	_rear_label = HyperTheme.label("", 18, HyperTheme.CREAM, 700)
-	for n in [_front_icon, _front_label, _rear_icon, _rear_label]:
-		_combat_box.add_child(n)
+	_front_bar = ColorRect.new()
+	_rear_bar = ColorRect.new()
+	_combat_box.add_child(_weapon_slot("F", _front_icon, _front_label, _front_bar))
+	_combat_box.add_child(_weapon_slot("R", _rear_icon, _rear_label, _rear_bar))
 	_combat_box.visible = false
 	_wreck_label = HyperTheme.label("", 44, HyperTheme.RED, 700)
 	_wreck_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -75,13 +80,7 @@ func setup(resolver: AssetResolver) -> void:
 	_wreck_label.position = Vector2(0, 470)
 	_wreck_label.visible = false
 	add_child(_wreck_label)
-	_weapon_textures = {
-		WeaponRules.Weapon.FRONT_MISSILE: resolver.get_texture(AssetCatalog.MISSILE),
-		WeaponRules.Weapon.REAR_MISSILE: resolver.get_texture(AssetCatalog.MISSILE),
-		WeaponRules.Weapon.HOMING_MISSILE: resolver.get_texture(AssetCatalog.MISSILE),
-		WeaponRules.Weapon.SUPER_MISSILE: resolver.get_texture(AssetCatalog.MISSILE),
-		WeaponRules.Weapon.MINE: resolver.get_texture(AssetCatalog.MINE),
-	}
+	_weapon_textures = weapon_icons(resolver)
 
 	_tower = VBoxContainer.new()
 	_tower.position = Vector2(22, 232)
@@ -116,9 +115,9 @@ func show_mode_select(mode: CarModel.ControlMode) -> void:
 
 
 ## Mode menu shown on the grid before the start, with the Weapons ON / No Guns option.
-func show_menu(choice: String, weapons: bool = false, laps: int = 3) -> void:
+func show_menu(choice: String, weapons: bool = false, laps: int = 3, style: int = WeaponRules.Style.CLASSIC) -> void:
 	_mode_label.text = choice
-	var key := choice + str(weapons) + str(laps)
+	var key := choice + str(weapons) + str(laps) + str(style)
 	if _menu_key == key and _message.visible:
 		return
 	_menu_key = key
@@ -126,9 +125,9 @@ func show_menu(choice: String, weapons: bool = false, laps: int = 3) -> void:
 	_clear_message()
 	_message_box.add_child(_centered(HyperTheme.label("GET READY", 22, HyperTheme.CREAM_DIM, 600)))
 	_message_box.add_child(_centered(HyperTheme.label("<   %s   >" % choice, 34, HyperTheme.GOLD, 700)))
-	_message_box.add_child(_centered(HyperTheme.label("%s     %d LAPS" % [weapons_text(weapons), laps], 26,
-		HyperTheme.RED if weapons else HyperTheme.CREAM, 700)))
-	_message_box.add_child(_centered(HyperTheme.label("Left / Right: mode    Up / Down: weapons    Tab: laps    Fire: start    Esc: menu", 17, HyperTheme.CREAM_DIM, 500)))
+	_message_box.add_child(_centered(HyperTheme.label("%s     %s COMBAT     %d LAPS" % [weapons_text(weapons),
+		WeaponRules.style_name(style), laps], 26, HyperTheme.RED if weapons else HyperTheme.CREAM, 700)))
+	_message_box.add_child(_centered(HyperTheme.label("Left / Right: mode    Up / Down: weapons    C: combat style    Tab: laps    Fire: start    Esc: menu", 17, HyperTheme.CREAM_DIM, 500)))
 	_present_message(Vector2(640, 0))
 
 
@@ -136,19 +135,57 @@ static func weapons_text(on: bool) -> String:
 	return "WEAPONS ON" if on else "NO GUNS"
 
 
-## Player's weapons: icons + ammo, and the DESTROYED countdown while wrecked.
-func update_combat(enabled: bool, front: int, front_ammo: int, rear: int, rear_ammo: int, wreck_left: float) -> void:
+## Player's weapons: icons + ammo + cooldown bars (0 = ready, 1 = just fired),
+## and the DESTROYED countdown while wrecked.
+func update_combat(enabled: bool, front: int, front_ammo: int, rear: int, rear_ammo: int, wreck_left: float,
+		front_cooldown: float = 0.0, rear_cooldown: float = 0.0) -> void:
 	_combat_box.visible = enabled
 	_wreck_label.visible = enabled and wreck_left > 0.0
 	if not enabled:
 		return
-	_front_icon.texture = _weapon_textures.get(front)
-	_front_label.text = "x%d" % front_ammo
-	_front_label.add_theme_color_override("font_color", HyperTheme.CREAM if front_ammo > 0 else HyperTheme.CREAM_DIM)
-	_rear_icon.texture = _weapon_textures.get(rear)
-	_rear_label.text = "x%d" % rear_ammo
-	_rear_label.add_theme_color_override("font_color", HyperTheme.CREAM if rear_ammo > 0 else HyperTheme.CREAM_DIM)
+	_set_slot(_front_icon, _front_label, _front_bar, front, front_ammo, front_cooldown)
+	_set_slot(_rear_icon, _rear_label, _rear_bar, rear, rear_ammo, rear_cooldown)
 	_wreck_label.text = "DESTROYED  %.1f" % wreck_left
+
+
+## Icon per weapon type (also used by the garage).
+static func weapon_icons(resolver: AssetResolver) -> Dictionary:
+	return {
+		WeaponRules.Weapon.FRONT_MISSILE: resolver.get_texture(AssetCatalog.MISSILE),
+		WeaponRules.Weapon.REAR_MISSILE: resolver.get_texture(AssetCatalog.MISSILE),
+		WeaponRules.Weapon.HOMING_MISSILE: resolver.get_texture(AssetCatalog.HOMING_MISSILE),
+		WeaponRules.Weapon.SUPER_MISSILE: resolver.get_texture(AssetCatalog.SUPER_MISSILE),
+		WeaponRules.Weapon.MINE: resolver.get_texture(AssetCatalog.MINE),
+	}
+
+
+func _set_slot(icon: TextureRect, label: Label, bar: ColorRect, weapon: int, count: int, wait: float) -> void:
+	var none := weapon == WeaponRules.Weapon.NONE
+	icon.texture = null if none else _weapon_textures.get(weapon)
+	icon.flip_h = weapon == WeaponRules.Weapon.REAR_MISSILE
+	label.text = "-" if none else "x%d" % count
+	label.add_theme_color_override("font_color", HyperTheme.CREAM if count > 0 else HyperTheme.CREAM_DIM)
+	var ready := wait <= 0.0 and count > 0
+	bar.size.x = 64.0 * (1.0 - clampf(wait, 0.0, 1.0)) if count > 0 else 0.0
+	bar.color = HyperTheme.GOLD if ready else HyperTheme.RED
+
+
+func _weapon_slot(tag: String, icon: TextureRect, label: Label, bar: ColorRect) -> Control:
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 1)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 4)
+	row.add_child(HyperTheme.label(tag, 13, HyperTheme.CREAM_DIM, 700))
+	row.add_child(icon)
+	row.add_child(label)
+	col.add_child(row)
+	var track := ColorRect.new()
+	track.color = Color(0, 0, 0, 0.35)
+	track.custom_minimum_size = Vector2(64, 5)
+	bar.size = Vector2(64, 5)
+	track.add_child(bar)
+	col.add_child(track)
+	return col
 
 
 func _icon(min_size: Vector2) -> TextureRect:

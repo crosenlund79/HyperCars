@@ -36,6 +36,8 @@ const MISSILE := "weapons/missile"
 const MINE := "weapons/mine"
 const BLAST := "fx/blast"
 const LAMP_POST := "scenery/lamp_post"
+const HOMING_MISSILE := "weapons/homing_missile"
+const SUPER_MISSILE := "weapons/super_missile"
 
 ## display_size: world/screen pixels the texture is scaled to (sprites, strips).
 ## tile_world_size: world pixels covered by one repeat of a seamless tile.
@@ -109,6 +111,10 @@ const SPECS := {
 		"notes": "Mine: horizontal strip of 2 frames (32x32 each: lamp off / lamp on), blinks while armed; also the HUD mine icon."},
 	BLAST: {"template_size": Vector2i(96, 96), "display_size": Vector2(110, 110),
 		"notes": "Explosion burst, centred, transparent; scaled up and faded out."},
+	HOMING_MISSILE: {"template_size": Vector2i(40, 16), "display_size": Vector2(30, 12),
+		"notes": "Homing missile, nose pointing right (+X), centred; also the HUD / garage icon."},
+	SUPER_MISSILE: {"template_size": Vector2i(40, 20), "display_size": Vector2(34, 17),
+		"notes": "Super missile (orbits its car), nose pointing right (+X), centred; also the HUD / garage icon."},
 	LAMP_POST: {"template_size": Vector2i(48, 48), "display_size": Vector2(56, 56),
 		"notes": "Lighting pilot: top-down lamp post, lamp head towards the top (-Y), rotated to face the track."},
 }
@@ -132,6 +138,8 @@ const AUDIO := {
 	"weapons/explosion": {"loop": false, "bus": "Effects", "notes": "Missile/mine explosion and car destroyed."},
 	"weapons/mine_drop": {"loop": false, "bus": "Effects", "notes": "Mine dropped (clunk + arming beep)."},
 	"weapons/empty": {"loop": false, "bus": "Effects", "notes": "Fire pressed with no ammunition left."},
+	"weapons/homing_launch": {"loop": false, "bus": "Effects", "notes": "Homing missile fired (launch + seeker chirp)."},
+	"weapons/super_launch": {"loop": false, "bus": "Effects", "notes": "Super missile fired (rising whirl)."},
 }
 
 

@@ -11,6 +11,9 @@ var _weapons_button: Button
 ## Race length preference (laps) for racing and spectating (saved).
 var laps := 3
 var _laps_button: Button
+## Combat style preference (WeaponRules.Style) for racing and spectating (saved).
+var combat_style := 0
+var _style_button: Button
 signal quit_requested
 
 const TRACK_SCRIPT := preload("res://src/track/track.gd")
@@ -66,11 +69,13 @@ func setup(p_resolver: AssetResolver, p_settings: AudioSettings) -> void:
 
 	_load_weapons_pref()
 	_main_menu = _menu(root, [["RACE", _open_race], ["SPECTATE RIVALS", func() -> void: _start(2)],
-		["WEAPONS", _toggle_weapons], ["LAPS", _cycle_laps], ["SETTINGS", _open_settings], ["CONTROLS", _open_controls],
-		["QUIT", func() -> void: quit_requested.emit()]])
+		["WEAPONS", _toggle_weapons], ["COMBAT", _toggle_style], ["LAPS", _cycle_laps], ["SETTINGS", _open_settings],
+		["CONTROLS", _open_controls], ["QUIT", func() -> void: quit_requested.emit()]])
 	_weapons_button = _main_menu.get_child(2)
-	_laps_button = _main_menu.get_child(3)
+	_style_button = _main_menu.get_child(3)
+	_laps_button = _main_menu.get_child(4)
 	_update_weapons_button()
+	_update_style_button()
 	_update_laps_button()
 	_race_menu = _menu(root, [["FIRE TO ACCELERATE", func() -> void: _start(0)], ["FIRE TO BRAKE", func() -> void: _start(1)],
 		["BACK", _show_main]])
@@ -172,6 +177,20 @@ func _cycle_laps() -> void:
 	cfg.save(settings.path)
 
 
+func _toggle_style() -> void:
+	_sfx_play("ui/ui_select")
+	combat_style = WeaponRules.Style.TACTICAL if combat_style == WeaponRules.Style.CLASSIC else WeaponRules.Style.CLASSIC
+	_update_style_button()
+	var cfg := ConfigFile.new()
+	cfg.load(settings.path)
+	cfg.set_value("game", "combat_style", combat_style)
+	cfg.save(settings.path)
+
+
+func _update_style_button() -> void:
+	_style_button.text = "COMBAT: %s" % WeaponRules.style_name(combat_style)
+
+
 func _update_laps_button() -> void:
 	_laps_button.text = "LAPS: %d" % laps
 
@@ -186,6 +205,7 @@ func _load_weapons_pref() -> void:
 		weapons_on = bool(cfg.get_value("game", "weapons", true))
 		var saved := int(cfg.get_value("game", "laps", 3))
 		laps = saved if [3, 7, 20, 50].has(saved) else 3
+		combat_style = clampi(int(cfg.get_value("game", "combat_style", 0)), 0, 1)
 
 
 func _start(choice: int) -> void:
@@ -227,13 +247,13 @@ func _show_only(node: Control) -> void:
 
 func _menu(root: Control, items: Array) -> VBoxContainer:
 	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 10)
+	box.add_theme_constant_override("separation", 6)
 	box.custom_minimum_size = Vector2(380, 0)
 	root.add_child(box)
 	for item in items:
 		var b := Button.new()
 		b.text = item[0]
-		b.custom_minimum_size = Vector2(380, 50)
+		b.custom_minimum_size = Vector2(380, 44)
 		b.pressed.connect(item[1])
 		b.focus_entered.connect(func() -> void: _sfx_play("ui/ui_move"))
 		b.mouse_entered.connect(b.grab_focus)

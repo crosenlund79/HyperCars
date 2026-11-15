@@ -47,8 +47,10 @@ Any resolution is accepted as long as the **aspect ratio and orientation** match
 | `custom/graphics/ui/star_bronze.png` | 48 x 48 | 22 x 22 | 3rd place marker; same contract as the gold star. |
 | `custom/graphics/ui/star_gold.png` | 48 x 48 | 22 x 22 | 1st place marker in the race history; square, centred, transparent background. |
 | `custom/graphics/ui/star_silver.png` | 48 x 48 | 22 x 22 | 2nd place marker; same contract as the gold star. |
+| `custom/graphics/weapons/homing_missile.png` | 40 x 16 | 30 x 12 | Homing missile, nose pointing right (+X), centred; also the HUD / garage icon. |
 | `custom/graphics/weapons/mine.png` | 64 x 32 | 26 x 26 | Mine: horizontal strip of 2 frames (32x32 each: lamp off / lamp on), blinks while armed; also the HUD mine icon. |
 | `custom/graphics/weapons/missile.png` | 40 x 16 | 30 x 12 | Missile, nose pointing right (+X), centred; also the HUD missile icon. Homing/super missiles are tinted. |
+| `custom/graphics/weapons/super_missile.png` | 40 x 20 | 34 x 17 | Super missile (orbits its car), nose pointing right (+X), centred; also the HUD / garage icon. |
 
 ## Audio (OGG Vorbis or WAV)
 
@@ -70,8 +72,10 @@ Any resolution is accepted as long as the **aspect ratio and orientation** match
 | `custom/audio/vehicles/tire_squeal` | yes | Effects | Seamless tyre squeal loop; WAV recommended. |
 | `custom/audio/weapons/empty` | no | Effects | Fire pressed with no ammunition left. |
 | `custom/audio/weapons/explosion` | no | Effects | Missile/mine explosion and car destroyed. |
+| `custom/audio/weapons/homing_launch` | no | Effects | Homing missile fired (launch + seeker chirp). |
 | `custom/audio/weapons/mine_drop` | no | Effects | Mine dropped (clunk + arming beep). |
 | `custom/audio/weapons/missile_launch` | no | Effects | Missile fired. |
+| `custom/audio/weapons/super_launch` | no | Effects | Super missile fired (rising whirl). |
 
 ## Not replaceable through custom/
 

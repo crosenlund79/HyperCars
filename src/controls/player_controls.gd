@@ -19,6 +19,8 @@ const BACK := "back"
 const TOGGLE_PANEL := "toggle_panel"
 ## Lighting pilot on / off (presentation only).
 const TOGGLE_LIGHTING := "toggle_lighting"
+## Grid panel: Classic / Tactical combat style.
+const TOGGLE_STYLE := "toggle_style"
 const STICK_DEADZONE := 0.5
 
 
@@ -33,6 +35,7 @@ static func ensure_actions() -> void:
 	_add(BACK, [_key(KEY_ESCAPE), _joy_button(JOY_BUTTON_B)])
 	_add(TOGGLE_PANEL, [_key(KEY_H), _joy_button(JOY_BUTTON_BACK)])
 	_add(TOGGLE_LIGHTING, [_key(KEY_L)])
+	_add(TOGGLE_STYLE, [_key(KEY_C), _joy_button(JOY_BUTTON_RIGHT_SHOULDER)])
 
 
 ## Digital steering like a joystick: -1, 0 or +1.

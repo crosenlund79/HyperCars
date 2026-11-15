@@ -6,7 +6,9 @@ extends Node2D
 ## its own cursor, and never changes combat, cars or the race.
 
 const W := WeaponRules.Weapon
-const TINTS := {W.HOMING_MISSILE: Color(0.6, 1.0, 0.95), W.SUPER_MISSILE: Color(1.0, 0.85, 0.35)}
+const TEXTURES := {W.HOMING_MISSILE: AssetCatalog.HOMING_MISSILE, W.SUPER_MISSILE: AssetCatalog.SUPER_MISSILE}
+const LAUNCH_SOUNDS := {W.MINE: "weapons/mine_drop", W.HOMING_MISSILE: "weapons/homing_launch",
+	W.SUPER_MISSILE: "weapons/super_launch"}
 
 var enabled := true
 var _combat: CombatWorld
@@ -79,11 +81,8 @@ func _process(delta: float) -> void:
 
 
 func _sync_missiles() -> void:
-	var tex := _resolver.get_texture(AssetCatalog.MISSILE)
 	while _missiles.size() < _combat.projectiles.size():
 		var s := Sprite2D.new()
-		s.texture = tex
-		s.scale = AssetCatalog.scale_for(tex, AssetCatalog.SPECS[AssetCatalog.MISSILE].display_size)
 		add_child(s)
 		_missiles.append(s)
 	for i in _missiles.size():
@@ -91,9 +90,13 @@ func _sync_missiles() -> void:
 		_missiles[i].visible = on
 		if on:
 			var p: Dictionary = _combat.projectiles[i]
+			var logical: String = TEXTURES.get(p.type, AssetCatalog.MISSILE)
+			var tex := _resolver.get_texture(logical)
+			if _missiles[i].texture != tex:
+				_missiles[i].texture = tex
+				_missiles[i].scale = AssetCatalog.scale_for(tex, AssetCatalog.SPECS[logical].display_size)
 			_missiles[i].position = p.pos
 			_missiles[i].rotation = (p.angle + PI * 0.5) if p.type == W.SUPER_MISSILE else p.dir.angle()
-			_missiles[i].modulate = TINTS.get(p.type, Color.WHITE)
 
 
 func _sync_mines() -> void:
@@ -120,7 +123,7 @@ func _sync_mines() -> void:
 func _show_event(e: Dictionary) -> void:
 	match e.kind:
 		"fire":
-			_play("weapons/mine_drop" if e.type == W.MINE else "weapons/missile_launch", e.pos)
+			_play(LAUNCH_SOUNDS.get(e.type, "weapons/missile_launch"), e.pos)
 		"empty":
 			if e.car == RaceSession.PLAYER_ID:
 				_play("weapons/empty", e.pos)

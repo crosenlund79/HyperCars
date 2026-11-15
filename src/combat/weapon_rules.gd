@@ -14,6 +14,13 @@ extends Resource
 ## decision 2026-11-14: wrecked on the spot, then continues).
 
 enum Weapon { NONE, FRONT_MISSILE, REAR_MISSILE, HOMING_MISSILE, SUPER_MISSILE, MINE }
+## Combat style (M3.5). CLASSIC = the M3 rules (one shared cooldown per car).
+## TACTICAL = separate front / rear slot cooldowns plus a brief shared firing lock.
+enum Style { CLASSIC, TACTICAL }
+
+## The five weapons in shop / display order.
+const ALL_WEAPONS: Array[Weapon] = [Weapon.FRONT_MISSILE, Weapon.REAR_MISSILE, Weapon.HOMING_MISSILE,
+	Weapon.SUPER_MISSILE, Weapon.MINE]
 
 ## Fixed loadout for everyone (user decision: front missiles + rear mines). Ammo PROVISIONAL.
 @export var front_weapon: Weapon = Weapon.FRONT_MISSILE
@@ -21,8 +28,13 @@ enum Weapon { NONE, FRONT_MISSILE, REAR_MISSILE, HOMING_MISSILE, SUPER_MISSILE, 
 @export var rear_weapon: Weapon = Weapon.MINE
 @export var rear_ammo := 5
 
-## Time between shots from the same car (s). PROVISIONAL.
+## Time between shots from the same car (s), Classic style. PROVISIONAL.
 @export var fire_cooldown := 0.6
+## Tactical style: per-slot cooldowns (s) and the brief shared lock after any
+## shot that stops firing both slots at once (s). PROVISIONAL (user-specified 1.5 / 3).
+@export var tactical_front_cooldown := 1.5
+@export var tactical_rear_cooldown := 3.0
+@export var tactical_shared_lock := 0.35
 ## Missile speed (px/s; cars top out at 420). PROVISIONAL.
 @export var missile_speed := 820.0
 ## Missile flight time before it fizzles (s). PROVISIONAL.
@@ -52,6 +64,25 @@ func ammo_for(slot: int) -> int:
 
 func weapon_for(slot: int) -> Weapon:
 	return front_weapon if slot == 0 else rear_weapon
+
+
+## Slot a weapon is mounted in: 0 = front (Forward), 1 = rear (Backwards).
+## Front: front, homing and super missiles. Rear: rear missiles and mines.
+## The manual lets the player choose FRONT or REAR for each purchase; which
+## weapons fit which slot is a HyperCars decision (see the brief).
+static func slot_of(w: Weapon) -> int:
+	match w:
+		Weapon.FRONT_MISSILE, Weapon.HOMING_MISSILE, Weapon.SUPER_MISSILE: return 0
+		Weapon.REAR_MISSILE, Weapon.MINE: return 1
+	return -1
+
+
+static func compatible(w: Weapon, slot: int) -> bool:
+	return w != Weapon.NONE and slot_of(w) == slot
+
+
+static func style_name(style: Style) -> String:
+	return "TACTICAL" if style == Style.TACTICAL else "CLASSIC"
 
 
 static func weapon_name(w: Weapon) -> String:

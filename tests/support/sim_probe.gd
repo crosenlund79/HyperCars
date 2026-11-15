@@ -1,13 +1,13 @@
 extends SceneTree
 ## Test helper, run in a fresh Godot process by the determinism tests:
 ##   godot --headless --path <project> --fixed-fps 60 -s res://tests/support/sim_probe.gd -- \
-##         mode=race|spectate speed=1 presentation=1 ticks=900
+##         mode=race|spectate speed=1 presentation=1 ticks=900 weapons=0|1 style=0|1
 ## Prints "PROBE <md5>" of every car's and driver's exact state after `ticks`.
 ## A fresh process matters: Godot's physics broadphase keeps history between
 ## scenes in one process, which changes the order multi-car contacts resolve.
 
 var main: Node2D
-var opts := {"mode": "spectate", "speed": "1", "presentation": "1", "ticks": "900", "weapons": "0", "lighting": "0"}
+var opts := {"mode": "spectate", "speed": "1", "presentation": "1", "ticks": "900", "weapons": "0", "lighting": "0", "style": "0"}
 var tick := 0
 
 
@@ -29,6 +29,8 @@ func _on_tick() -> void:
 	if tick == 2:
 		if main.has_method("set_weapons_enabled"):
 			main.set_weapons_enabled(opts.weapons == "1")
+		if opts.style != "0":
+			main.set_combat_style(int(opts.style))
 		if opts.mode == "spectate":
 			main.set_menu_choice(2)
 		main.set_sim_speed(int(opts.speed))
