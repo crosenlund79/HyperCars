@@ -18,6 +18,8 @@ var title: TitleScreen
 var race: Node2D
 var _fade: ColorRect
 var garage: PlayerGarage
+## True while a race scene is being started (guards against a second start).
+var _starting := false
 var garage_screen: GarageScreen
 ## Achievements (M3.5): one persistent store for the installation, the toast.
 var achievements: AchievementStore
@@ -68,6 +70,9 @@ func _ready() -> void:
 ## devices: two-player split-screen with these controllers (no garage or
 ## achievements in two-player races).
 func start_race(choice: int, with_garage: bool = false, devices: Array[int] = []) -> void:
+	if race != null or _starting:
+		return  # a race is already running or starting: never create a second one
+	_starting = true
 	await _fade_to(1.0)
 	title.hide_title()
 	race = MAIN_SCENE.instantiate()
@@ -93,6 +98,7 @@ func start_race(choice: int, with_garage: bool = false, devices: Array[int] = []
 		race.start_race()  # spectating starts straight away
 	elif with_garage:
 		race.open_garage()  # shop before the first garage race
+	_starting = false
 	await _fade_to(0.0)
 
 

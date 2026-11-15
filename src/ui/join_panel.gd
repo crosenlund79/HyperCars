@@ -10,6 +10,9 @@ signal confirmed(devices: Array[int])
 signal closed
 
 var devices: Array[int] = []
+## Listening only between open() and confirmation: the panel keeps visible=true
+## while the whole title layer is hidden, so visibility alone is not enough.
+var _active := false
 var _slots: Array[Label] = []
 var _hint: Label
 
@@ -34,11 +37,12 @@ func setup() -> void:
 
 func open() -> void:
 	devices.clear()
+	_active = true
 	_refresh()
 
 
 func _input(event: InputEvent) -> void:
-	if not visible:
+	if not _active or not is_visible_in_tree():
 		return
 	var device := -2
 	var cancel := false
@@ -64,14 +68,18 @@ func _input(event: InputEvent) -> void:
 
 ## One press from a device (also used by tests).
 func press(device: int, cancel: bool = false) -> void:
+	if not _active:
+		return
 	if cancel:
 		if devices.has(device):
 			devices.erase(device)
 		elif devices.is_empty():
+			_active = false
 			closed.emit()
 			return
 	elif devices.has(device):
 		if devices.size() == 2:
+			_active = false  # exactly one start per deliberate confirmation
 			confirmed.emit(devices.duplicate())
 			return
 	elif devices.size() < 2:
