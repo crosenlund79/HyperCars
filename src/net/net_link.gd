@@ -31,6 +31,7 @@ var _open := false
 
 func _init() -> void:
 	mp.peer_connected.connect(func(id: int) -> void:
+		_on_peer_timeouts(id)
 		if is_host:
 			peer_joined.emit(id))
 	mp.peer_disconnected.connect(func(id: int) -> void:
@@ -73,6 +74,9 @@ func join(address: String, port: int = DEFAULT_PORT) -> Error:
 	if err != OK:
 		return err
 	peer.host.compress(ENetConnection.COMPRESS_RANGE_CODER)
+	var server := peer.get_peer(1)
+	if server != null:
+		server.set_timeout(32, 2000, 4000)  # an unreachable host fails within a few seconds
 	mp.multiplayer_peer = peer
 	is_host = false
 	_open = true
@@ -99,6 +103,15 @@ func send(msg: Array, reliable: bool, peer_id: int = 0) -> void:
 		_delayed.append([Time.get_ticks_msec() + sim_latency_ms, bytes, reliable, peer_id])
 		return
 	_send_now(bytes, reliable, peer_id)
+
+
+## Peers that stop answering are dropped within a few seconds (both sides).
+func _on_peer_timeouts(id: int) -> void:
+	var enet := mp.multiplayer_peer as ENetMultiplayerPeer
+	if enet != null:
+		var p := enet.get_peer(id)
+		if p != null:
+			p.set_timeout(32, 2000, 4000)
 
 
 ## Drops the remote side (host: kicks the client).

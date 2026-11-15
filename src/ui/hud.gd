@@ -152,9 +152,9 @@ func show_mode_select(mode: CarModel.ControlMode) -> void:
 
 
 ## Mode menu shown on the grid before the start, with the Weapons ON / No Guns option.
-func show_menu(choice: String, weapons: bool = false, laps: int = 3, style: int = WeaponRules.Style.CLASSIC) -> void:
+func show_menu(choice: String, weapons: bool = false, laps: int = 3, style: int = WeaponRules.Style.CLASSIC, note: String = "") -> void:
 	_mode_label.text = choice
-	var key := choice + str(weapons) + str(laps) + str(style)
+	var key := choice + str(weapons) + str(laps) + str(style) + note
 	if _menu_key == key and _message.visible:
 		return
 	_menu_key = key
@@ -165,7 +165,20 @@ func show_menu(choice: String, weapons: bool = false, laps: int = 3, style: int 
 	_message_box.add_child(_centered(HyperTheme.label("<   %s   >" % choice, 34, HyperTheme.GOLD, 700)))
 	_message_box.add_child(_centered(HyperTheme.label("%s     %s COMBAT     %d LAPS" % [weapons_text(weapons),
 		WeaponRules.style_name(style), laps], 26, HyperTheme.RED if weapons else HyperTheme.CREAM, 700)))
+	if not note.is_empty():
+		_message_box.add_child(_centered(HyperTheme.label(note, 22, HyperTheme.GOLD, 700)))
 	_message_box.add_child(_centered(HyperTheme.label("Left / Right: mode    Up / Down: weapons    C: combat style    Tab: laps    Fire: start    Esc: menu", 17, HyperTheme.CREAM_DIM, 500)))
+	_present_message(Vector2(640, 0))
+
+
+## A short notice in the centre panel (e.g. a lost network connection).
+func show_notice(title: String, text: String, footer: String) -> void:
+	_menu_key = ""
+	_results_key = ""
+	_clear_message()
+	_message_box.add_child(_centered(HyperTheme.label(title, 34, HyperTheme.RED, 700)))
+	_message_box.add_child(_centered(HyperTheme.label(text, 22, HyperTheme.CREAM, 600)))
+	_message_box.add_child(_centered(HyperTheme.label(footer, 17, HyperTheme.CREAM_DIM, 500)))
 	_present_message(Vector2(640, 0))
 
 

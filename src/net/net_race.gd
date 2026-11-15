@@ -62,17 +62,34 @@ func is_client() -> bool:
 func attach(p_race: Node) -> void:
 	race = p_race
 	link.message.connect(_on_message)
+	link.peer_left.connect(_on_peer_left)
+	link.server_closed.connect(_on_server_closed)
 	if is_client():
 		link.send([Msg.HELLO, PROTOCOL], true)
 	else:
 		var p := link.peers()
 		peer_id = p[0] if p.size() > 0 else 0
 		send_setup()
+	race._show_menu()
 
 
 func _exit_tree() -> void:
 	if link != null and link.message.is_connected(_on_message):
 		link.message.disconnect(_on_message)
+	if link != null and link.peer_left.is_connected(_on_peer_left):
+		link.peer_left.disconnect(_on_peer_left)
+		link.server_closed.disconnect(_on_server_closed)
+
+
+## The other computer is gone: the race ends gracefully (no AI takeover).
+func _on_peer_left(_peer: int) -> void:
+	if race != null:
+		race.on_network_lost("The other player left the game.")
+
+
+func _on_server_closed() -> void:
+	if race != null:
+		race.on_network_lost("The host left the game.")
 
 
 # ------------------------------------------------------------------ host side
@@ -146,6 +163,14 @@ func client_tick(_step: float) -> void:
 
 func _send_ready() -> void:
 	link.send([Msg.READY, local_ready, race.session.control_mode], true)
+	race._show_menu()
+
+
+## Grid panel line about readiness (whose turn it is).
+func status_text() -> String:
+	if is_host():
+		return "PLAYER 2 READY  -  Fire: start the race" if client_ready else "Waiting for Player 2 to get ready..."
+	return "YOU ARE READY  -  waiting for the host to start" if local_ready else "Fire: ready (the host starts the race)"
 
 
 ## Control mode chosen on this computer's grid panel (sent with READY).

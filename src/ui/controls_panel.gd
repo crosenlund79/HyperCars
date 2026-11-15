@@ -17,6 +17,7 @@ const ROWS := [
 	["TWO PLAYERS", ""],
 	["Join", "Race > Two players: each presses Cross / A (keyboard: Space)"],
 	["Drive", "Own controller: stick / d-pad steer, Cross / A fire, up / down weapons"],
+	["LAN (two computers)", "Race > Two players: LAN. Host shares its address; the other types it and joins"],
 	["SPECTATING", ""],
 	["Follow a driver", "Click a name in the standings, or the < > arrows (grid order)"],
 	["History / Counts", "Tab"],

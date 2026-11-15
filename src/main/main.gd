@@ -136,6 +136,8 @@ var local_player_id := RaceSession.PLAYER_ID
 var player_control_modes := {}
 ## Client: the final finishing order received from the host (empty until then).
 var network_results: Array[int] = []
+## Network race: the other computer is gone (the race is over; back to the menu).
+var network_lost := false
 ## Two-player split-screen views (M4 Stage 2); null in single-player.
 var player_views: PlayerViews
 ## Two-player: the main camera looks at an empty spot far away (the views draw
@@ -391,8 +393,11 @@ func set_combat_style(style: WeaponRules.Style) -> void:
 
 
 func _show_menu() -> void:
+	if network_lost:
+		return
 	hud.track_name = hud_track_name
-	hud.show_menu(choice_name(menu_choice), weapons_enabled, session.lap_count(), combat_style)
+	hud.show_menu(choice_name(menu_choice), weapons_enabled, session.lap_count(), combat_style,
+		net.status_text() if net != null and net.race != null else "")
 	if net != null and net.is_host():
 		net.send_setup()
 
@@ -482,6 +487,20 @@ func _human_safety(step: float) -> void:
 ## A human's own control mode (network: chosen on their own computer).
 func set_player_control_mode(id: int, mode: CarModel.ControlMode) -> void:
 	player_control_modes[id] = mode
+
+
+## The other computer disconnected: everything stops and a clear message
+## offers the way back to the menu. Nothing is saved (garage / achievements are
+## off in network races).
+func on_network_lost(text: String) -> void:
+	if network_lost:
+		return
+	network_lost = true
+	for c in cars:
+		c.active = false
+	if race_audio != null:
+		race_audio.play_music("menu")
+	hud.show_notice("CONNECTION LOST", text, "Fire / Esc: back to the menu")
 
 
 ## Host: the client readied up or cancelled (shown on the grid panel).
@@ -616,6 +635,10 @@ func set_menu_choice(choice: Choice) -> void:
 
 func _physics_process(_delta: float) -> void:
 	var step := Car.FIXED_STEP
+	if network_lost:
+		if _menu_pressed(PlayerControls.FIRE) or _menu_pressed(PlayerControls.BACK):
+			exit_requested.emit()
+		return
 	if net != null and net.is_client():
 		_client_physics(step)
 		return
@@ -870,6 +893,8 @@ func _present_finishers() -> void:
 
 
 func _refresh_hud() -> void:
+	if network_lost:
+		return
 	hud.set_follow(session.spectator, director.target_id)
 	hud.update_tower(session.standings())
 	if session.spectator:
