@@ -10,7 +10,7 @@ extends SceneTree
 
 var opts := {"role": "host", "port": "24690", "laps": "1", "weapons": "0", "style": "0", "out": "",
 	"latency": "0", "loss": "0", "races": "1", "fire_every": "0", "timeout": "120", "track": "1", "jitter": "0",
-	"mode": "0"}
+	"mode": "0", "predict": "1"}
 var link: NetLink
 var main: Node2D
 var autopilot: AiDriver
@@ -74,6 +74,7 @@ func _on_client_message(_from: int, msg: Array) -> void:
 		for c in main.cars:
 			progress.append(RaceProgress.new(main.track.path))
 		main.net.input_source = _client_autopilot
+		main.net.predict = opts.predict == "1"
 
 
 func _make_race(role: NetRace.Role, track: int = int(opts.track)) -> Node2D:
@@ -144,7 +145,10 @@ func _tick() -> void:
 			races_done += 1
 			main.network_results = [] as Array[int]
 			if races_done >= int(opts.races):
-				_write({"results": results, "client_shots": main.combat.shots_fired[RaceSession.PLAYER_2_ID]})
+				var n: NetRace = main.net
+				_write({"results": results, "client_shots": main.combat.shots_fired[RaceSession.PLAYER_2_ID],
+					"corrections": n.corrections, "avg_error": n.correction_sum / maxf(1.0, n.corrections),
+					"max_error": n.correction_max, "hard_snaps": n.hard_snaps, "ping": link.ping_ms()})
 				quit()
 		if finished_at > 0 and main.session.state == RaceSession.State.MODE_SELECT:
 			finished_at = -1

@@ -151,8 +151,11 @@ func send(msg: Array, reliable: bool, peer_id: int = 0) -> void:
 		if reliable:
 			due = maxi(due, _last_reliable_due)
 			_last_reliable_due = due
-		_delayed.append([due, bytes, reliable, peer_id])
-		_delayed.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
+		# stable insert: after every message due at the same time or earlier
+		var i := _delayed.size()
+		while i > 0 and _delayed[i - 1][0] > due:
+			i -= 1
+		_delayed.insert(i, [due, bytes, reliable, peer_id])
 		return
 	_send_now(bytes, reliable, peer_id)
 

@@ -69,7 +69,9 @@ func test_host_waits_for_the_client_then_both_race() -> void:
 	assert_eq(client.session.sitting_out, host.session.sitting_out)
 	await wait_physics_frames(120)
 	for c in client.cars:
-		assert_false(c.active, "client never simulates")
+		if c.racer_id != RaceSession.PLAYER_2_ID:
+			assert_false(c.active, "client never simulates other cars")
+	assert_true(client.cars[RaceSession.PLAYER_2_ID].active, "only its own car is predicted (M5.2)")
 	var drift := 0.0
 	for id in host.grid_order:
 		drift = maxf(drift, client.cars[id].global_position.distance_to(host.cars[id].global_position))

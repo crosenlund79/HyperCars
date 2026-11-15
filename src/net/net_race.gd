@@ -35,6 +35,26 @@ var rear_total := 0
 var input_tick := 0
 var snapshots: Array = []
 var render_tick := -1.0
+## CLIENT prediction (M5.2): the local car is driven at once by this computer's
+## input with the unchanged Car / CarModel (walls only; other cars and all
+## combat stay host-authoritative). Each snapshot says which of our input ticks
+## the host had applied; the host's car state for that tick is compared with
+## our record of the same tick and the difference is corrected: blended when
+## small, applied at once when large. Corrections also shift the recorded
+## history so they are never applied twice.
+var predict := true
+## Fraction of a small error corrected per snapshot, and the error (px) above
+## which the correction is applied at once.
+const BLEND := 0.3
+const SNAP_DISTANCE := 64.0
+const HISTORY := 180
+var _history := {}
+var _last_ack := -1
+## Correction statistics for tests / reports: count, total and max error (px), hard snaps.
+var corrections := 0
+var correction_sum := 0.0
+var correction_max := 0.0
+var hard_snaps := 0
 ## CLIENT: optional source of the local player's command (tests use an autopilot);
 ## default reads the single-player actions on this computer.
 var input_source: Callable
@@ -121,7 +141,7 @@ func host_after_tick() -> void:
 	_tick += 1
 	_send_events()
 	if _tick % SNAP_INTERVAL == 0:
-		link.send([Msg.SNAP, RaceSnapshot.encode(RaceSnapshot.capture(race, _tick))], false)
+		link.send([Msg.SNAP, RaceSnapshot.encode(RaceSnapshot.capture(race, _tick)), remote_input.last_tick()], false)
 
 
 ## New combat events (shots, explosions, destructions, respawns), reliably and
@@ -158,9 +178,89 @@ func client_tick(_step: float) -> void:
 			_send_ready()
 	else:
 		var cmd := _local_command()
+		_record_prediction()
 		input_tick += 1
 		link.send([Msg.INPUT, input_tick, cmd.steer, cmd.fire, front_total, rear_total], false)
+		_drive_local_car(cmd)
 	_interpolate_cars()
+
+
+func _local_car() -> Car:
+	return race.cars[race.local_player_id]
+
+
+## Whether the local car is simulated here this tick (racing, not wrecked).
+func _predicting() -> bool:
+	return predict and race.session.state != RaceSession.State.MODE_SELECT \
+		and not race.combat.is_wrecked(race.local_player_id)
+
+
+## The state reached after the previous input tick, kept for reconciliation.
+func _record_prediction() -> void:
+	if input_tick <= 0:
+		return
+	var c := _local_car()
+	_history[input_tick] = [c.global_position, c.model.heading, c.model.velocity]
+	_history.erase(input_tick - HISTORY)
+
+
+## Applies this tick's own command to the local car (or keeps it parked when
+## it is wrecked / not predicting: then it follows the host's snapshots).
+func _drive_local_car(cmd: Dictionary) -> void:
+	var c := _local_car()
+	if not _predicting():
+		c.active = false
+		return
+	c.collision_mask = 1  # walls only: other cars are shown in the past, contacts come from the host
+	c.active = true
+	if race.session.racers[race.local_player_id].is_finished():
+		c.steer = 0.0
+		c.fire = c.model.control_mode == CarModel.ControlMode.FIRE_TO_BRAKE
+	else:
+		c.steer = cmd.steer
+		c.fire = cmd.fire
+
+
+## Compares the host's state of our car (after input tick `ack`) with our own
+## record of that tick and corrects the difference.
+func _reconcile(snap: Array, ack: int) -> void:
+	if not _predicting() or ack <= _last_ack:
+		return
+	_last_ack = ack
+	var auth := RaceSnapshot.car_state(snap, race.local_player_id)
+	var c := _local_car()
+	if not _history.has(ack):
+		if c.global_position.distance_to(auth.position) > 400.0:
+			_set_car(c, auth.position, auth.heading, auth.velocity)  # far off and nothing to compare: take the host's
+			hard_snaps += 1
+		return
+	var rec: Array = _history[ack]
+	var dpos: Vector2 = auth.position - rec[0]
+	var dhead := wrapf(auth.heading - rec[1], -PI, PI)
+	var dvel: Vector2 = auth.velocity - rec[2]
+	var err := dpos.length()
+	corrections += 1
+	correction_sum += err
+	correction_max = maxf(correction_max, err)
+	var k := BLEND
+	if err > SNAP_DISTANCE or absf(dhead) > 0.6:
+		k = 1.0
+		hard_snaps += 1
+	elif err < 0.5 and absf(dhead) < 0.002:
+		return
+	_set_car(c, c.global_position + dpos * k, c.model.heading + dhead * k, c.model.velocity + dvel * k)
+	for t in _history:
+		if t > ack:
+			var h: Array = _history[t]
+			_history[t] = [h[0] + dpos * k, h[1] + dhead * k, h[2] + dvel * k]
+
+
+func _set_car(c: Car, pos: Vector2, heading: float, vel: Vector2) -> void:
+	c.global_position = pos
+	c.global_rotation = heading
+	c.model.position = pos
+	c.model.heading = heading
+	c.model.velocity = vel
 
 
 func _send_ready() -> void:
@@ -233,6 +333,8 @@ func _interpolate_cars() -> void:
 	var span := float(RaceSnapshot.tick_of(b) - RaceSnapshot.tick_of(a))
 	var t := 0.0 if span <= 0.0 else clampf((render_tick - RaceSnapshot.tick_of(a)) / span, 0.0, 1.0)
 	for c in race.cars.size():
+		if c == race.local_player_id and _predicting():
+			continue  # our own car is predicted, not interpolated
 		var sa := RaceSnapshot.car_state(a, c)
 		var sb := RaceSnapshot.car_state(b, c)
 		if not sb.present:
@@ -319,15 +421,22 @@ func _on_message(from: int, msg: Array) -> void:
 				local_ready = false
 				snapshots.clear()
 				render_tick = -1.0
+				_history.clear()
+				_last_ack = -1
 				race.apply_network_setup(msg[1])
 		Msg.START:
-			if is_client() and valid(msg, [TYPE_INT]) and state == RaceSession.State.MODE_SELECT:
+			# a newer race number only (a snapshot may already have shown RACING:
+			# snapshots travel unreliably and can overtake this message)
+			if is_client() and valid(msg, [TYPE_INT]) and msg[1] > race.races_started:
 				race.on_network_start(msg[1])
 		Msg.SNAP:
-			if is_client() and valid(msg, [TYPE_PACKED_BYTE_ARRAY]):
+			if is_client() and valid(msg, [TYPE_PACKED_BYTE_ARRAY, TYPE_INT]):
 				var snap := RaceSnapshot.decode(msg[1])
 				if RaceSnapshot.is_valid(snap, race.cars.size(), race.session.racers.size()):
+					var newer := snapshots.is_empty() or RaceSnapshot.tick_of(snap) > RaceSnapshot.tick_of(snapshots[-1])
 					_push_snapshot(snap)
+					if newer:
+						_reconcile(snap, msg[2])
 		Msg.EVENTS:
 			if is_client() and valid(msg, [TYPE_INT, TYPE_INT, TYPE_ARRAY]) and msg[1] == race.races_started:
 				var events: Array = race.combat.events

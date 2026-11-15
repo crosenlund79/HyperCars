@@ -78,3 +78,14 @@ func test_armed_races_agree_classic_and_tactical() -> void:
 		assert_eq(r[1].results[0], host, "style %d: same result, shots and destructions on both" % style)
 		assert_gt(host.fired, 0.0)
 		assert_gt(r[0].client_shots, 0.0, "the client's player fired through the network")
+
+
+func test_internet_like_conditions_with_prediction() -> void:
+	# ~80-120 ms round trip (40 ms + 0-20 ms jitter each way) and 3 % loss.
+	var r := await _run(24716, ["laps=1", "weapons=1", "style=1", "fire_every=60", "latency=40", "jitter=20", "loss=0.03", "predict=1"])
+	if not r[0].has("results") or not r[1].has("results"):
+		fail_test("no results: %s / %s" % [str(r[0]), str(r[1])])
+		return
+	assert_eq(r[1].results, r[0].results, "authoritative result, shots and destructions agree")
+	assert_gt(r[1].corrections, 100.0, "client reconciled continuously")
+	assert_lt(r[1].avg_error, 20.0, "average correction stays small")

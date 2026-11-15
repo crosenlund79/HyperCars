@@ -528,6 +528,7 @@ func apply_network_setup(cfg: Dictionary) -> void:
 ## Client: the host started the race (number `race_number`).
 func on_network_start(race_number: int = races_started) -> void:
 	races_started = race_number
+	cars[local_player_id].model.control_mode = session.control_mode  # predicted with this player's own mode
 	combat.reset()
 	combat.enabled = weapons_enabled
 	combat.style = combat_style
