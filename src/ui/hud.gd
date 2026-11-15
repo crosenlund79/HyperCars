@@ -472,7 +472,8 @@ func copy_field_from(other: Hud) -> void:
 	set_field(other._car_textures, other._full_names)
 
 
-## Split-screen shared HUD: the banner sits low, between the two views.
+## Split-screen shared HUD and spectating (history panel at the top): the
+## banner sits low on the screen.
 func set_banner_low(on: bool) -> void:
 	_banner.position.y = BANNER_Y_SPLIT if on else BANNER_Y
 

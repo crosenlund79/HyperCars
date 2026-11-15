@@ -468,6 +468,7 @@ func reset_race() -> void:
 	_update_camera_target()
 	camera.snap_to_target()
 	hud.history_panel.visible = session.spectator
+	hud.set_banner_low(session.spectator or player_views != null)  # clear of the history panel at the top
 	_seen_finishers = 0
 	if effects != null:
 		effects.clear_marks()

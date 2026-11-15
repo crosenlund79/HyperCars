@@ -229,3 +229,47 @@ func test_marker_on_the_local_car_only() -> void:
 func test_split_screen_marks_both_players_in_their_colours() -> void:
 	await _make_presented(2)
 	assert_eq(_main.player_marker.marked, {P1: HyperTheme.player_color(0), P2: HyperTheme.player_color(1)})
+
+
+func test_network_race_marks_only_this_computers_car_in_gold() -> void:
+	var host_link := NetLink.new()
+	var client_link := NetLink.new()
+	add_child_autofree(host_link)
+	add_child_autofree(client_link)
+	host_link.host(24733)
+	client_link.join("127.0.0.1", 24733)
+	await wait_until(func() -> bool: return host_link.peers().size() == 1 and client_link.peers().size() == 1, 5.0)
+	var mains: Array[Node2D] = []
+	for role in [NetRace.Role.HOST, NetRace.Role.CLIENT]:
+		var m: Node2D = MAIN_SCENE.instantiate()
+		m.presentation_enabled = true
+		m.human_count = 2
+		m.net = NetRace.new(host_link if role == NetRace.Role.HOST else client_link, role)
+		var parent: Node = self
+		if role == NetRace.Role.CLIENT:
+			parent = SubViewport.new()
+			add_child_autofree(parent)
+		parent.add_child(m)
+		if parent == self:
+			autofree(m)
+		mains.append(m)
+	await wait_physics_frames(5)
+	assert_eq(mains[0].player_marker.marked, {P1: HyperTheme.GOLD}, "host marks its own car")
+	assert_eq(mains[1].player_marker.marked, {P2: HyperTheme.GOLD}, "client marks its own car")
+	assert_eq(mains[0].hud._human_colors[P2], HyperTheme.P2_BLUE, "the other human in blue")
+	assert_eq(mains[1].hud._human_colors[P1], HyperTheme.P2_BLUE)
+	assert_eq(mains[1].hud._own_ids, [P2] as Array[int])
+	host_link.close()
+	client_link.close()
+
+
+func test_spectator_banner_stays_clear_of_the_history_panel() -> void:
+	await _make()
+	var hud: Hud = _main.hud
+	_main.set_menu_choice(2)  # spectate (chosen on the grid panel)
+	assert_true(hud.history_panel.visible)
+	var banner := _screen_rect(hud, hud._banner)
+	var history := Rect2(hud.history_panel.position, hud.history_panel.size)
+	assert_false(banner.intersects(history), "winner banner below the history panel")
+	_main.set_menu_choice(0)
+	assert_eq(hud._banner.position.y, Hud.BANNER_Y, "back at the top when racing")
