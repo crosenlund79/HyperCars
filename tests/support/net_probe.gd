@@ -1,0 +1,157 @@
+extends SceneTree
+## Test helper: one side of a LAN race, run as its own Godot process.
+##   godot --headless --path <project> -s res://tests/support/net_probe.gd -- \
+##         role=host|client port=24690 laps=1 weapons=0 style=0 out=<file> \
+##         latency=0 loss=0 races=1 fire_every=0
+## Both humans are driven by an autopilot (an AiDriver steering the human's
+## car through the normal input path: the host's local player input, and the
+## client's INPUT messages). Each side writes the final result it shows
+## (finishing order, positions, times) and its own counters to `out`.
+
+var opts := {"role": "host", "port": "24690", "laps": "1", "weapons": "0", "style": "0", "out": "",
+	"latency": "0", "loss": "0", "races": "1", "fire_every": "0", "timeout": "120"}
+var link: NetLink
+var main: Node2D
+var autopilot: AiDriver
+var progress: Array[RaceProgress] = []
+var races_done := 0
+var results: Array = []
+var t0 := 0
+var finished_at := -1
+var shots := 0
+var tick := 0
+var waiting_next := false
+
+
+func _initialize() -> void:
+	for arg in OS.get_cmdline_user_args():
+		var kv := arg.split("=")
+		if kv.size() == 2:
+			opts[kv[0]] = kv[1]
+	link = NetLink.new()
+	link.sim_latency_ms = int(opts.latency)
+	link.sim_loss = float(opts.loss)
+	root.add_child(link)
+	t0 = Time.get_ticks_msec()
+	if opts.role == "host":
+		link.host(int(opts.port))
+		link.peer_joined.connect(_on_joined)
+	else:
+		link.message.connect(_on_client_message)
+		_try_join()
+	physics_frame.connect(_tick)
+
+
+func _try_join() -> void:
+	link.join("127.0.0.1", int(opts.port))
+	link.connection_failed.connect(func() -> void:
+		await create_timer(0.3).timeout
+		_try_join(), CONNECT_ONE_SHOT)
+
+
+func _on_joined(_id: int) -> void:
+	link.send([NetRace.Msg.WELCOME, NetRace.PROTOCOL, {"track_variant": 1}], true)
+	main = _make_race(NetRace.Role.HOST)
+	main.set_lap_count(int(opts.laps))
+	main.set_weapons_enabled(opts.weapons == "1")
+	main.set_combat_style(int(opts.style))
+	main.inputs[0] = AiDriverInput.new(0, AiDriver.new(main.racing_line, AiParams.new()))
+
+
+func _on_client_message(_from: int, msg: Array) -> void:
+	if msg[0] == NetRace.Msg.WELCOME and main == null:
+		main = _make_race(NetRace.Role.CLIENT)
+		autopilot = AiDriver.new(main.racing_line, AiParams.new())
+		for c in main.cars:
+			progress.append(RaceProgress.new(main.track.path))
+		main.net.input_source = _client_autopilot
+
+
+func _make_race(role: NetRace.Role) -> Node2D:
+	var m: Node2D = load("res://src/main/main.tscn").instantiate()
+	m.presentation_enabled = false
+	m.human_count = 2
+	m.net = NetRace.new(link, role)
+	root.add_child(m)
+	return m
+
+
+## Client: the autopilot reads the replicated cars like a player reads the screen.
+func _client_autopilot() -> Dictionary:
+	var me_id := RaceSession.PLAYER_2_ID
+	for id in main.grid_order:
+		progress[id].update(main.cars[id].global_position)
+	var others: Array = []
+	for id in main.grid_order:
+		if id != me_id:
+			others.append({"distance": progress[id].distance, "lateral": progress[id].lateral,
+				"speed": main.cars[id].model.velocity.length()})
+	var c: Car = main.cars[me_id]
+	var cmd := autopilot.decide({"position": c.global_position, "heading": c.model.heading,
+		"speed": c.model.velocity.dot(Vector2.from_angle(c.model.heading)),
+		"distance": progress[me_id].distance, "lateral": progress[me_id].lateral}, others, 1.0 / 60.0)
+	var fe := int(opts.fire_every)
+	cmd["front"] = fe > 0 and tick % fe == 0
+	return cmd
+
+
+func _tick() -> void:
+	tick += 1
+	if Time.get_ticks_msec() - t0 > int(opts.timeout) * 1000:
+		_write({"error": "timeout", "state": main.session.state if main != null else -1})
+		quit(1)
+		return
+	if main == null or not main.is_inside_tree():
+		return
+	var s: RaceSession = main.session
+	if opts.role == "host":
+		if waiting_next and s.state == RaceSession.State.MODE_SELECT:
+			waiting_next = false
+			Input.action_release(PlayerControls.FIRE)
+		if s.state == RaceSession.State.MODE_SELECT and main.net.can_start():
+			for id in main.grid_order:
+				progress.resize(main.cars.size())
+			main.start_race()
+		if s.state == RaceSession.State.FINISHED and s.all_finished() and finished_at < 0 and not waiting_next:
+			finished_at = tick
+			results.append(_result())
+		if finished_at > 0 and tick - finished_at == 30:
+			races_done += 1
+			if races_done < int(opts.races):
+				finished_at = -1
+				waiting_next = true
+				Input.action_press(PlayerControls.FIRE)
+			else:
+				_write({"results": results, "client_shots": main.combat.shots_fired[RaceSession.PLAYER_2_ID]})
+				quit()
+	else:
+		if s.state == RaceSession.State.MODE_SELECT and not main.net.local_ready and main.races_started == races_done:
+			main.net.local_ready = true
+			main.net._send_ready()
+		if main.network_results.size() > 0 and finished_at < 0:
+			finished_at = tick
+			results.append(_result())
+			races_done += 1
+			main.network_results = [] as Array[int]
+			if races_done >= int(opts.races):
+				_write({"results": results, "client_shots": main.combat.shots_fired[RaceSession.PLAYER_2_ID]})
+				quit()
+		if finished_at > 0 and main.session.state == RaceSession.State.MODE_SELECT:
+			finished_at = -1
+
+
+func _result() -> Dictionary:
+	var s: RaceSession = main.session
+	var times := []
+	var positions := []
+	for id in s.finish_order:
+		times.append(snappedf(s.racers[id].finish_time, 0.0001))
+		positions.append(s.racers[id].finish_position)
+	return {"order": s.finish_order.duplicate(), "times": times, "positions": positions, "grid": main.grid_order.duplicate(),
+		"sitting_out": s.sitting_out.duplicate()}
+
+
+func _write(data: Dictionary) -> void:
+	var f := FileAccess.open(opts.out, FileAccess.WRITE)
+	f.store_string(JSON.stringify(data))
+	f.close()

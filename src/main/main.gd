@@ -124,6 +124,18 @@ var player_devices: Array[int] = [0, 1]
 ## Two-player races run so far in this session (drives the rival rotation).
 var multiplayer_round := 0
 var _human_stuck_time := 0.0
+## Two-player split-screen on this computer (couch); off for network races.
+var split_screen := true
+## Network two-player race (M5.1): the session's NetRace (host or client), set
+## before the scene enters the tree; null for local play.
+var net: NetRace
+## The human this computer shows (camera, HUD): the player, or Player 2 on a
+## network client.
+var local_player_id := RaceSession.PLAYER_ID
+## Per-human control mode overrides (network: each computer chooses its own).
+var player_control_modes := {}
+## Client: the final finishing order received from the host (empty until then).
+var network_results: Array[int] = []
 ## Two-player split-screen views (M4 Stage 2); null in single-player.
 var player_views: PlayerViews
 ## Two-player: the main camera looks at an empty spot far away (the views draw
@@ -178,7 +190,7 @@ func _ready() -> void:
 	cars.append(car)
 	drivers.append(null)
 	inputs.append(HumanDriverInput.new(RaceSession.PLAYER_ID,
-		PlayerControls.ensure_player_actions(1, player_devices[0]) if two else ""))
+		PlayerControls.ensure_player_actions(1, player_devices[0]) if two and net == null else ""))
 	var rival_ids: Array[int] = []
 	var car_textures := {}
 	var full_names := {}
@@ -206,7 +218,12 @@ func _ready() -> void:
 		car2.setup(driving_params, session.control_mode, resolver.get_texture(AssetCatalog.CAR_PLAYER_2))
 		cars.append(car2)
 		drivers.append(null)
-		inputs.append(HumanDriverInput.new(RaceSession.PLAYER_2_ID, PlayerControls.ensure_player_actions(2, player_devices[1])))
+		if net != null and net.is_host():
+			inputs.append(net.remote_input)
+		elif net != null:
+			inputs.append(HumanDriverInput.new(RaceSession.PLAYER_2_ID))  # the client never simulates
+		else:
+			inputs.append(HumanDriverInput.new(RaceSession.PLAYER_2_ID, PlayerControls.ensure_player_actions(2, player_devices[1])))
 	for c in cars:
 		progress.append(RaceProgress.new(track.path))
 	combat = CombatWorld.new(weapon_rules, cars.size(), track.path, track.layout.road_width * 0.5)
@@ -242,12 +259,18 @@ func _ready() -> void:
 		achievement_tracker.name = "AchievementTracker"
 		add_child(achievement_tracker)
 		achievement_tracker.setup(self, achievements)
-	if two:
+	if net != null:
+		split_screen = false
+		local_player_id = RaceSession.PLAYER_2_ID if net.is_client() else RaceSession.PLAYER_ID
+		add_child(net)
+	if two and split_screen:
 		_setup_split_screen()
 	_race_grid = first_grid_two_players(sitting_out_rival(0)) if two else first_grid(cars.size(), player_first_grid_slot)
 	_spectator_grid = rival_ids.duplicate()
 	grid_order = _race_grid
 	reset_race()
+	if net != null:
+		net.attach(self)
 
 
 func _exit_tree() -> void:
@@ -370,6 +393,8 @@ func set_combat_style(style: WeaponRules.Style) -> void:
 func _show_menu() -> void:
 	hud.track_name = hud_track_name
 	hud.show_menu(choice_name(menu_choice), weapons_enabled, session.lap_count(), combat_style)
+	if net != null and net.is_host():
+		net.send_setup()
 
 
 func reset_race() -> void:
@@ -452,6 +477,72 @@ func _human_safety(step: float) -> void:
 		session.end_for_humans()
 
 
+# ------------------------------------------------- network two-player (M5.1)
+
+## A human's own control mode (network: chosen on their own computer).
+func set_player_control_mode(id: int, mode: CarModel.ControlMode) -> void:
+	player_control_modes[id] = mode
+
+
+## Host: the client readied up or cancelled (shown on the grid panel).
+func on_network_peer_ready(_is_ready: bool) -> void:
+	_show_menu()
+
+
+## Client: the host's grid and settings for the next race.
+func apply_network_setup(cfg: Dictionary) -> void:
+	session.state = RaceSession.State.MODE_SELECT
+	weapons_enabled = cfg.weapons
+	combat_style = cfg.style
+	multiplayer_round = cfg.round
+	races_started = cfg.races
+	if session.lap_count() != cfg.laps:
+		session.set_lap_count(cfg.laps)
+	var grid: Array[int] = []
+	for id in cfg.grid:
+		grid.append(id)
+	_race_grid = grid
+	grid_order = grid
+	reset_race()
+
+
+## Client: the host started the race.
+func on_network_start() -> void:
+	hud.hide_message()
+	hud.flash_banner("GO!")
+	if race_audio != null:
+		race_audio.play_cue("race/start_go")
+		race_audio.play_music("race")
+
+
+## Client: the host's final result (reliable; overrides any older snapshot).
+func apply_network_results(order: PackedInt32Array, times: PackedFloat64Array) -> void:
+	var finish: Array[int] = []
+	for k in order.size():
+		var r := session.racers[order[k]]
+		r.finish_position = k + 1
+		r.finish_time = times[k]
+		finish.append(order[k])
+	session.finish_order = finish
+	session.state = RaceSession.State.FINISHED
+	network_results = finish
+
+
+## Client physics tick: no simulation, only the network side and the camera.
+func _client_physics(step: float) -> void:
+	if session.state == RaceSession.State.MODE_SELECT and _grid_input_delay <= 0:
+		if _menu_pressed(PlayerControls.STEER_LEFT):
+			set_menu_choice(posmod(menu_choice - 1, 2) as Choice)
+			net.on_local_mode_changed()
+		elif _menu_pressed(PlayerControls.STEER_RIGHT):
+			set_menu_choice(posmod(menu_choice + 1, 2) as Choice)
+			net.on_local_mode_changed()
+		elif allow_exit and _menu_pressed(PlayerControls.BACK):
+			exit_requested.emit()
+	net.client_tick(step)
+	_update_camera_target(step)
+
+
 ## Reports the race result once it is final (see race_concluded). Only a race
 ## that reached the flag counts; one left while racing is not reported.
 func _conclude_race() -> void:
@@ -462,6 +553,8 @@ func _conclude_race() -> void:
 	for r in session.standings():
 		order.append(r.id)
 	race_concluded.emit(order)
+	if net != null:
+		net.send_results(order)
 
 
 ## Garage race: once the player has finished, pays the prize and keeps the
@@ -518,6 +611,9 @@ func set_menu_choice(choice: Choice) -> void:
 
 func _physics_process(_delta: float) -> void:
 	var step := Car.FIXED_STEP
+	if net != null and net.is_client():
+		_client_physics(step)
+		return
 	_settle_garage()
 	match session.state:
 		RaceSession.State.MODE_SELECT:
@@ -539,7 +635,8 @@ func _physics_process(_delta: float) -> void:
 				var i := LAP_OPTIONS.find(session.lap_count())
 				set_lap_count(LAP_OPTIONS[(i + 1) % LAP_OPTIONS.size()])
 			elif _menu_pressed(PlayerControls.FIRE):
-				start_race()
+				if net == null or net.can_start():
+					start_race()
 			elif allow_exit and _menu_pressed(PlayerControls.BACK):
 				exit_requested.emit()
 			return
@@ -578,6 +675,8 @@ func _physics_process(_delta: float) -> void:
 	if session.spectator:
 		_spectator_tick(step)
 	_update_camera_target(step)
+	if net != null:
+		net.host_after_tick()
 
 
 ## Grid panel and results controls: the default actions, and in two-player
@@ -599,7 +698,7 @@ func start_race() -> void:
 	races_started += 1
 	for id in session.human_ids:
 		if id < cars.size():
-			cars[id].model.control_mode = session.control_mode
+			cars[id].model.control_mode = player_control_modes.get(id, session.control_mode)
 	for id in grid_order:
 		cars[id].active = true
 		inputs[id].begin_race(race_seed(races_started, id))
@@ -608,6 +707,8 @@ func start_race() -> void:
 		_follow_last_starter()
 	_race_open = true
 	race_began.emit()
+	if net != null:
+		net.on_race_started()
 	if garage != null and not session.spectator:
 		garage.begin_race()
 	hud.hide_message()
@@ -711,7 +812,7 @@ func _update_camera_target(step: float = 0.0) -> void:
 		camera.position_smoothing_enabled = false
 		return
 	if not session.spectator:
-		camera.target = car
+		camera.target = cars[local_player_id]
 		camera.position_smoothing_enabled = false
 		camera.zoom = Vector2.ONE
 		return
@@ -780,15 +881,18 @@ func _refresh_hud() -> void:
 		if session.state == RaceSession.State.FINISHED:
 			hud.show_results(session.standings())
 		return
-	var p := session.racers[RaceSession.PLAYER_ID]
+	var me := local_player_id
+	var p := session.racers[me]
 	var time := p.finish_time if p.is_finished() else session.elapsed
 	hud.update_race(p.tracker.current_lap(), p.tracker.lap_count, time,
-		session.position_of(RaceSession.PLAYER_ID), session.racer_count())
-	hud.update_combat(weapons_enabled, combat.weapon_of(0, CombatWorld.FRONT), combat.ammo[0][CombatWorld.FRONT],
-		combat.weapon_of(0, CombatWorld.REAR), combat.ammo[0][CombatWorld.REAR], combat.wreck_left[0],
-		_cooldown_fraction(CombatWorld.FRONT), _cooldown_fraction(CombatWorld.REAR))
+		session.position_of(me), session.racer_count())
+	hud.update_combat(weapons_enabled, combat.weapon_of(me, CombatWorld.FRONT), combat.ammo[me][CombatWorld.FRONT],
+		combat.weapon_of(me, CombatWorld.REAR), combat.ammo[me][CombatWorld.REAR], combat.wreck_left[me],
+		_cooldown_fraction(CombatWorld.FRONT, me), _cooldown_fraction(CombatWorld.REAR, me))
 	if session.state == RaceSession.State.FINISHED:
-		if garage != null and _garage_settled:
+		if net != null:
+			hud.show_results(session.standings(), "Fire: next race" if net.is_host() else "Waiting for the host to continue")
+		elif garage != null and _garage_settled:
 			hud.show_results(session.standings(), "Prize money: $%d     Fire: garage     Tab: skip shopping, next race" % garage.last_prize)
 		else:
 			hud.show_results(session.standings())
@@ -825,6 +929,8 @@ func _drive_cars(step: float) -> void:
 
 
 func _on_checkpoint_reached(index: int, body: Node2D) -> void:
+	if net != null and net.is_client():
+		return  # laps come from the host
 	var c := body as Car
 	if c == null or not c.active:
 		return
