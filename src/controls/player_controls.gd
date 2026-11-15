@@ -22,6 +22,49 @@ const TOGGLE_LIGHTING := "toggle_lighting"
 ## Grid panel: Classic / Tactical combat style.
 const TOGGLE_STYLE := "toggle_style"
 const STICK_DEADZONE := 0.5
+## Device id for a player on the keyboard (two-player assignment).
+const KEYBOARD := -1
+## Per-player driving actions (prefix + name) for two-player races.
+const PLAYER_ACTIONS: Array[String] = [STEER_LEFT, STEER_RIGHT, FIRE, FIRE_FRONT, FIRE_REAR, BACK, HISTORY_VIEW, TOGGLE_STYLE]
+
+
+## Prefix of player n's own actions (two-player races), e.g. "p2_".
+static func player_prefix(player_number: int) -> String:
+	return "p%d_" % player_number
+
+
+## (Re)binds player n's driving actions to one device only: a joypad id, or
+## KEYBOARD. Joypad events carry the device id, so two pads never share input.
+static func ensure_player_actions(player_number: int, device: int) -> String:
+	var prefix := player_prefix(player_number)
+	for a in PLAYER_ACTIONS:
+		if InputMap.has_action(prefix + a):
+			InputMap.erase_action(prefix + a)
+		InputMap.add_action(prefix + a, STICK_DEADZONE)
+	if device == KEYBOARD:
+		_bind(prefix + STEER_LEFT, [_key(KEY_LEFT), _key(KEY_A)])
+		_bind(prefix + STEER_RIGHT, [_key(KEY_RIGHT), _key(KEY_D)])
+		_bind(prefix + FIRE, [_key(KEY_SPACE), _key(KEY_CTRL)])
+		_bind(prefix + FIRE_FRONT, [_key(KEY_UP), _key(KEY_W)])
+		_bind(prefix + FIRE_REAR, [_key(KEY_DOWN), _key(KEY_S)])
+		_bind(prefix + BACK, [_key(KEY_ESCAPE)])
+		_bind(prefix + HISTORY_VIEW, [_key(KEY_TAB)])
+		_bind(prefix + TOGGLE_STYLE, [_key(KEY_C)])
+	else:
+		_bind(prefix + STEER_LEFT, [_joy_button(JOY_BUTTON_DPAD_LEFT, device), _joy_axis(JOY_AXIS_LEFT_X, -1.0, device)])
+		_bind(prefix + STEER_RIGHT, [_joy_button(JOY_BUTTON_DPAD_RIGHT, device), _joy_axis(JOY_AXIS_LEFT_X, 1.0, device)])
+		_bind(prefix + FIRE, [_joy_button(JOY_BUTTON_A, device)])
+		_bind(prefix + FIRE_FRONT, [_joy_button(JOY_BUTTON_DPAD_UP, device), _joy_axis(JOY_AXIS_LEFT_Y, -1.0, device)])
+		_bind(prefix + FIRE_REAR, [_joy_button(JOY_BUTTON_DPAD_DOWN, device), _joy_axis(JOY_AXIS_LEFT_Y, 1.0, device)])
+		_bind(prefix + BACK, [_joy_button(JOY_BUTTON_B, device)])
+		_bind(prefix + HISTORY_VIEW, [_joy_button(JOY_BUTTON_Y, device)])
+		_bind(prefix + TOGGLE_STYLE, [_joy_button(JOY_BUTTON_RIGHT_SHOULDER, device)])
+	return prefix
+
+
+static func _bind(action: String, events: Array) -> void:
+	for e in events:
+		InputMap.action_add_event(action, e)
 
 
 static func ensure_actions() -> void:
@@ -64,14 +107,17 @@ static func _key(code: Key) -> InputEventKey:
 	return e
 
 
-static func _joy_button(button: JoyButton) -> InputEventJoypadButton:
+## device: the joypad the event belongs to (0 = the single-player default, as before).
+static func _joy_button(button: JoyButton, device: int = 0) -> InputEventJoypadButton:
 	var e := InputEventJoypadButton.new()
 	e.button_index = button
+	e.device = device
 	return e
 
 
-static func _joy_axis(axis: JoyAxis, value: float) -> InputEventJoypadMotion:
+static func _joy_axis(axis: JoyAxis, value: float, device: int = 0) -> InputEventJoypadMotion:
 	var e := InputEventJoypadMotion.new()
 	e.axis = axis
 	e.axis_value = value
+	e.device = device
 	return e

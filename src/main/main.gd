@@ -111,6 +111,20 @@ var achievement_tracker: AchievementTracker
 var _race_open := false
 ## Start with the lighting pilot on (e.g. for comparison runs).
 @export var lighting_on_start := false
+## M4 two-player races: number of humans (1 or 2), set before the scene starts.
+## With 2, Player 2 is racer 10, the field stays 10 cars (2 humans + 8 rivals,
+## one rival sitting out per race in a fixed rotation), and the garage and
+## achievements are off.
+@export_range(1, 2) var human_count := 1
+## Two-player: each player's device (joypad id, or PlayerControls.KEYBOARD).
+var player_devices: Array[int] = [0, 1]
+## Two-player safety net: once someone has finished, a human that makes no
+## progress for this long (s) no longer holds up the results.
+@export var human_stuck_timeout := 30.0
+## Two-player races run so far in this session (drives the rival rotation).
+var multiplayer_round := 0
+var _human_stuck_time := 0.0
+var _human_best := -INF
 
 @onready var track: Track = $Track
 @onready var car: Car = $Car
@@ -125,10 +139,18 @@ func _ready() -> void:
 	track.build(resolver, track_theme)
 	hud_track_name = track_theme.display_name
 	track.checkpoint_reached.connect(_on_checkpoint_reached)
-	var names := PackedStringArray(["YOU"])
+	var two := is_two_player()
+	if two:
+		garage = null  # garage and achievement progression are single-player only (M4)
+		achievements = null
+	var names := PackedStringArray(["P1" if two else "YOU"])
 	for i in range(1, opponent_count + 1):
 		names.append(RivalRoster.short_name(i))
+	if two:
+		names.append("P2")
 	session = RaceSession.new(track.checkpoint_count(), track.layout.lap_count, names)
+	if two:
+		session.set_humans([RaceSession.PLAYER_ID, RaceSession.PLAYER_2_ID] as Array[int])
 	hud.setup(resolver)
 	hud.follow_requested.connect(follow_driver)
 	hud.follow_step_requested.connect(follow_step)
@@ -149,7 +171,8 @@ func _ready() -> void:
 	car.setup(driving_params, session.control_mode, resolver.get_texture(AssetCatalog.CAR_PLAYER))
 	cars.append(car)
 	drivers.append(null)
-	inputs.append(HumanDriverInput.new(RaceSession.PLAYER_ID))
+	inputs.append(HumanDriverInput.new(RaceSession.PLAYER_ID,
+		PlayerControls.ensure_player_actions(1, player_devices[0]) if two else ""))
 	var rival_ids: Array[int] = []
 	var car_textures := {}
 	var full_names := {}
@@ -168,13 +191,26 @@ func _ready() -> void:
 		rival_ids.append(i)
 		car_textures[i] = texture
 		full_names[i] = RivalRoster.full_name(i)
+	if two:
+		var car2: Car = CAR_SCENE.instantiate()
+		car2.name = "Car2"
+		car2.racer_id = RaceSession.PLAYER_2_ID
+		add_child(car2)
+		move_child(car2, car.get_index() + 1)
+		car2.setup(driving_params, session.control_mode, resolver.get_texture(AssetCatalog.CAR_PLAYER_2))
+		cars.append(car2)
+		drivers.append(null)
+		inputs.append(HumanDriverInput.new(RaceSession.PLAYER_2_ID, PlayerControls.ensure_player_actions(2, player_devices[1])))
 	for c in cars:
 		progress.append(RaceProgress.new(track.path))
 	combat = CombatWorld.new(weapon_rules, cars.size(), track.path, track.layout.road_width * 0.5)
 	history = RaceHistory.new(rival_ids)
 	hud.setup_history(resolver, history, car_textures, full_names)
 	car_textures[RaceSession.PLAYER_ID] = resolver.get_texture(AssetCatalog.CAR_PLAYER)
-	full_names[RaceSession.PLAYER_ID] = "YOU"
+	full_names[RaceSession.PLAYER_ID] = "PLAYER 1" if two else "YOU"
+	if two:
+		car_textures[RaceSession.PLAYER_2_ID] = resolver.get_texture(AssetCatalog.CAR_PLAYER_2)
+		full_names[RaceSession.PLAYER_2_ID] = "PLAYER 2"
 	hud.set_field(car_textures, full_names)
 	if presentation_enabled:
 		effects = RaceEffects.new()
@@ -189,6 +225,7 @@ func _ready() -> void:
 		combat_view.name = "CombatView"
 		add_child(combat_view)
 		combat_view.setup(combat, cars, resolver, race_audio)
+		combat_view.human_ids = session.human_ids
 		lighting = LightingPilot.new()
 		lighting.name = "LightingPilot"
 		add_child(lighting)
@@ -199,7 +236,7 @@ func _ready() -> void:
 		achievement_tracker.name = "AchievementTracker"
 		add_child(achievement_tracker)
 		achievement_tracker.setup(self, achievements)
-	_race_grid = first_grid(cars.size(), player_first_grid_slot)
+	_race_grid = first_grid_two_players(sitting_out_rival(0)) if two else first_grid(cars.size(), player_first_grid_slot)
 	_spectator_grid = rival_ids.duplicate()
 	grid_order = _race_grid
 	reset_race()
@@ -210,6 +247,39 @@ func _exit_tree() -> void:
 	_conclude_race()
 	if garage != null and garage.race_pending():
 		garage.abandon_race()
+
+
+func is_two_player() -> bool:
+	return human_count > 1
+
+
+## Two-player rotation: the rival sitting out race r (0-based), Victor first,
+## then Rocco ... Nina, and round again.
+static func sitting_out_rival(race_round: int) -> int:
+	return race_round % RivalRoster.count() + 1
+
+
+## First two-player grid: the eight racing rivals in id order, then Player 2,
+## then Player 1 at the back (as the single player starts last).
+static func first_grid_two_players(sitting_out: int) -> Array[int]:
+	var order: Array[int] = []
+	for i in range(1, RivalRoster.count() + 1):
+		if i != sitting_out:
+			order.append(i)
+	order.append(RaceSession.PLAYER_2_ID)
+	order.append(RaceSession.PLAYER_ID)
+	return order
+
+
+## Next two-player grid: the reversed result, with the rival whose turn it is
+## to sit out replaced, in the same slot, by the rival returning from sitting
+## out. Everyone else keeps their reversed-grid slot.
+static func rotated_grid(reversed: Array[int], leaving: int, returning: int) -> Array[int]:
+	var order := reversed.duplicate()
+	var slot := order.find(leaving)
+	if slot >= 0:
+		order[slot] = returning
+	return order
 
 
 ## Opponents fill the grid in id order around the player's slot.
@@ -280,10 +350,14 @@ func _show_menu() -> void:
 func reset_race() -> void:
 	_conclude_race()
 	_race_open = false
+	_human_stuck_time = 0.0
+	_human_best = -INF
 	if garage != null and garage.race_pending():
 		garage.abandon_race()
 	_garage_settled = false
 	session.reset()
+	if is_two_player():
+		session.set_sitting_out([sitting_out_rival(multiplayer_round)] as Array[int])
 	combat.reset()
 	combat.enabled = weapons_enabled
 	combat.style = combat_style
@@ -331,6 +405,26 @@ func _apply_loadouts() -> void:
 	elif combat_style == WeaponRules.Style.TACTICAL:
 		var q := RivalArmoury.QUICK_RACE_PLAYER
 		combat.set_loadout(RaceSession.PLAYER_ID, q[0], q[1], q[2], q[3])
+
+
+## Two-player safety net: once anyone has finished, unfinished humans that make
+## no progress at all for human_stuck_timeout seconds stop holding up the
+## results (an active, moving player is never cut short).
+func _human_safety(step: float) -> void:
+	if session.state != RaceSession.State.RACING or session.finish_order.is_empty():
+		return
+	var furthest := -INF
+	for id in session.human_ids:
+		var r := session.racers[id]
+		if session.is_participating(id) and not r.is_finished():
+			furthest = maxf(furthest, r.progress + r.tracker.laps_completed * 100000.0)
+	if furthest > _human_best + 1.0:
+		_human_best = furthest
+		_human_stuck_time = 0.0
+	else:
+		_human_stuck_time += step
+	if _human_stuck_time > human_stuck_timeout:
+		session.end_for_humans()
 
 
 ## Reports the race result once it is final (see race_concluded). Only a race
@@ -384,7 +478,7 @@ static func choice_name(choice: Choice) -> String:
 
 
 func set_menu_choice(choice: Choice) -> void:
-	if session.state != RaceSession.State.MODE_SELECT:
+	if session.state != RaceSession.State.MODE_SELECT or (is_two_player() and choice == Choice.SPECTATE):
 		return
 	menu_choice = choice
 	var spectate := choice == Choice.SPECTATE
@@ -407,26 +501,35 @@ func _physics_process(_delta: float) -> void:
 			if _grid_input_delay > 0:
 				_grid_input_delay -= 1
 				return
-			if Input.is_action_just_pressed(PlayerControls.STEER_LEFT):
-				set_menu_choice(posmod(menu_choice - 1, 3) as Choice)
-			elif Input.is_action_just_pressed(PlayerControls.STEER_RIGHT):
-				set_menu_choice(posmod(menu_choice + 1, 3) as Choice)
-			elif Input.is_action_just_pressed(PlayerControls.FIRE_FRONT) or Input.is_action_just_pressed(PlayerControls.FIRE_REAR):
+			var choices := 2 if is_two_player() else 3  # no spectating in two-player races
+			if _menu_pressed(PlayerControls.STEER_LEFT):
+				set_menu_choice(posmod(menu_choice - 1, choices) as Choice)
+			elif _menu_pressed(PlayerControls.STEER_RIGHT):
+				set_menu_choice(posmod(menu_choice + 1, choices) as Choice)
+			elif _menu_pressed(PlayerControls.FIRE_FRONT) or _menu_pressed(PlayerControls.FIRE_REAR):
 				set_weapons_enabled(not weapons_enabled)
-			elif Input.is_action_just_pressed(PlayerControls.TOGGLE_STYLE):
+			elif _menu_pressed(PlayerControls.TOGGLE_STYLE):
 				set_combat_style(WeaponRules.Style.TACTICAL if combat_style == WeaponRules.Style.CLASSIC else WeaponRules.Style.CLASSIC)
-			elif Input.is_action_just_pressed(PlayerControls.HISTORY_VIEW):
+			elif _menu_pressed(PlayerControls.HISTORY_VIEW):
 				var i := LAP_OPTIONS.find(session.lap_count())
 				set_lap_count(LAP_OPTIONS[(i + 1) % LAP_OPTIONS.size()])
-			elif Input.is_action_just_pressed(PlayerControls.FIRE):
+			elif _menu_pressed(PlayerControls.FIRE):
 				start_race()
-			elif allow_exit and Input.is_action_just_pressed(PlayerControls.BACK):
+			elif allow_exit and _menu_pressed(PlayerControls.BACK):
 				exit_requested.emit()
 			return
 		RaceSession.State.FINISHED:
 			if not session.spectator:
-				var skip_garage := garage != null and Input.is_action_just_pressed(PlayerControls.HISTORY_VIEW)
-				if Input.is_action_just_pressed(PlayerControls.FIRE) or skip_garage:
+				var skip_garage := garage != null and _menu_pressed(PlayerControls.HISTORY_VIEW)
+				if _menu_pressed(PlayerControls.FIRE) or skip_garage:
+					if is_two_player():
+						var leaving := sitting_out_rival(multiplayer_round + 1)
+						var returning := sitting_out_rival(multiplayer_round)
+						multiplayer_round += 1
+						_race_grid = rotated_grid(session.reversed_grid(), leaving, returning)
+						grid_order = _race_grid
+						reset_race()
+						return
 					_race_grid = session.reversed_grid()
 					grid_order = _race_grid
 					reset_race()
@@ -442,6 +545,8 @@ func _physics_process(_delta: float) -> void:
 	if combat.enabled:
 		_combat_tick(step)
 	session.tick(step)
+	if is_two_player():
+		_human_safety(step)
 	_settle_garage()
 	if session.state == RaceSession.State.FINISHED and session.all_finished():
 		_conclude_race()
@@ -450,11 +555,26 @@ func _physics_process(_delta: float) -> void:
 	_update_camera_target(step)
 
 
+## Grid panel and results controls: the default actions, and in two-player
+## races each player's own controller as well.
+func _menu_pressed(action: String) -> bool:
+	if Input.is_action_just_pressed(action):
+		return true
+	if is_two_player():
+		for n in [1, 2]:
+			var a := PlayerControls.player_prefix(n) + action
+			if InputMap.has_action(a) and Input.is_action_just_pressed(a):
+				return true
+	return false
+
+
 func start_race() -> void:
 	if session.state != RaceSession.State.MODE_SELECT:
 		return
 	races_started += 1
-	car.model.control_mode = session.control_mode
+	for id in session.human_ids:
+		if id < cars.size():
+			cars[id].model.control_mode = session.control_mode
 	for id in grid_order:
 		cars[id].active = true
 		inputs[id].begin_race(race_seed(races_started, id))
@@ -593,9 +713,15 @@ func _present_finishers() -> void:
 		return
 	for k in range(_seen_finishers, count):
 		var id: int = session.finish_order[k]
-		var celebrate := (id == RaceSession.PLAYER_ID and not session.spectator) or (session.spectator and k == 0)
+		var human := session.human_ids.has(id) and not session.spectator
+		var celebrate := human or (session.spectator and k == 0)
 		if celebrate:
-			hud.flash_banner("FINISH!" if not session.spectator else "%s WINS!" % RivalRoster.short_name(id).to_upper())
+			var text := "FINISH!"
+			if session.spectator:
+				text = "%s WINS!" % RivalRoster.short_name(id).to_upper()
+			elif is_two_player():
+				text = "%s FINISHED!" % session.racers[id].display_name
+			hud.flash_banner(text)
 			if effects != null:
 				effects.celebrate(track.checkpoint_transform(0).origin)
 			if race_audio != null:

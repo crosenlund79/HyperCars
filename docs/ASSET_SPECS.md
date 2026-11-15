@@ -20,6 +20,7 @@ Any resolution is accepted as long as the **aspect ratio and orientation** match
 | `custom/graphics/cars/car_ai_8.png` | 128 x 72 | 64 x 36 | Opponent car 8; same contract as the player car. |
 | `custom/graphics/cars/car_ai_9.png` | 128 x 72 | 64 x 36 | Opponent car 9; same contract as the player car. |
 | `custom/graphics/cars/car_player.png` | 128 x 72 | 64 x 36 | Top-down, nose pointing right (+X), centred pivot, transparent background. |
+| `custom/graphics/cars/car_player_2.png` | 128 x 72 | 64 x 36 | Player 2 car (two-player races); same contract as the player car. Template is a blue recolour of it. |
 | `custom/graphics/decals/grid_box.png` | 72 x 48 | 72 x 48 | Painted grid-slot bracket; open side faces the driving direction (+X). |
 | `custom/graphics/decals/road_wear.png` | 160 x 64 | 240 x 96 | Semi-transparent road wear decal, long axis along the driving direction. |
 | `custom/graphics/decals/tire_mark.png` | 32 x 12 | 10 x 26 | Pair of rear-tyre marks along +X (stamped repeatedly while sliding); seamless left-right. |

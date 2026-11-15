@@ -5,6 +5,8 @@ extends RefCounted
 ## orientation; the game scales each texture to its display size in world pixels.
 
 const CAR_PLAYER := "cars/car_player"
+## Second human player's car (two-player races).
+const CAR_PLAYER_2 := "cars/car_player_2"
 ## Opponent cars: "cars/car_ai_1" .. "cars/car_ai_9" (see ai_car()).
 const AI_CAR_COUNT := 9
 const TARMAC := "track/tarmac"
@@ -47,6 +49,8 @@ const ACHIEVEMENT_LOCKED := "ui/achievement_locked"
 const SPECS := {
 	CAR_PLAYER: {"template_size": Vector2i(128, 72), "display_size": Vector2(64, 36),
 		"notes": "Top-down, nose pointing right (+X), centred pivot, transparent background."},
+	CAR_PLAYER_2: {"template_size": Vector2i(128, 72), "display_size": Vector2(64, 36),
+		"notes": "Player 2 car (two-player races); same contract as the player car. Template is a blue recolour of it."},
 	"cars/car_ai_1": {"template_size": Vector2i(128, 72), "display_size": Vector2(64, 36),
 		"notes": "Opponent car 1; same contract as the player car."},
 	"cars/car_ai_2": {"template_size": Vector2i(128, 72), "display_size": Vector2(64, 36),

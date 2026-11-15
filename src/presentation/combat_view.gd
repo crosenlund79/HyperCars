@@ -11,6 +11,8 @@ const LAUNCH_SOUNDS := {W.MINE: "weapons/mine_drop", W.HOMING_MISSILE: "weapons/
 	W.SUPER_MISSILE: "weapons/super_launch"}
 
 var enabled := true
+## Racer ids whose empty-weapon clicks are heard (the humans).
+var human_ids: Array[int] = [RaceSession.PLAYER_ID]
 var _combat: CombatWorld
 var _cars: Array[Car] = []
 var _resolver: AssetResolver
@@ -125,7 +127,7 @@ func _show_event(e: Dictionary) -> void:
 		"fire":
 			_play(LAUNCH_SOUNDS.get(e.type, "weapons/missile_launch"), e.pos)
 		"empty":
-			if e.car == RaceSession.PLAYER_ID:
+			if human_ids.has(e.car):
 				_play("weapons/empty", e.pos)
 		"explode", "mine_blast":
 			_blast(e.pos, 1.4 if e.kind == "mine_blast" else 0.8)

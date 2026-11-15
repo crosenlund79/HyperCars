@@ -12,6 +12,8 @@ extends RefCounted
 enum State { MODE_SELECT, RACING, FINISHED }
 
 const PLAYER_ID := 0
+## Racer id of the second human in two-player races (after the nine rivals).
+const PLAYER_2_ID := 10
 
 var state: State = State.MODE_SELECT
 var control_mode: CarModel.ControlMode = CarModel.ControlMode.FIRE_TO_ACCELERATE
@@ -87,6 +89,13 @@ func humans_finished() -> bool:
 		if is_participating(id) and not racers[id].is_finished():
 			return false
 	return true
+
+
+## Ends the race for the humans (safety net for a stuck human): results are
+## shown; cars still running keep racing and are placed in running order.
+func end_for_humans() -> void:
+	if state == State.RACING:
+		state = State.FINISHED
 
 
 func participants() -> Array[RacerState]:

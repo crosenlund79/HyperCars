@@ -313,7 +313,7 @@ func update_tower(standings: Array[RacerState]) -> void:
 		parts[0].set_meta("racer_id", r.id)
 		parts[1].text = str(i + 1)
 		parts[2].texture = _car_textures.get(r.id)
-		parts[3].text = "YOU" if r.is_player else r.display_name
+		parts[3].text = r.display_name
 		var followed: bool = _follow_controls.visible and r.id == _followed
 		var col := HyperTheme.GOLD if r.is_player or followed else (HyperTheme.CREAM_DIM if r.is_finished() else HyperTheme.CREAM)
 		parts[3].add_theme_color_override("font_color", col)
@@ -387,7 +387,7 @@ func show_results(standings: Array[RacerState], footer: String = "Fire to race a
 		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		icon.custom_minimum_size = Vector2(44, 26)
 		grid.add_child(icon)
-		var name: String = "YOU" if r.is_player else _full_names.get(r.id, r.display_name)
+		var name: String = _full_names.get(r.id, r.display_name)
 		grid.add_child(HyperTheme.label(name, 20, HyperTheme.GOLD if r.is_player else HyperTheme.CREAM, 600))
 		var time := "running"
 		if r.is_finished():
