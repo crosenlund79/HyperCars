@@ -37,7 +37,9 @@ var render_tick := -1.0
 ## default reads the single-player actions on this computer.
 var input_source: Callable
 var _tick := 0
-var _sent_race := -1
+## HOST: combat events already sent for the current race.
+var _sent_events := 0
+var _events_race := -1
 
 
 func _init(p_link: NetLink, p_role: Role) -> void:
@@ -77,8 +79,8 @@ func _exit_tree() -> void:
 
 ## Current grid and settings, sent whenever they change (reliable).
 func send_setup() -> void:
-	if not is_host() or race == null:
-		return
+	if not is_host() or race == null or race.session.state != RaceSession.State.MODE_SELECT:
+		return  # the grid and settings only change before a race
 	link.send([Msg.SETUP, {"laps": race.session.lap_count(), "weapons": race.weapons_enabled,
 		"style": race.combat_style, "round": race.multiplayer_round, "grid": race.grid_order.duplicate(),
 		"races": race.races_started}], true)
@@ -98,14 +100,28 @@ func on_race_started() -> void:
 ## After each simulated tick: snapshot every SNAP_INTERVAL ticks.
 func host_after_tick() -> void:
 	_tick += 1
+	_send_events()
 	if _tick % SNAP_INTERVAL == 0:
 		link.send([Msg.SNAP, RaceSnapshot.encode(RaceSnapshot.capture(race, _tick))], false)
+
+
+## New combat events (shots, explosions, destructions, respawns), reliably and
+## in order, so the client shows every effect exactly once.
+func _send_events() -> void:
+	var combat: CombatWorld = race.combat
+	if _events_race != race.races_started or combat.events.size() < _sent_events:
+		_events_race = race.races_started
+		_sent_events = 0
+	if combat.events.size() > _sent_events:
+		link.send([Msg.EVENTS, race.races_started, _sent_events, combat.events.slice(_sent_events)], true)
+		_sent_events = combat.events.size()
 
 
 ## Authoritative final result (reliable, so both computers agree).
 func send_results(order: Array) -> void:
 	if not is_host():
 		return
+	_send_events()  # every event of the race reaches the client before its result
 	var times := PackedFloat64Array()
 	for id in order:
 		times.append(race.session.racers[id].finish_time)
@@ -185,6 +201,8 @@ func _interpolate_cars() -> void:
 			break
 	if RaceSnapshot.tick_of(b) < RaceSnapshot.tick_of(a):
 		b = a
+	if b.size() > 6:
+		RaceSnapshot.apply_combat(race.combat, b[6])  # weapons and wrecks at the moment shown
 	var span := float(RaceSnapshot.tick_of(b) - RaceSnapshot.tick_of(a))
 	var t := 0.0 if span <= 0.0 else clampf((render_tick - RaceSnapshot.tick_of(a)) / span, 0.0, 1.0)
 	for c in race.cars.size():
@@ -210,7 +228,7 @@ func _on_message(from: int, msg: Array) -> void:
 			if is_host() and msg.size() >= 6:
 				remote_input.receive(msg[1], msg[2], msg[3], msg[4], msg[5])
 		Msg.READY:
-			if is_host() and msg.size() >= 3:
+			if is_host() and msg.size() >= 3 and race.session.state == RaceSession.State.MODE_SELECT:
 				client_ready = msg[1]
 				client_mode = msg[2]
 				race.set_player_control_mode(RaceSession.PLAYER_2_ID, client_mode)
@@ -220,19 +238,24 @@ func _on_message(from: int, msg: Array) -> void:
 				peer_id = from
 				send_setup()
 		Msg.SETUP:
-			if is_client():
+			if is_client() and race.session.state != RaceSession.State.RACING:
 				local_ready = false
 				snapshots.clear()
 				render_tick = -1.0
 				race.apply_network_setup(msg[1])
 		Msg.START:
 			if is_client():
-				race.on_network_start()
+				race.on_network_start(msg[1])
 		Msg.SNAP:
 			if is_client():
 				var snap := RaceSnapshot.decode(msg[1])
 				if snap.size() >= 6:
 					_push_snapshot(snap)
+		Msg.EVENTS:
+			if is_client() and msg.size() >= 4 and msg[1] == race.races_started:
+				var events: Array = race.combat.events
+				if msg[2] == events.size():  # in order, no gaps or repeats
+					events.append_array(msg[3])
 		Msg.RESULTS:
 			if is_client():
 				race.apply_network_results(msg[1], msg[2])

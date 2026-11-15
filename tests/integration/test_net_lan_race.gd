@@ -66,3 +66,15 @@ func test_two_races_with_latency_and_loss_keep_agreeing_and_rotate() -> void:
 	expected[expected.find(2.0)] = 1.0
 	assert_eq(second.grid, expected, "reversed grid; returning Victor takes Rocco's slot")
 	assert_eq(second.sitting_out, [2.0])
+
+
+func test_armed_races_agree_classic_and_tactical() -> void:
+	for style in [0, 1]:
+		var r := await _run(24713 + style, ["laps=1", "weapons=1", "style=%d" % style, "fire_every=45", "latency=30", "loss=0.05"])
+		if not r[0].has("results") or not r[1].has("results"):
+			fail_test("style %d no results: %s / %s" % [style, str(r[0]), str(r[1])])
+			continue
+		var host: Dictionary = r[0].results[0]
+		assert_eq(r[1].results[0], host, "style %d: same result, shots and destructions on both" % style)
+		assert_gt(host.fired, 0.0)
+		assert_gt(r[0].client_shots, 0.0, "the client's player fired through the network")

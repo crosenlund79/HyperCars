@@ -58,6 +58,7 @@ func host(port: int = DEFAULT_PORT) -> Error:
 	var err := peer.create_server(port, 1, 2)
 	if err != OK:
 		return err
+	peer.host.compress(ENetConnection.COMPRESS_RANGE_CODER)
 	mp.multiplayer_peer = peer
 	is_host = true
 	_open = true
@@ -71,6 +72,7 @@ func join(address: String, port: int = DEFAULT_PORT) -> Error:
 	var err := peer.create_client(address, port, 2)
 	if err != OK:
 		return err
+	peer.host.compress(ENetConnection.COMPRESS_RANGE_CODER)
 	mp.multiplayer_peer = peer
 	is_host = false
 	_open = true

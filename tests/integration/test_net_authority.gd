@@ -108,3 +108,70 @@ func test_client_cannot_start_and_repeated_fire_does_not_restart() -> void:
 	assert_eq(host.races_started, started, "no restart")
 	assert_eq(host.session.state, RaceSession.State.RACING)
 	assert_eq(client.session.state, RaceSession.State.RACING)
+
+
+func _start_armed(style: int) -> void:
+	host.set_weapons_enabled(true)
+	host.set_combat_style(style)
+	await wait_physics_frames(4)
+	client.net.local_ready = true
+	client.net._send_ready()
+	await wait_until(func() -> bool: return host.net.client_ready, 3.0)
+	host.start_race()
+	await wait_until(func() -> bool: return client.session.state == RaceSession.State.RACING, 3.0)
+
+
+func test_client_press_fires_exactly_once_on_the_host() -> void:
+	await _start_armed(WeaponRules.Style.CLASSIC)
+	var p2 := RaceSession.PLAYER_2_ID
+	var ammo: int = host.combat.ammo[p2][0]
+	var presses := [false]
+	client.net.input_source = func() -> Dictionary:
+		var c := {"steer": 0.0, "fire": false, "front": presses[0]}
+		presses[0] = false
+		return c
+	presses[0] = true
+	await wait_physics_frames(30)
+	assert_eq(host.combat.ammo[p2][0], ammo - 1, "one press, one shot")
+	for k in 5:  # the same total arrives again many times (repeated packets)
+		host.net.remote_input.receive(10000 + k, 0.0, false, client.net.front_total, client.net.rear_total)
+		await wait_physics_frames(40)
+	assert_eq(host.combat.ammo[p2][0], ammo - 1, "duplicates never fire again")
+	await wait_physics_frames(10)
+	assert_eq(client.combat.ammo[p2][0], ammo - 1, "client shows the host's ammunition")
+	var fired: Array = client.combat.events.filter(func(e: Dictionary) -> bool: return e.kind == "fire" and e.car == p2)
+	assert_eq(fired.size(), 1, "client shows the shot once")
+
+
+func test_simultaneous_fire_both_players_tactical() -> void:
+	await _start_armed(WeaponRules.Style.TACTICAL)
+	var p1_ammo: int = host.combat.ammo[0][0]
+	var p2_ammo: int = host.combat.ammo[RaceSession.PLAYER_2_ID][0]
+	var once := [true]
+	client.net.input_source = func() -> Dictionary:
+		var c := {"steer": 0.0, "fire": false, "front": once[0]}
+		once[0] = false
+		return c
+	Input.action_press(PlayerControls.FIRE_FRONT)
+	await wait_physics_frames(2)
+	Input.action_release(PlayerControls.FIRE_FRONT)
+	await wait_physics_frames(30)
+	assert_eq(host.combat.ammo[0][0], p1_ammo - 1, "host player fired")
+	assert_eq(host.combat.ammo[RaceSession.PLAYER_2_ID][0], p2_ammo - 1, "client player fired")
+	assert_gt(host.combat.slot_wait(RaceSession.PLAYER_2_ID, 0), 0.0, "Tactical cooldown applies to the remote player")
+
+
+func test_wrecks_and_recovery_replicate() -> void:
+	await _start_armed(WeaponRules.Style.CLASSIC)
+	await wait_physics_frames(30)
+	var victim := 5
+	var states: Array = host._combat_states()
+	host.combat._destroy(victim, 0, host.cars[victim].global_position, WeaponRules.Weapon.FRONT_MISSILE, [] as Array[int])
+	await wait_physics_frames(20)
+	assert_true(client.combat.is_wrecked(victim), "client sees the wreck")
+	var destroyed: Array = client.combat.events.filter(func(e: Dictionary) -> bool: return e.kind == "destroyed" and e.car == victim)
+	assert_eq(destroyed.size(), 1)
+	await wait_physics_frames(int(host.weapon_rules.wreck_time * 60) + 20)
+	assert_false(host.combat.is_wrecked(victim))
+	assert_false(client.combat.is_wrecked(victim), "and the recovery")
+	assert_eq(states.size(), host.cars.size())

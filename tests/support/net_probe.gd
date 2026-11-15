@@ -147,8 +147,13 @@ func _result() -> Dictionary:
 	for id in s.finish_order:
 		times.append(snappedf(s.racers[id].finish_time, 0.0001))
 		positions.append(s.racers[id].finish_position)
+	var fired := 0
+	var destroyed := 0
+	for e in main.combat.events:
+		fired += int(e.kind == "fire")
+		destroyed += int(e.kind == "destroyed")
 	return {"order": s.finish_order.duplicate(), "times": times, "positions": positions, "grid": main.grid_order.duplicate(),
-		"sitting_out": s.sitting_out.duplicate()}
+		"sitting_out": s.sitting_out.duplicate(), "fired": fired, "destroyed": destroyed}
 
 
 func _write(data: Dictionary) -> void:

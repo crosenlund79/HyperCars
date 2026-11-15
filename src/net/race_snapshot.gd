@@ -16,11 +16,31 @@ static func capture(race: Node, tick: int) -> Array:
 		cars.append_array([c.global_position.x, c.global_position.y, c.model.heading,
 			c.model.velocity.x, c.model.velocity.y, 1.0 if c.visible else 0.0])
 	var session: RaceSession = race.session
-	var racers := PackedFloat64Array()
+	var racers := PackedFloat32Array()
 	for r in session.racers:
 		racers.append_array([r.tracker.laps_completed, r.tracker.next_checkpoint, r.progress,
 			r.finish_position, r.finish_time, r.lap_start])
-	return [tick, session.state, session.elapsed, cars, racers, PackedInt32Array(session.finish_order)]
+	var snap := [tick, session.state, session.elapsed, cars, racers, PackedInt32Array(session.finish_order)]
+	var combat: CombatWorld = race.combat
+	if combat.enabled:
+		snap.append(capture_combat(combat))
+	return snap
+
+
+static func capture_combat(combat: CombatWorld) -> Array:
+	var ammo := PackedByteArray()  # rounds (max 99) and weapon types fit in a byte
+	var timers := PackedFloat32Array()
+	for i in combat.car_count():
+		ammo.append_array([clampi(combat.ammo[i][0], 0, 255), clampi(combat.ammo[i][1], 0, 255), combat.loadout[i][0], combat.loadout[i][1]])
+		timers.append_array([combat.cooldown[i], combat.wreck_left[i], combat.grace_left[i],
+			combat.slot_cooldown[i][0], combat.slot_cooldown[i][1]])
+	var shots := PackedFloat32Array()
+	for p in combat.projectiles:
+		shots.append_array([p.type, p.owner, p.pos.x, p.pos.y, p.dir.x, p.dir.y, p.get("angle", 0.0), p.age])
+	var mines := PackedFloat32Array()
+	for m in combat.mines:
+		mines.append_array([m.owner, m.pos.x, m.pos.y, m.age])
+	return [ammo, timers, shots, mines]
 
 
 static func encode(snap: Array) -> PackedByteArray:
@@ -47,12 +67,13 @@ static func car_state(snap: Array, c: int) -> Dictionary:
 		"present": a[k + 5] > 0.5}
 
 
-## Applies everything except car poses (those are interpolated by the client).
+## Applies the race state except car poses and combat (those follow the
+## client's interpolated moment; see NetRace).
 static func apply_race(race: Node, snap: Array) -> void:
 	var session: RaceSession = race.session
 	session.state = snap[1]
 	session.elapsed = snap[2]
-	var racers: PackedFloat64Array = snap[4]
+	var racers: PackedFloat32Array = snap[4]
 	for i in session.racers.size():
 		var r := session.racers[i]
 		var k := i * RACER_FIELDS
@@ -68,3 +89,26 @@ static func apply_race(race: Node, snap: Array) -> void:
 	for id in snap[5]:
 		order.append(id)
 	session.finish_order = order
+
+
+static func apply_combat(combat: CombatWorld, c: Array) -> void:
+	var ammo: PackedByteArray = c[0]
+	var timers: PackedFloat32Array = c[1]
+	for i in combat.car_count():
+		combat.ammo[i] = [ammo[i * 4], ammo[i * 4 + 1]]
+		combat.loadout[i] = [ammo[i * 4 + 2], ammo[i * 4 + 3]]
+		combat.cooldown[i] = timers[i * 5]
+		combat.wreck_left[i] = timers[i * 5 + 1]
+		combat.grace_left[i] = timers[i * 5 + 2]
+		combat.slot_cooldown[i] = [timers[i * 5 + 3], timers[i * 5 + 4]]
+	var shots: PackedFloat32Array = c[2]
+	var projectiles: Array = []
+	for k in range(0, shots.size(), 8):
+		projectiles.append({"type": int(shots[k]), "owner": int(shots[k + 1]), "pos": Vector2(shots[k + 2], shots[k + 3]),
+			"dir": Vector2(shots[k + 4], shots[k + 5]), "angle": shots[k + 6], "age": shots[k + 7], "target": -1})
+	combat.projectiles = projectiles
+	var mine_data: PackedFloat32Array = c[3]
+	var mines: Array = []
+	for k in range(0, mine_data.size(), 4):
+		mines.append({"owner": int(mine_data[k]), "pos": Vector2(mine_data[k + 1], mine_data[k + 2]), "age": mine_data[k + 3]})
+	combat.mines = mines

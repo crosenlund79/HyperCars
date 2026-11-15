@@ -506,8 +506,13 @@ func apply_network_setup(cfg: Dictionary) -> void:
 	reset_race()
 
 
-## Client: the host started the race.
-func on_network_start() -> void:
+## Client: the host started the race (number `race_number`).
+func on_network_start(race_number: int = races_started) -> void:
+	races_started = race_number
+	combat.reset()
+	combat.enabled = weapons_enabled
+	combat.style = combat_style
+	_apply_loadouts()
 	hud.hide_message()
 	hud.flash_banner("GO!")
 	if race_audio != null:

@@ -109,3 +109,30 @@ func test_link_connects_one_client_and_exchanges_messages() -> void:
 	assert_eq(left.size(), 1, "the host notices the client leaving")
 	host.close()
 	third.close()
+
+
+func test_combat_state_round_trip() -> void:
+	var rules := WeaponRules.new()
+	var w := CombatWorld.new(rules, 3)
+	w.enabled = true
+	w.style = WeaponRules.Style.TACTICAL
+	w.set_loadout(1, WeaponRules.Weapon.HOMING_MISSILE, 4, WeaponRules.Weapon.REAR_MISSILE, 2)
+	var cars := [{"position": Vector2(0, 0), "heading": 0.0, "present": true},
+		{"position": Vector2(400, 0), "heading": PI, "present": true}, {"position": Vector2(-300, 0), "heading": 0.0, "present": true}]
+	w.request(0, CombatWorld.FRONT, cars)
+	w.request(2, CombatWorld.REAR, cars)
+	w.step(1.0 / 60.0, cars)
+	w.wreck_left[1] = 2.5
+	var data := RaceSnapshot.capture_combat(w)
+	var back: Array = bytes_to_var(var_to_bytes(data))
+	var copy := CombatWorld.new(rules, 3)
+	RaceSnapshot.apply_combat(copy, back)
+	assert_eq(copy.ammo, w.ammo)
+	assert_eq(copy.loadout, w.loadout)
+	assert_almost_eq(copy.wreck_left[1], 2.5, 0.0001)
+	assert_true(copy.is_wrecked(1))
+	assert_almost_eq(copy.slot_cooldown[0][0], w.slot_cooldown[0][0], 0.0001)
+	assert_eq(copy.projectiles.size(), 1)
+	assert_almost_eq(copy.projectiles[0].pos.distance_to(w.projectiles[0].pos), 0.0, 0.01)
+	assert_eq(copy.mines.size(), 1)
+	assert_eq(copy.mines[0].owner, 2)
