@@ -23,6 +23,7 @@ const ROWS := [
 	["THE RACE", ""],
 	["Laps", "Count only when every checkpoint is passed in order"],
 	["Grid", "Next race starts from the reversed result: the winner starts last"],
+	["Garage race", "Results: Fire = garage, Tab = skip shopping; top five win prize money"],
 ]
 
 var _back: Button

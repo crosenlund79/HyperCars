@@ -1,0 +1,183 @@
+extends GutTest
+## M3.5 Stage 2 in the full scene: garage races use the player's own weapons and
+## pay prize money exactly once; Race -> Results -> Garage -> Next race, and
+## skipping the garage; quick races and spectating never touch the garage;
+## rivals carry their Tactical loadouts.
+
+const MAIN_SCENE := preload("res://src/main/main.tscn")
+const GAME_SCENE := preload("res://src/main/game.tscn")
+const W := WeaponRules.Weapon
+
+var _main: Node2D
+
+
+func _make(garage: PlayerGarage = null) -> void:
+	_main = MAIN_SCENE.instantiate()
+	_main.presentation_enabled = false
+	_main.garage = garage
+	add_child_autofree(_main)
+	await wait_physics_frames(2)
+
+
+func after_each() -> void:
+	Engine.physics_ticks_per_second = 60
+	Engine.time_scale = 1.0
+	Engine.max_physics_steps_per_frame = 8
+	for a in [PlayerControls.FIRE, PlayerControls.FIRE_FRONT, PlayerControls.FIRE_REAR, PlayerControls.HISTORY_VIEW]:
+		Input.action_release(a)
+
+
+func _new_garage() -> PlayerGarage:
+	return PlayerGarage.new(load("res://src/garage/default_garage_rules.tres"))
+
+
+func _tap(action: String) -> void:
+	Input.action_press(action)
+	await wait_physics_frames(2)
+	Input.action_release(action)
+	await wait_physics_frames(1)
+
+
+## Drives the player's lap counter to the flag (checkpoints in order).
+func _finish_player() -> void:
+	var cps: int = _main.track.checkpoint_count()
+	for lap in _main.session.lap_count():
+		for i in range(1, cps):
+			_main.session.checkpoint_reached(i, 0)
+		_main.session.checkpoint_reached(0, 0)
+	await wait_physics_frames(3)
+
+
+func test_garage_loadout_is_what_the_player_carries() -> void:
+	var g := _new_garage()
+	g.buy(W.HOMING_MISSILE, 3)
+	g.equip(PlayerGarage.FRONT, W.HOMING_MISSILE)
+	await _make(g)
+	assert_eq(_main.combat.loadout[0], [W.HOMING_MISSILE, W.MINE])
+	assert_eq(_main.combat.ammo[0], [3, 5])
+
+
+func test_garage_race_pays_once_and_keeps_unused_rounds() -> void:
+	var g := _new_garage()
+	await _make(g)
+	_main.set_weapons_enabled(true)
+	await _tap(PlayerControls.FIRE)
+	assert_true(g.race_pending())
+	await _tap(PlayerControls.FIRE_FRONT)
+	assert_eq(_main.combat.ammo[0][0], 4)
+	await _finish_player()
+	assert_eq(_main.session.state, RaceSession.State.FINISHED)
+	var pos: int = _main.session.racers[0].finish_position
+	assert_eq(g.races_settled, 1)
+	assert_eq(g.money, g.rules.start_money + g.rules.prize_for(pos))
+	assert_eq(g.count(W.FRONT_MISSILE), 4, "the fired round is gone, the rest carry over")
+	await wait_physics_frames(30)
+	assert_eq(g.races_settled, 1, "paid exactly once")
+	assert_eq(g.money, g.rules.start_money + g.rules.prize_for(pos))
+
+
+func test_results_then_garage_then_next_race() -> void:
+	var g := _new_garage()
+	await _make(g)
+	watch_signals(_main)
+	await _tap(PlayerControls.FIRE)
+	await _finish_player()
+	await _tap(PlayerControls.FIRE)
+	assert_signal_emitted(_main, "garage_requested")
+	assert_true(_main.garage_open)
+	assert_eq(_main.session.state, RaceSession.State.MODE_SELECT)
+	await _tap(PlayerControls.FIRE)
+	assert_eq(_main.session.state, RaceSession.State.MODE_SELECT, "grid input paused while the garage is open")
+	g.buy(W.SUPER_MISSILE)
+	g.equip(PlayerGarage.FRONT, W.SUPER_MISSILE)
+	_main.close_garage(true)
+	assert_eq(_main.session.state, RaceSession.State.RACING)
+	assert_eq(_main.combat.loadout[0][0], W.SUPER_MISSILE, "new purchase loaded")
+	assert_eq(_main.grid_order[-1], 0, "reversed grid: the winner starts last")
+
+
+func test_skip_shopping_goes_straight_to_the_next_race() -> void:
+	var g := _new_garage()
+	await _make(g)
+	watch_signals(_main)
+	await _tap(PlayerControls.FIRE)
+	await _finish_player()
+	await _tap(PlayerControls.HISTORY_VIEW)
+	assert_signal_not_emitted(_main, "garage_requested")
+	assert_eq(_main.session.state, RaceSession.State.RACING)
+	assert_eq(g.races_settled, 1)
+
+
+func test_closing_the_garage_to_the_grid_ignores_the_closing_key() -> void:
+	var g := _new_garage()
+	await _make(g)
+	_main.open_garage()
+	Input.action_press(PlayerControls.FIRE)
+	_main.close_garage(false)
+	await wait_physics_frames(2)
+	Input.action_release(PlayerControls.FIRE)
+	assert_eq(_main.session.state, RaceSession.State.MODE_SELECT)
+
+
+func test_quick_race_ignores_any_garage_inventory() -> void:
+	await _make(null)
+	assert_eq(_main.combat.loadout[0], [W.FRONT_MISSILE, W.MINE])
+	assert_eq(_main.combat.ammo[0], [_main.weapon_rules.front_ammo, _main.weapon_rules.rear_ammo])
+	_main.set_combat_style(WeaponRules.Style.TACTICAL)
+	assert_eq(_main.combat.ammo[0], [RivalArmoury.QUICK_RACE_PLAYER[1], RivalArmoury.QUICK_RACE_PLAYER[3]])
+
+
+func test_spectating_never_touches_the_garage() -> void:
+	var g := _new_garage()
+	await _make(g)
+	_main.set_menu_choice(2)
+	_main.set_sim_speed(8)
+	_main.start_race()
+	assert_false(g.race_pending())
+	await wait_until(func() -> bool: return _main.history.race_count() >= 1, 150.0)
+	assert_eq(g.races_settled, 0)
+	assert_eq(g.money, g.rules.start_money)
+
+
+func test_rivals_carry_their_tactical_loadouts_and_classic_ones_otherwise() -> void:
+	await _make(null)
+	for id in range(1, 10):
+		assert_eq(_main.combat.loadout[id], [W.FRONT_MISSILE, W.MINE], "Classic: M3 loadout")
+	_main.set_combat_style(WeaponRules.Style.TACTICAL)
+	for id in range(1, 10):
+		var l := RivalArmoury.loadout(id)
+		assert_eq(_main.combat.loadout[id], [l[0], l[2]])
+		assert_eq(_main.combat.ammo[id], [l[1], l[3]])
+
+
+func test_tactical_spectating_with_rival_loadouts_completes() -> void:
+	await _make(null)
+	_main.set_menu_choice(2)
+	_main.set_weapons_enabled(true)
+	_main.set_combat_style(WeaponRules.Style.TACTICAL)
+	_main.set_sim_speed(8)
+	_main.start_race()
+	await wait_until(func() -> bool: return _main.history.race_count() >= 1, 200.0)
+	assert_eq(_main.history.results[0].size(), 9)
+	var types := {}
+	for e in _main.combat.events:
+		if e.kind == "fire":
+			types[e.type] = true
+	assert_gt(types.size(), 2, "several weapon types used: %s" % str(types.keys()))
+
+
+func test_game_opens_the_garage_before_the_first_garage_race() -> void:
+	var game := GAME_SCENE.instantiate()
+	add_child_autofree(game)
+	await wait_frames(3)
+	await game.start_race(0, true)
+	assert_true(game.garage_screen.visible)
+	assert_true(game.race.garage_open)
+	assert_eq(game.race.garage, game.garage)
+	game._close_garage(true)
+	assert_false(game.garage_screen.visible)
+	assert_eq(game.race.session.state, RaceSession.State.RACING)
+	await game.back_to_title()
+	await game.start_race(0)
+	assert_null(game.race.garage, "a quick race does not use the garage")
+	game.title.stop_audio()

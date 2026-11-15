@@ -3,6 +3,9 @@ extends Node
 ## (src/main/main.tscn) as a child with the chosen mode, fading between them.
 ## Loads and applies the saved audio settings. The race scene itself is
 ## unchanged and still runs on its own (tests use it directly).
+## Garage races (M3.5): one PlayerGarage lives for the whole game session (money
+## and weapons carry over between garage races until the game quits); the
+## garage screen opens before the first garage race and after each one.
 
 const MAIN_SCENE := preload("res://src/main/main.tscn")
 
@@ -11,6 +14,8 @@ var settings: AudioSettings
 var title: TitleScreen
 var race: Node2D
 var _fade: ColorRect
+var garage: PlayerGarage
+var garage_screen: GarageScreen
 
 
 func _ready() -> void:
@@ -25,6 +30,13 @@ func _ready() -> void:
 	title.setup(resolver, settings)
 	title.start_requested.connect(start_race)
 	title.quit_requested.connect(quit_game)
+	garage = PlayerGarage.new(load("res://src/garage/default_garage_rules.tres"))
+	garage_screen = GarageScreen.new()
+	garage_screen.name = "Garage"
+	add_child(garage_screen)
+	garage_screen.setup(garage, resolver)
+	garage_screen.race_requested.connect(func() -> void: _close_garage(true))
+	garage_screen.closed.connect(func() -> void: _close_garage(false))
 	var layer := CanvasLayer.new()
 	layer.layer = 50
 	add_child(layer)
@@ -37,12 +49,16 @@ func _ready() -> void:
 
 
 ## choice: 0 Fire to Accelerate, 1 Fire to Brake, 2 Spectate rivals.
-func start_race(choice: int) -> void:
+## with_garage: a garage race (money and the player's own weapons).
+func start_race(choice: int, with_garage: bool = false) -> void:
 	await _fade_to(1.0)
 	title.hide_title()
 	race = MAIN_SCENE.instantiate()
 	race.allow_exit = true
+	if with_garage and choice != 2:
+		race.garage = garage
 	add_child(race)
+	race.garage_requested.connect(_open_garage)
 	race.camera.make_current()
 	race.set_menu_choice(choice)
 	race.set_weapons_enabled(title.weapons_on)
@@ -51,11 +67,24 @@ func start_race(choice: int) -> void:
 	race.exit_requested.connect(back_to_title)
 	if choice == 2:
 		race.start_race()  # spectating starts straight away
+	elif with_garage:
+		race.open_garage()  # shop before the first garage race
 	await _fade_to(0.0)
+
+
+func _open_garage() -> void:
+	garage_screen.open()
+
+
+func _close_garage(start: bool) -> void:
+	garage_screen.close()
+	if race != null:
+		race.close_garage(start)
 
 
 func back_to_title() -> void:
 	await _fade_to(1.0)
+	garage_screen.close()
 	if race != null:
 		race.queue_free()
 		race = null

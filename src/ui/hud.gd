@@ -155,8 +155,16 @@ static func weapon_icons(resolver: AssetResolver) -> Dictionary:
 		WeaponRules.Weapon.REAR_MISSILE: resolver.get_texture(AssetCatalog.MISSILE),
 		WeaponRules.Weapon.HOMING_MISSILE: resolver.get_texture(AssetCatalog.HOMING_MISSILE),
 		WeaponRules.Weapon.SUPER_MISSILE: resolver.get_texture(AssetCatalog.SUPER_MISSILE),
-		WeaponRules.Weapon.MINE: resolver.get_texture(AssetCatalog.MINE),
+		WeaponRules.Weapon.MINE: _first_frame(resolver.get_texture(AssetCatalog.MINE), AssetCatalog.SPECS[AssetCatalog.MINE].frames),
 	}
+
+
+## First frame of a horizontal sprite strip (icons show one frame).
+static func _first_frame(tex: Texture2D, frames: int) -> Texture2D:
+	var a := AtlasTexture.new()
+	a.atlas = tex
+	a.region = Rect2(0, 0, tex.get_width() / float(frames), tex.get_height())
+	return a
 
 
 func _set_slot(icon: TextureRect, label: Label, bar: ColorRect, weapon: int, count: int, wait: float) -> void:

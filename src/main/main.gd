@@ -14,6 +14,8 @@ extends Node2D
 
 ## Esc on the grid when allow_exit is set (the title screen listens).
 signal exit_requested
+## Garage races: the player asked for the garage after a race (the game root opens it).
+signal garage_requested
 
 enum Choice { FIRE_TO_ACCELERATE, FIRE_TO_BRAKE, SPECTATE }
 
@@ -79,6 +81,15 @@ var combat_style: WeaponRules.Style = WeaponRules.Style.CLASSIC
 var combat_view: CombatView
 ## Lighting pilot (presentation experiment; L toggles). Off by default.
 var lighting: LightingPilot
+## Garage race (M3.5): the player's money and weapons for this game session;
+## null = quick race (standard loadout, no money). Set before the first race.
+var garage: PlayerGarage
+## True while the garage screen is open over the grid (grid input paused).
+var garage_open := false
+var _garage_settled := false
+## Physics ticks to ignore grid input after the garage closes (the closing key
+## must not also act on the grid panel).
+var _grid_input_delay := 0
 ## Start with the lighting pilot on (e.g. for comparison runs).
 @export var lighting_on_start := false
 
@@ -166,6 +177,8 @@ func _ready() -> void:
 
 func _exit_tree() -> void:
 	set_sim_speed(1)
+	if garage != null and garage.race_pending():
+		garage.abandon_race()
 
 
 ## Opponents fill the grid in id order around the player's slot.
@@ -233,6 +246,9 @@ func _show_menu() -> void:
 
 
 func reset_race() -> void:
+	if garage != null and garage.race_pending():
+		garage.abandon_race()
+	_garage_settled = false
 	session.reset()
 	combat.reset()
 	combat.enabled = weapons_enabled
@@ -262,8 +278,53 @@ func reset_race() -> void:
 
 
 ## Weapons each car carries this race. Classic: everyone gets the M3 loadout.
+## Tactical: each rival has a personal loadout of equal value (RivalArmoury).
+## The player: the garage's equipped rounds in a garage race; otherwise the
+## standard loadout of the style (quick races never touch the garage).
 func _apply_loadouts() -> void:
-	pass
+	if combat_style == WeaponRules.Style.TACTICAL:
+		for id in range(1, cars.size()):
+			var l := RivalArmoury.loadout(id)
+			combat.set_loadout(id, l[0], l[1], l[2], l[3])
+	if session.spectator:
+		return
+	if garage != null:
+		var g := garage.race_loadout()
+		combat.set_loadout(RaceSession.PLAYER_ID, g[0], g[1], g[2], g[3])
+	elif combat_style == WeaponRules.Style.TACTICAL:
+		var q := RivalArmoury.QUICK_RACE_PLAYER
+		combat.set_loadout(RaceSession.PLAYER_ID, q[0], q[1], q[2], q[3])
+
+
+## Garage race: once the player has finished, pays the prize and keeps the
+## rounds left (exactly once per race; the garage also guards against repeats).
+func _settle_garage() -> void:
+	if garage == null or session.spectator or _garage_settled or session.state != RaceSession.State.FINISHED:
+		return
+	_garage_settled = true
+	garage.settle_race(session.racers[RaceSession.PLAYER_ID].finish_position,
+		combat.ammo[RaceSession.PLAYER_ID][CombatWorld.FRONT], combat.ammo[RaceSession.PLAYER_ID][CombatWorld.REAR])
+
+
+## Opens the garage between races (garage races only).
+func open_garage() -> void:
+	if garage == null or session.state != RaceSession.State.MODE_SELECT:
+		return
+	garage_open = true
+	hud.hide_message()
+	garage_requested.emit()
+
+
+## Garage closed: the new purchases / equipment are loaded, then the race
+## starts (start) or the grid panel is shown.
+func close_garage(start: bool) -> void:
+	garage_open = false
+	_grid_input_delay = 3
+	if session.state != RaceSession.State.MODE_SELECT:
+		return
+	reset_race()
+	if start:
+		start_race()
 
 
 static func choice_name(choice: Choice) -> String:
@@ -289,8 +350,14 @@ func set_menu_choice(choice: Choice) -> void:
 
 func _physics_process(_delta: float) -> void:
 	var step := Car.FIXED_STEP
+	_settle_garage()
 	match session.state:
 		RaceSession.State.MODE_SELECT:
+			if garage_open:
+				return
+			if _grid_input_delay > 0:
+				_grid_input_delay -= 1
+				return
 			if Input.is_action_just_pressed(PlayerControls.STEER_LEFT):
 				set_menu_choice(posmod(menu_choice - 1, 3) as Choice)
 			elif Input.is_action_just_pressed(PlayerControls.STEER_RIGHT):
@@ -316,10 +383,15 @@ func _physics_process(_delta: float) -> void:
 				# After the flag the player has no control; the car brakes to a stop.
 				car.steer = 0.0
 				car.fire = car.model.control_mode == CarModel.ControlMode.FIRE_TO_BRAKE
-				if Input.is_action_just_pressed(PlayerControls.FIRE):
+				var skip_garage := garage != null and Input.is_action_just_pressed(PlayerControls.HISTORY_VIEW)
+				if Input.is_action_just_pressed(PlayerControls.FIRE) or skip_garage:
 					_race_grid = session.reversed_grid()
 					grid_order = _race_grid
 					reset_race()
+					if skip_garage:
+						start_race()
+					elif garage != null:
+						open_garage()
 					return
 	if session.spectator and _spectator_input():
 		return
@@ -328,6 +400,7 @@ func _physics_process(_delta: float) -> void:
 	if combat.enabled:
 		_combat_tick(step)
 	session.tick(step)
+	_settle_garage()
 	if session.spectator:
 		_spectator_tick(step)
 	_update_camera_target(step)
@@ -343,6 +416,8 @@ func start_race() -> void:
 		if drivers[id] != null:
 			drivers[id].begin_race(race_seed(races_started, id))
 	session.start()
+	if garage != null and not session.spectator:
+		garage.begin_race()
 	hud.hide_message()
 	hud.flash_banner("GO!")
 	if race_audio != null:
@@ -474,7 +549,10 @@ func _refresh_hud() -> void:
 		combat.weapon_of(0, CombatWorld.REAR), combat.ammo[0][CombatWorld.REAR], combat.wreck_left[0],
 		_cooldown_fraction(CombatWorld.FRONT), _cooldown_fraction(CombatWorld.REAR))
 	if session.state == RaceSession.State.FINISHED:
-		hud.show_results(session.standings())
+		if garage != null and _garage_settled:
+			hud.show_results(session.standings(), "Prize money: $%d     Fire: garage     Tab: skip shopping, next race" % garage.last_prize)
+		else:
+			hud.show_results(session.standings())
 
 
 ## 0 = ready, 1 = just fired (player's slot, for the HUD bar).

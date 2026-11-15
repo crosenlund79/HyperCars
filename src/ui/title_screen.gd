@@ -4,7 +4,8 @@ extends Node
 ## grid as a slowly panning painted backdrop, the logo, and the menus
 ## (Race / Spectate / Settings / Controls / Quit). Presentation only.
 
-signal start_requested(choice: int)
+## choice: 0 Fire to Accelerate, 1 Fire to Brake, 2 Spectate; garage: garage race.
+signal start_requested(choice: int, garage: bool)
 ## Weapons ON / No Guns preference for both racing and spectating (saved).
 var weapons_on := true
 var _weapons_button: Button
@@ -77,9 +78,12 @@ func setup(p_resolver: AssetResolver, p_settings: AudioSettings) -> void:
 	_update_weapons_button()
 	_update_style_button()
 	_update_laps_button()
-	_race_menu = _menu(root, [["FIRE TO ACCELERATE", func() -> void: _start(0)], ["FIRE TO BRAKE", func() -> void: _start(1)],
-		["BACK", _show_main]])
-	var race_title := HyperTheme.label("CHOOSE YOUR CONTROLS", 22, HyperTheme.GOLD, 700)
+	_race_menu = _menu(root, [["QUICK RACE: FIRE TO ACCELERATE", func() -> void: _start(0)],
+		["QUICK RACE: FIRE TO BRAKE", func() -> void: _start(1)],
+		["GARAGE RACE: FIRE TO ACCELERATE", func() -> void: _start(0, true)],
+		["GARAGE RACE: FIRE TO BRAKE", func() -> void: _start(1, true)],
+		["BACK", _show_main]], 520)
+	var race_title := HyperTheme.label("QUICK RACE: standard weapons\nGARAGE RACE: prize money and your own weapons", 18, HyperTheme.GOLD, 600)
 	race_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_race_menu.add_child(race_title)
 	_race_menu.move_child(race_title, 0)
@@ -208,9 +212,9 @@ func _load_weapons_pref() -> void:
 		combat_style = clampi(int(cfg.get_value("game", "combat_style", 0)), 0, 1)
 
 
-func _start(choice: int) -> void:
+func _start(choice: int, garage: bool = false) -> void:
 	_sfx_play("ui/ui_select")
-	start_requested.emit(choice)
+	start_requested.emit(choice, garage)
 
 
 func _open_race() -> void:
@@ -245,21 +249,21 @@ func _show_only(node: Control) -> void:
 	create_tween().tween_property(node, "modulate:a", 1.0, 0.18)
 
 
-func _menu(root: Control, items: Array) -> VBoxContainer:
+func _menu(root: Control, items: Array, width: int = 380) -> VBoxContainer:
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 6)
-	box.custom_minimum_size = Vector2(380, 0)
+	box.custom_minimum_size = Vector2(width, 0)
 	root.add_child(box)
 	for item in items:
 		var b := Button.new()
 		b.text = item[0]
-		b.custom_minimum_size = Vector2(380, 44)
+		b.custom_minimum_size = Vector2(width, 44)
 		b.pressed.connect(item[1])
 		b.focus_entered.connect(func() -> void: _sfx_play("ui/ui_move"))
 		b.mouse_entered.connect(b.grab_focus)
 		box.add_child(b)
 	box.reset_size()
-	box.position = Vector2((1280 - 380) * 0.5, 252)
+	box.position = Vector2((1280 - width) * 0.5, 252)
 	return box
 
 

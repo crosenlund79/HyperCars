@@ -78,13 +78,13 @@ func test_tactical_player_front_cooldown_and_hud_bar() -> void:
 	await _tap(PlayerControls.FIRE)
 	await _tap(PlayerControls.FIRE_FRONT)
 	var after_one: int = _main.combat.ammo[0][0]
-	assert_eq(after_one, _main.weapon_rules.front_ammo - 1)
+	assert_eq(after_one, _main.combat.start_ammo[0][0] - 1)
 	assert_gt(_main._cooldown_fraction(CombatWorld.FRONT), 0.5, "HUD bar shows the front cooldown")
 	await wait_physics_frames(30)  # 0.5 s: past the shared lock, not the 1.5 s front cooldown
 	await _tap(PlayerControls.FIRE_FRONT)
 	assert_eq(_main.combat.ammo[0][0], after_one, "front slot still cooling down (1.5 s)")
 	await _tap(PlayerControls.FIRE_REAR)
-	assert_eq(_main.combat.ammo[0][1], _main.weapon_rules.rear_ammo - 1, "rear slot is independent")
+	assert_eq(_main.combat.ammo[0][1], _main.combat.start_ammo[0][1] - 1, "rear slot is independent")
 	await wait_physics_frames(80)
 	assert_eq(_main._cooldown_fraction(CombatWorld.FRONT), 0.0)
 	await _tap(PlayerControls.FIRE_FRONT)
