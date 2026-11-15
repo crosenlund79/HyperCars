@@ -210,7 +210,11 @@ func step(dt: float, cars: Array) -> Dictionary:
 					events.append({"kind": "explode", "type": p.type, "pos": p.pos, "car": -1, "owner": p.owner})
 				else:
 					for j in cars.size():
-						if j != p.owner and cars[j].present and p.pos.distance_to(cars[j].position) < rules.super_hit_radius:
+						# a car already wrecked or protected after its respawn cannot be
+						# destroyed again (_destroy ignores it), so the orbit passing over it
+						# is not a new hit: no repeated explosion event every tick
+						if j != p.owner and cars[j].present and not is_wrecked(j) and grace_left[j] <= 0.0 \
+								and p.pos.distance_to(cars[j].position) < rules.super_hit_radius:
 							_hit(j, p, destroyed)
 			_:
 				if p.type == W.HOMING_MISSILE and p.target >= 0 and not is_wrecked(p.target):

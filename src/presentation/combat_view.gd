@@ -2,11 +2,18 @@ class_name CombatView
 extends Node2D
 ## Combat presentation: draws missiles, blinking mines and explosions from the
 ## CombatWorld state, darkens and smokes wrecked cars, plays weapon sounds.
+## P1 readability: a short smoke trail behind each missile (the existing smoke
+## particle) and a restrained red halo under each mine, pulsing with its blink.
 ## Read-only: it reads the combat state and its append-only event log through
 ## its own cursor, and never changes combat, cars or the race.
 
 const W := WeaponRules.Weapon
 const TEXTURES := {W.HOMING_MISSILE: AssetCatalog.HOMING_MISSILE, W.SUPER_MISSILE: AssetCatalog.SUPER_MISSILE}
+## Missile trail and mine halo look (presentation only).
+const TRAIL_PARTICLES := 14
+const TRAIL_LIFETIME := 0.32
+const MINE_HALO_RADIUS := 17.0
+const MINE_HALO_COLOR := Color(0.95, 0.22, 0.12)
 const LAUNCH_SOUNDS := {W.MINE: "weapons/mine_drop", W.HOMING_MISSILE: "weapons/homing_launch",
 	W.SUPER_MISSILE: "weapons/super_launch"}
 
@@ -19,6 +26,10 @@ var _resolver: AssetResolver
 var _audio: RaceAudio
 var _missiles: Array[Sprite2D] = []
 var _mines: Array[Sprite2D] = []
+## One short trail per missile sprite (same index).
+var _trails: Array[CPUParticles2D] = []
+## Mine halos are drawn on this node, under the mine sprites.
+var _halos: Node2D
 var _smoke: Array[CPUParticles2D] = []
 var _cursor := 0
 var _time := 0.0
@@ -31,6 +42,11 @@ func setup(combat: CombatWorld, cars: Array[Car], resolver: AssetResolver, audio
 	_resolver = resolver
 	_audio = audio
 	z_index = 3
+	_halos = Node2D.new()
+	_halos.name = "MineHalos"
+	_halos.z_index = -2
+	_halos.draw.connect(_draw_halos)
+	add_child(_halos)
 	for c in cars:
 		var p := CPUParticles2D.new()
 		p.texture = resolver.get_texture(AssetCatalog.SMOKE)
@@ -58,7 +74,7 @@ func set_enabled(on: bool) -> void:
 	enabled = on
 	visible = on
 	if not on:
-		for p in _smoke:
+		for p in _smoke + _trails:
 			p.emitting = false
 		_cursor = _combat.events.size()
 
@@ -84,12 +100,14 @@ func _process(delta: float) -> void:
 
 func _sync_missiles() -> void:
 	while _missiles.size() < _combat.projectiles.size():
+		_trails.append(_trail())
 		var s := Sprite2D.new()
 		add_child(s)
 		_missiles.append(s)
 	for i in _missiles.size():
 		var on := i < _combat.projectiles.size()
 		_missiles[i].visible = on
+		_trails[i].emitting = on
 		if on:
 			var p: Dictionary = _combat.projectiles[i]
 			var logical: String = TEXTURES.get(p.type, AssetCatalog.MISSILE)
@@ -99,6 +117,38 @@ func _sync_missiles() -> void:
 				_missiles[i].scale = AssetCatalog.scale_for(tex, AssetCatalog.SPECS[logical].display_size)
 			_missiles[i].position = p.pos
 			_missiles[i].rotation = (p.angle + PI * 0.5) if p.type == W.SUPER_MISSILE else p.dir.angle()
+			_trails[i].global_position = p.pos
+
+
+## Short, faint smoke trail (the replaceable smoke particle, its catalogue size).
+func _trail() -> CPUParticles2D:
+	var p := CPUParticles2D.new()
+	var tex := _resolver.get_texture(AssetCatalog.SMOKE)
+	p.texture = tex
+	p.amount = TRAIL_PARTICLES
+	p.lifetime = TRAIL_LIFETIME
+	p.local_coords = false
+	p.emitting = false
+	p.direction = Vector2.ZERO
+	p.spread = 180.0
+	p.gravity = Vector2.ZERO
+	p.initial_velocity_min = 4.0
+	p.initial_velocity_max = 14.0
+	var size := AssetCatalog.scale_for(tex, AssetCatalog.SPECS[AssetCatalog.SMOKE].display_size).x
+	p.scale_amount_min = size * 0.5
+	p.scale_amount_max = size * 0.7
+	var grow := Curve.new()
+	grow.add_point(Vector2(0, 0.6))
+	grow.add_point(Vector2(1, 1.3))
+	p.scale_amount_curve = grow
+	p.color = Color(0.97, 0.9, 0.78, 0.75)
+	var fade := Gradient.new()
+	fade.set_color(0, Color(1, 1, 1, 1))
+	fade.set_color(1, Color(1, 1, 1, 0))
+	p.color_ramp = fade
+	p.z_index = -1
+	add_child(p)
+	return p
 
 
 func _sync_mines() -> void:
@@ -120,6 +170,16 @@ func _sync_mines() -> void:
 			_mines[i].position = m.pos
 			var fast_blink: bool = m.age > _combat.rules.mine_fuse - 1.0
 			_mines[i].frame = int(m.age * (8.0 if fast_blink else 3.0)) % 2
+	_halos.queue_redraw()
+
+
+## Red halo under each mine, pulsing in step with its blink (faster before it blows).
+func _draw_halos() -> void:
+	for m in _combat.mines:
+		var fast_blink: bool = m.age > _combat.rules.mine_fuse - 1.0
+		var pulse := 0.5 + 0.5 * sin(m.age * TAU * (4.0 if fast_blink else 1.5))
+		_halos.draw_circle(m.pos, MINE_HALO_RADIUS, Color(MINE_HALO_COLOR, lerpf(0.12, 0.3, pulse)))
+		_halos.draw_arc(m.pos, MINE_HALO_RADIUS, 0.0, TAU, 28, Color(MINE_HALO_COLOR, lerpf(0.45, 0.85, pulse)), 2.0, true)
 
 
 func _show_event(e: Dictionary) -> void:

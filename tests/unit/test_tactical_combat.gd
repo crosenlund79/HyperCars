@@ -120,6 +120,29 @@ func test_super_missile_orbits_and_destroys_a_close_car() -> void:
 	assert_false(w.is_wrecked(0))
 
 
+## P1: the orbit passing over a car that is already wrecked (or protected after
+## its respawn) is not a new hit, so it no longer logs an explosion every tick
+## (it logged 35 for this single destruction before). Destruction itself is
+## unchanged; with a longer orbit a car still inside it when its wreck time and
+## grace have run out is destroyed again, with one more explosion.
+func test_super_missile_logs_one_explosion_per_real_hit() -> void:
+	for duration in [_rules.super_duration, 7.0]:
+		_rules.super_duration = duration
+		var w := _world(2)
+		w.set_loadout(0, W.SUPER_MISSILE, 1, W.MINE, 0)
+		var cars := _cars([0, 0])
+		cars[1].position = Vector2(0, _rules.super_orbit_radius)
+		assert_true(w.request(0, F, cars))
+		var destroyed := _run(w, cars, duration + 0.1)
+		var expected := 1 if duration < 6.0 else 2
+		assert_eq(destroyed.size(), expected, "destructions over a %.0f s orbit" % duration)
+		assert_eq(w.destroyed_count[1], expected)
+		var hits := w.events.filter(func(e: Dictionary) -> bool: return e.kind == "explode" and e.car == 1)
+		assert_eq(hits.size(), expected, "one explosion per real hit, not one per tick")
+		var ends := w.events.filter(func(e: Dictionary) -> bool: return e.kind == "explode" and e.car == -1)
+		assert_eq(ends.size(), 1, "the missile's own end")
+
+
 func test_mine_explodes_after_the_fuse() -> void:
 	var w := _world(2)
 	var cars := _cars([0, -34])

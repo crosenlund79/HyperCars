@@ -177,3 +177,55 @@ func test_garage_disabled_buttons_read_as_inactive() -> void:
 	var mounted: Dictionary = screen._cards[garage.equipped[PlayerGarage.FRONT]]
 	assert_true(mounted.equip.disabled)
 	assert_eq(mounted.equip.get_theme_color("font_disabled_color"), HyperTheme.GOLD, "EQUIPPED is a state, in gold")
+
+
+# --- P1 Stage 2: combat readability (presentation only) ---
+
+func _make_presented(humans := 1) -> void:
+	_main = MAIN_SCENE.instantiate()
+	_main.presentation_enabled = true
+	if humans == 2:
+		_main.human_count = 2
+		_main.player_devices = [3, 4] as Array[int]
+	add_child_autofree(_main)
+	await wait_physics_frames(2)
+
+
+## Combat state is injected on the grid (before the start nothing moves it), so
+## only the presentation is exercised.
+func test_missiles_leave_a_short_trail_that_stops_with_them() -> void:
+	await _make_presented()
+	_main.set_weapons_enabled(true)
+	var view: CombatView = _main.combat_view
+	_main.combat.projectiles.append({"type": WeaponRules.Weapon.FRONT_MISSILE, "owner": P1,
+		"pos": Vector2(300, 200), "dir": Vector2.RIGHT, "age": 0.1})
+	await wait_process_frames(2)
+	assert_eq(view._trails.size(), view._missiles.size(), "one trail per missile sprite")
+	assert_true(view._trails[0].emitting, "trail while the missile flies")
+	assert_almost_eq(view._trails[0].global_position.distance_to(Vector2(300, 200)), 0.0, 0.01)
+	assert_lt(view._trails[0].lifetime, 0.5, "short-lived")
+	_main.combat.projectiles.clear()
+	await wait_process_frames(1)
+	assert_false(view._trails[0].emitting, "stops with its missile")
+
+
+func test_mines_get_a_halo_under_the_sprite() -> void:
+	await _make_presented()
+	_main.set_weapons_enabled(true)
+	var view: CombatView = _main.combat_view
+	_main.combat.mines.append({"owner": P1, "pos": Vector2(300, 200), "age": 0.5})
+	await wait_process_frames(2)
+	assert_eq(view._mines.size(), 1)
+	assert_true(view._mines[0].visible)
+	assert_lt(view._halos.z_index, 0, "halo under the cars")
+	assert_true(view._halos.get_index() < view._mines[0].get_index(), "drawn before (under) the mine sprite")
+
+
+func test_marker_on_the_local_car_only() -> void:
+	await _make_presented()
+	assert_eq(_main.player_marker.marked, {P1: HyperTheme.GOLD})
+
+
+func test_split_screen_marks_both_players_in_their_colours() -> void:
+	await _make_presented(2)
+	assert_eq(_main.player_marker.marked, {P1: HyperTheme.player_color(0), P2: HyperTheme.player_color(1)})

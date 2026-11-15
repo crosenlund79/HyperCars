@@ -95,6 +95,8 @@ var weapons_enabled := false
 ## Pre-race option: Classic / Tactical combat. Kept across races.
 var combat_style: WeaponRules.Style = WeaponRules.Style.CLASSIC
 var combat_view: CombatView
+## Chevron over the locally controlled car(s) (presentation only).
+var player_marker: PlayerMarker
 ## Lighting pilot (presentation experiment; L toggles). Off by default.
 var lighting: LightingPilot
 ## Garage race (M3.5): the player's money and weapons for this game session;
@@ -253,6 +255,10 @@ func _ready() -> void:
 		add_child(combat_view)
 		combat_view.setup(combat, cars, resolver, race_audio)
 		combat_view.human_ids = session.human_ids
+		player_marker = PlayerMarker.new()
+		player_marker.name = "PlayerMarker"
+		add_child(player_marker)
+		player_marker.setup(cars)
 		lighting = LightingPilot.new()
 		lighting.name = "LightingPilot"
 		add_child(lighting)
@@ -302,6 +308,11 @@ func _set_hud_humans() -> void:
 			v.hud.copy_field_from(hud)
 			v.hud.set_humans(colors, [v.racer_id] as Array[int])
 	hud.set_humans(colors, own)
+	if player_marker != null:  # only the car(s) controlled on this computer
+		var marked := {}
+		for id in own:
+			marked[id] = colors[id]
+		player_marker.set_marked(marked)
 
 
 func is_two_player() -> bool:
