@@ -857,6 +857,8 @@ func _update_camera_target(step: float = 0.0) -> void:
 
 
 func _process(_delta: float) -> void:
+	if net != null and net.race != null:
+		hud.set_net_quality("" if network_lost else net.quality_text(), net.connection_bad())
 	if lighting != null and Input.is_action_just_pressed(PlayerControls.TOGGLE_LIGHTING):
 		lighting.set_enabled(not lighting.enabled)
 	_refresh_hud()

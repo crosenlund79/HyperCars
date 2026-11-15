@@ -158,11 +158,17 @@ func _lan_link() -> NetLink:
 				title.lan_panel.set_busy(false)
 				title.lan_panel.show_status("The host closed the game.", true))
 		link.message.connect(_on_lan_message)
+		link.peer_left.connect(func(id: int) -> void:
+			if race == null and id == _pending_peer:
+				_pending_peer = 0
+				title.lan_panel.show_status("The other player left before the race. Still waiting for a player..."))
 	return link
 
 
 ## Hosts a LAN race and waits for the other player (title status shows the address).
 func host_lan() -> Error:
+	if (link != null and link.is_open()) or race != null or _starting:
+		return ERR_ALREADY_IN_USE  # already hosting / joining / racing: repeated presses change nothing
 	var err := _lan_link().host(lan_port)
 	if err != OK:
 		title.lan_panel.show_status("Could not host on port %d (error %d). Is another game already hosting on this computer?" % [lan_port, err], true)
@@ -175,6 +181,8 @@ func host_lan() -> Error:
 ## Joins the race hosted at `address`: an IPv4 address on this computer, the
 ## local network or the internet, optionally with ":port" (default 24680).
 func join_lan(address: String) -> Error:
+	if (link != null and link.is_open()) or race != null or _starting:
+		return ERR_ALREADY_IN_USE
 	var a := NetLink.parse_address(address, lan_port)
 	if not a.ok:
 		title.lan_panel.show_status(a.error, true)

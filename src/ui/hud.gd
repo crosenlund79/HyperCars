@@ -44,6 +44,7 @@ var _car_textures: Dictionary = {}
 var _full_names: Dictionary = {}
 var _results_key := ""
 var _menu_key := ""
+var _net_label: Label
 ## Track theme name shown on the grid panel.
 var track_name := ""
 ## Spectator race history (created by setup_history).
@@ -132,6 +133,12 @@ func setup(resolver: AssetResolver) -> void:
 	_message_box.add_theme_constant_override("separation", 6)
 	_message.add_child(_message_box)
 
+	_net_label = HyperTheme.label("", 15, HyperTheme.CREAM_DIM, 600)
+	_net_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_net_label.size = Vector2(560, 22)
+	_net_label.position = Vector2(1280 - 560 - 18, 690)
+	_net_label.visible = false
+	add_child(_net_label)
 	_banner = HyperTheme.label("", 96, HyperTheme.GOLD, 700)
 	_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_banner.size = Vector2(1280, 140)
@@ -169,6 +176,13 @@ func show_menu(choice: String, weapons: bool = false, laps: int = 3, style: int 
 		_message_box.add_child(_centered(HyperTheme.label(note, 22, HyperTheme.GOLD, 700)))
 	_message_box.add_child(_centered(HyperTheme.label("Left / Right: mode    Up / Down: weapons    C: combat style    Tab: laps    Fire: start    Esc: menu", 17, HyperTheme.CREAM_DIM, 500)))
 	_present_message(Vector2(640, 0))
+
+
+## Network races: small connection-quality line (bottom right); red when troubled.
+func set_net_quality(text: String, bad: bool) -> void:
+	_net_label.visible = not text.is_empty()
+	_net_label.text = text
+	_net_label.add_theme_color_override("font_color", HyperTheme.RED if bad else HyperTheme.CREAM_DIM)
 
 
 ## A short notice in the centre panel (e.g. a lost network connection).

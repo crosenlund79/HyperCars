@@ -59,6 +59,7 @@ var hard_snaps := 0
 ## default reads the single-player actions on this computer.
 var input_source: Callable
 var _tick := 0
+var _last_rx_ms := -1
 ## HOST: combat events already sent for the current race.
 var _sent_events := 0
 var _events_race := -1
@@ -173,8 +174,8 @@ func send_results(order: Array) -> void:
 func client_tick(_step: float) -> void:
 	var state: int = race.session.state
 	if state == RaceSession.State.MODE_SELECT:
-		if race._menu_pressed(PlayerControls.FIRE):
-			local_ready = not local_ready
+		if race._menu_pressed(PlayerControls.FIRE) and not local_ready:
+			local_ready = true  # Fire only readies: repeated presses change nothing
 			_send_ready()
 	else:
 		var cmd := _local_command()
@@ -276,9 +277,34 @@ func status_text() -> String:
 
 
 ## Control mode chosen on this computer's grid panel (sent with READY).
+## Control mode changed on this computer's grid panel: ready again with it.
 func on_local_mode_changed() -> void:
 	if is_client() and local_ready:
+		local_ready = false
 		_send_ready()
+
+
+# ------------------------------------------------------ connection quality
+
+## Milliseconds since anything was last received from the other computer.
+func silence_ms() -> int:
+	return Time.get_ticks_msec() - _last_rx_ms if _last_rx_ms >= 0 else 0
+
+
+## True when the connection looks troubled (nothing heard for 1.5 s, or heavy loss).
+func connection_bad() -> bool:
+	return silence_ms() > 1500 or link.packet_loss() > 0.05
+
+
+## Small status for the HUD, e.g. "PING 84 ms" or "CONNECTION PROBLEMS - PING 310 ms".
+func quality_text() -> String:
+	var ping := link.ping_ms()
+	var p := "PING %d ms" % ping if ping >= 0 else "PING -"
+	if silence_ms() > 1500:
+		return "CONNECTION PROBLEMS - no data for %.1f s" % (silence_ms() / 1000.0)
+	if link.packet_loss() > 0.05:
+		return "CONNECTION PROBLEMS - %d%% loss - %s" % [int(link.packet_loss() * 100.0), p]
+	return p
 
 
 func _local_command() -> Dictionary:
@@ -396,6 +422,7 @@ static func valid_setup(cfg: Variant, car_count: int) -> bool:
 func _on_message(from: int, msg: Array) -> void:
 	if typeof(msg[0]) != TYPE_INT or not _from_expected(from):
 		return  # unknown sender or malformed: ignored
+	_last_rx_ms = Time.get_ticks_msec()
 	var state: int = race.session.state
 	match msg[0]:
 		Msg.INPUT:
