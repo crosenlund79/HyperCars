@@ -20,3 +20,4 @@ attack_rate = 4.0
 waste_chance = 0.12
 mine_min_quality = 0.25
 mine_rate = 3.0
+rear_eagerness = 1.2

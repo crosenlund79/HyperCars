@@ -18,3 +18,5 @@ mine_min_quality = 0.4
 mine_rate = 3.0
 retaliation_time = 8.0
 retaliation_boost = 2.5
+tactical_aim_time = 0.1
+rear_eagerness = 2.0

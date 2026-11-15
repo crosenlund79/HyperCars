@@ -40,6 +40,11 @@ var mines_dropped := 0
 var held_for_reserve := 0
 ## Seconds of retaliation left after being destroyed.
 var retaliating := 0.0
+## M3.5 Tactical counters / state.
+var rear_shots := 0
+var brilliant_shots := 0
+var shots_by_weapon: Dictionary = {}
+var _aim: Array[float] = [0.0, 0.0]
 
 
 func _init(p_line: RacingLine, p_params: AiParams) -> void:
@@ -57,6 +62,10 @@ func begin_race(seed_value: int) -> void:
 	mines_dropped = 0
 	held_for_reserve = 0
 	retaliating = 0.0
+	rear_shots = 0
+	brilliant_shots = 0
+	shots_by_weapon = {}
+	_aim = [0.0, 0.0]
 	lane_bias = 0.0
 	commitment = 1.0
 	in_corner = false
@@ -366,5 +375,166 @@ func _hold_ammo(ctx: Dictionary) -> bool:
 		var per_lap := float(ctx.front_start) / float(maxi(1, ctx.lap_count))
 		var keep := per_lap * (laps_left - 1)
 		if float(ctx.front_ammo) <= keep:
+			return true
+	return false
+
+
+## --- M3.5 Tactical decisions. The same weapons, ammunition and cooldowns as
+## everyone (CombatWorld enforces them); personality traits only shape when a
+## driver judges a shot worth taking. Uses weapon_rng only, so driving decisions
+## never change. ctx (in addition to decide_weapons): front_weapon, rear_weapon,
+## rear_ammo, rear_start, position, field, homing_range, super_orbit_radius,
+## super_hit_radius.
+func decide_weapons_tactical(me: Dictionary, targets: Array, ctx: Dictionary, delta: float) -> Dictionary:
+	retaliating = maxf(0.0, retaliating - delta)
+	var boost := params.retaliation_boost if retaliating > 0.0 else 1.0
+	var relief := 0.15 if retaliating > 0.0 else 0.0
+	var pressure: bool = ctx.get("pressure", false)
+	var out := {"front": false, "rear": false}
+	for slot in 2:
+		var ready: bool = ctx.front_ready if slot == 0 else ctx.rear_ready
+		if not ready:
+			_aim[slot] = 0.0
+			continue
+		var weapon: int = ctx.front_weapon if slot == 0 else ctx.rear_weapon
+		var is_mine := weapon == WeaponRules.Weapon.MINE
+		var q := tactical_quality(weapon, me, targets, ctx)
+		var threshold := (params.mine_min_quality if is_mine else params.attack_min_confidence) - relief
+		if params.confidence_variation > 0.0:
+			threshold += weapon_rng.randf_range(-params.confidence_variation, params.confidence_variation)
+		if pressure:
+			threshold -= params.pressure_attack_drop
+		if ctx.laps_left <= 1:
+			threshold -= 0.1  # last lap: nothing left to save the ammunition for
+		var rate := (params.mine_rate if is_mine else params.attack_rate) * boost
+		if slot == 1:
+			rate *= params.rear_eagerness
+			threshold -= 0.1 * (params.rear_eagerness - 1.0)
+		var hold := _hold_slot(ctx, slot)
+		var good := q > 0.0 and q >= threshold
+		_aim[slot] = _aim[slot] + delta if good else 0.0
+		var aimed := pressure or _aim[slot] >= params.tactical_aim_time
+		var fire := false
+		if q >= 0.9 and not hold and params.brilliance_rate > 0.0 and weapon_rng.randf() < params.brilliance_rate * delta:
+			fire = true
+			brilliant_shots += 1
+		elif good and aimed and not hold and weapon_rng.randf() < rate * delta:
+			fire = true
+		elif slot == 0 and params.waste_chance > 0.0 and not hold and weapon_rng.randf() < params.waste_chance * delta:
+			fire = true
+			wasted_shots += 1
+		elif good and hold:
+			held_for_reserve += 1
+		if fire:
+			_aim[slot] = 0.0
+			shots_by_weapon[weapon] = shots_by_weapon.get(weapon, 0) + 1
+			if slot == 0:
+				out.front = true
+				front_shots += 1
+			else:
+				out.rear = true
+				if is_mine:
+					mines_dropped += 1
+				else:
+					rear_shots += 1
+	return out
+
+
+## How good firing this weapon is right now (0..1), from the targets' actual
+## positions, directions and speeds.
+func tactical_quality(weapon: int, me: Dictionary, targets: Array, ctx: Dictionary) -> float:
+	match weapon:
+		WeaponRules.Weapon.FRONT_MISSILE:
+			return front_shot_quality(me, targets, ctx)
+		WeaponRules.Weapon.REAR_MISSILE:
+			return rear_shot_quality(me, targets, ctx)
+		WeaponRules.Weapon.HOMING_MISSILE:
+			return homing_quality(me, targets, ctx)
+		WeaponRules.Weapon.SUPER_MISSILE:
+			return super_quality(me, targets, ctx)
+		WeaponRules.Weapon.MINE:
+			return mine_quality(me, targets, ctx)
+	return 0.0
+
+
+## Rear missile: like a front shot, backwards. The missile flies at missile_speed
+## while a follower drives into it, so the closing speed is the sum.
+func rear_shot_quality(me: Dictionary, targets: Array, ctx: Dictionary) -> float:
+	var back := -Vector2.from_angle(me.heading)
+	var best := 0.0
+	for t in targets:
+		if t.wrecked:
+			continue
+		var rel: Vector2 = t.position - me.position
+		var along := rel.dot(back)
+		if along < 40.0 or along > params.attack_range:
+			continue
+		if params.opportunist and not _opportunity(me, t, along):
+			continue
+		var time: float = along / maxf(1.0, ctx.missile_speed - t.velocity.dot(back))
+		var predicted: Vector2 = t.position + t.velocity * time - me.position
+		var miss := absf(predicted.cross(back))
+		var q := clampf(1.0 - miss / (ctx.hit_radius * 1.5), 0.0, 1.0) * (1.0 - 0.3 * along / params.attack_range)
+		best = maxf(best, q)
+	return best
+
+
+## Homing missile: it locks on the nearest car (in any direction), so the shot
+## is only good when that car is ahead within the nose cone and in range.
+func homing_quality(me: Dictionary, targets: Array, ctx: Dictionary) -> float:
+	var nearest := {}
+	var best_d: float = ctx.get("homing_range", 900.0)
+	for t in targets:
+		if t.wrecked:
+			continue
+		var d: float = me.position.distance_to(t.position)
+		if d < best_d:
+			best_d = d
+			nearest = t
+	if nearest.is_empty() or best_d > params.attack_range * 1.2:
+		return 0.0
+	var fwd := Vector2.from_angle(me.heading)
+	var rel: Vector2 = nearest.position - me.position
+	if params.opportunist and not _opportunity(me, nearest, rel.dot(fwd)):
+		return 0.0
+	var angle := absf(fwd.angle_to(rel))
+	var cone := clampf(1.0 - (angle - deg_to_rad(20.0)) / deg_to_rad(75.0), 0.0, 1.0)
+	var reach := clampf(1.0 - maxf(0.0, best_d - 450.0) / 450.0, 0.0, 1.0)
+	if best_d < 50.0:
+		reach *= 0.5  # too close to turn onto
+	return cone * reach
+
+
+## Super missile: it circles its car, so it pays when cars are (or are about to be)
+## around the orbit. Needs super_min_targets cars nearby.
+func super_quality(me: Dictionary, targets: Array, ctx: Dictionary) -> float:
+	var orbit: float = ctx.get("super_orbit_radius", 56.0)
+	var sum := 0.0
+	var close := 0
+	for t in targets:
+		if t.wrecked:
+			continue
+		var d: float = me.position.distance_to(t.position)
+		if d < orbit + 110.0:
+			close += 1
+		sum += clampf(1.0 - maxf(0.0, d - orbit) / 170.0, 0.0, 1.0)
+	if close < params.super_min_targets:
+		return 0.0
+	return clampf(sum * 0.6, 0.0, 1.0)
+
+
+## Opportunist test: slow, recovering or very close targets only.
+func _opportunity(me: Dictionary, t: Dictionary, along: float) -> bool:
+	return t.speed < me.speed * 0.6 or t.speed < 150.0 or absf(along) < 160.0
+
+
+## Ammunition holding per slot (reserve / pacing traits), from the slot's own count.
+func _hold_slot(ctx: Dictionary, slot: int) -> bool:
+	if slot == 0:
+		return _hold_ammo(ctx)
+	var laps_left: int = ctx.laps_left
+	if params.ammo_pacing and laps_left > 0:
+		var per_lap := float(ctx.rear_start) / float(maxi(1, ctx.lap_count))
+		if float(ctx.rear_ammo) <= per_lap * (laps_left - 1):
 			return true
 	return false

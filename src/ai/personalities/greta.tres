@@ -17,3 +17,5 @@ attack_min_confidence = 0.75
 attack_rate = 2.0
 ammo_pacing = true
 mine_min_quality = 0.7
+tactical_aim_time = 0.25
+super_min_targets = 2

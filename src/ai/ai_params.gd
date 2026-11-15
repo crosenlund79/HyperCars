@@ -107,3 +107,17 @@ extends Resource
 ## retaliation_boost and the thresholds lowered by 0.15. 0 disables.
 @export var retaliation_time := 0.0
 @export var retaliation_boost := 1.0
+
+## --- M3.5 Tactical combat decisions (used only in Tactical style; Classic keeps
+## the M3 decisions above unchanged). Neutral defaults.
+## Patience: seconds a firing solution must hold before the shot is taken
+## (0 = shoots the moment it looks good). Ignored under pressure.
+@export var tactical_aim_time := 0.0
+## Rear-slot eagerness: multiplies the rear attempt rate and lowers its
+## threshold by 0.1 per unit above 1 (defensive drivers watch their mirrors).
+@export var rear_eagerness := 1.0
+## Super missile: cars that must be close before it is worth launching.
+@export_range(1, 4) var super_min_targets := 1
+## "Occasionally brilliant": attempts per second to take a near-perfect shot
+## (quality >= 0.9) at once, whatever the mood or the aim time. 0 disables.
+@export var brilliance_rate := 0.0

@@ -647,7 +647,14 @@ func _ai_weapons(step: float, states: Array) -> void:
 			"lap_count": r.tracker.lap_count, "missile_speed": weapon_rules.missile_speed, "hit_radius": weapon_rules.hit_radius,
 			"mine_fuse": weapon_rules.mine_fuse,
 			"pressure": d.params.pressure_attack_drop > 0.0 and d.under_pressure(me, targets)}
-		var out := d.decide_weapons(me, targets, ctx, step)
+		var out: Dictionary
+		if combat_style == WeaponRules.Style.TACTICAL:
+			ctx.merge({"front_weapon": combat.weapon_of(id, CombatWorld.FRONT), "rear_weapon": combat.weapon_of(id, CombatWorld.REAR),
+				"rear_ammo": combat.ammo[id][CombatWorld.REAR], "rear_start": combat.start_ammo[id][CombatWorld.REAR],
+				"homing_range": weapon_rules.homing_range, "super_orbit_radius": weapon_rules.super_orbit_radius})
+			out = d.decide_weapons_tactical(me, targets, ctx, step)
+		else:
+			out = d.decide_weapons(me, targets, ctx, step)
 		if out.front:
 			combat.request(id, CombatWorld.FRONT, states)
 		if out.rear:

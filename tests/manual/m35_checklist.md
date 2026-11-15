@@ -23,3 +23,15 @@ All prices, cooldowns and amounts are provisional. Note anything that feels unfa
 - [ ] A QUICK RACE uses the standard loadout whatever you bought; spectating never changes your money or weapons.
 - [ ] Esc in the garage returns to the grid panel (Fire starts, Esc leaves to the title) without starting or leaving by accident.
 - [ ] Tactical spectating: rivals use their own weapon mixes (homing, super, rear missiles and mines appear).
+
+## Stage 3 — Personalities in Tactical combat (spectate with COMBAT: TACTICAL)
+- [ ] Rocco (12 front missiles + 4 mines) fires constantly, sometimes at nothing, and runs dry early.
+- [ ] Victor (front + rear missiles) fires rarely, after a moment's aim, and finishes with ammunition left.
+- [ ] Ellie (homing + mines) shoots hastily when someone is right behind her.
+- [ ] Hank (front + 9 rear missiles) punishes whoever sits behind him, more so after being destroyed.
+- [ ] Maya (homing + rear missiles) picks off slow, recovering or very close cars only.
+- [ ] Dante (super missiles + mines) launches the super missile with a single car nearby and sometimes misses.
+- [ ] Greta (front missiles + mines) spreads her shots evenly over the race.
+- [ ] Finn (super missiles + mines) is unpredictable, but never misses a near-perfect chance.
+- [ ] Nina (6 homing + 2 mines) waits for high-confidence shots and fires few, but they usually hit.
+- [ ] Classic spectating still looks like M3 (front missiles + mines for everyone).

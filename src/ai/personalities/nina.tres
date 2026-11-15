@@ -17,3 +17,5 @@ attack_min_confidence = 0.88
 attack_rate = 3.0
 attack_range = 350.0
 mine_min_quality = 0.8
+tactical_aim_time = 0.45
+super_min_targets = 2

@@ -17,3 +17,5 @@ attack_rate = 1.5
 ammo_reserve = 2
 mine_min_quality = 0.75
 mine_rate = 1.0
+tactical_aim_time = 0.3
+super_min_targets = 2
