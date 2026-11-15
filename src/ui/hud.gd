@@ -5,6 +5,10 @@ extends CanvasLayer
 ## spectator history. Presentation only: it displays race state it is given.
 
 const PLAYER_ID := 0
+## Spectator camera: a standings row was clicked (racer id), or an arrow was
+## pressed (-1 previous / +1 next in the starting-grid order).
+signal follow_requested(id: int)
+signal follow_step_requested(direction: int)
 
 var _theme: Theme
 var _pos_label: Label
@@ -24,6 +28,13 @@ var _wreck_label: Label
 var _weapon_textures: Dictionary = {}
 var _tower: VBoxContainer
 var _tower_rows: Array = []
+## Spectator: the followed driver's id, the arrow buttons and row highlight style.
+var _followed := -1
+var _follow_controls: HBoxContainer
+var _follow_prev: Button
+var _follow_next: Button
+var _highlight: StyleBoxFlat
+var _no_highlight: StyleBoxEmpty
 var _message: PanelContainer
 var _message_box: VBoxContainer
 var _banner: Label
@@ -82,10 +93,32 @@ func setup(resolver: AssetResolver) -> void:
 	add_child(_wreck_label)
 	_weapon_textures = weapon_icons(resolver)
 
+	var tower_box := VBoxContainer.new()
+	tower_box.position = Vector2(22, 232)
+	tower_box.add_theme_constant_override("separation", 6)
+	tower_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(tower_box)
 	_tower = VBoxContainer.new()
-	_tower.position = Vector2(22, 232)
 	_tower.add_theme_constant_override("separation", 1)
-	add_child(_tower)
+	_tower.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tower_box.add_child(_tower)
+	_highlight = StyleBoxFlat.new()
+	_highlight.bg_color = Color(HyperTheme.GOLD, 0.28)
+	_highlight.border_color = HyperTheme.GOLD
+	_highlight.set_border_width_all(2)
+	_highlight.set_corner_radius_all(6)
+	_highlight.set_content_margin_all(1)
+	_no_highlight = StyleBoxEmpty.new()
+	_no_highlight.set_content_margin_all(1)
+	_follow_controls = HBoxContainer.new()
+	_follow_controls.theme = _theme
+	_follow_controls.add_theme_constant_override("separation", 8)
+	_follow_prev = _arrow_button("<", -1)
+	_follow_next = _arrow_button(">", 1)
+	_follow_controls.add_child(_follow_prev)
+	_follow_controls.add_child(_follow_next)
+	_follow_controls.visible = false
+	tower_box.add_child(_follow_controls)
 
 	_message = PanelContainer.new()
 	_message.theme = _theme
@@ -244,7 +277,13 @@ func update_race(lap: int, lap_count: int, elapsed: float, position: int = 1, fi
 ## Live position tower (one row per car, player highlighted).
 func update_tower(standings: Array[RacerState]) -> void:
 	while _tower_rows.size() < standings.size():
+		var panel := PanelContainer.new()
+		panel.add_theme_stylebox_override("panel", _no_highlight)
+		panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		panel.gui_input.connect(_on_row_input.bind(panel))
 		var row := HBoxContainer.new()
+		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		panel.add_child(row)
 		row.add_theme_constant_override("separation", 6)
 		var pos := HyperTheme.label("", 17, HyperTheme.CREAM, 700)
 		pos.custom_minimum_size = Vector2(26, 0)
@@ -253,12 +292,14 @@ func update_tower(standings: Array[RacerState]) -> void:
 		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		icon.custom_minimum_size = Vector2(34, 20)
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		var name := HyperTheme.label("", 17, HyperTheme.CREAM, 600)
+		name.custom_minimum_size = Vector2(70, 0)
 		row.add_child(pos)
 		row.add_child(icon)
 		row.add_child(name)
-		_tower.add_child(row)
-		_tower_rows.append([row, pos, icon, name])
+		_tower.add_child(panel)
+		_tower_rows.append([panel, pos, icon, name])
 	for i in _tower_rows.size():
 		var parts: Array = _tower_rows[i]
 		var visible_row := i < standings.size()
@@ -266,11 +307,50 @@ func update_tower(standings: Array[RacerState]) -> void:
 		if not visible_row:
 			continue
 		var r := standings[i]
+		parts[0].set_meta("racer_id", r.id)
 		parts[1].text = str(i + 1)
 		parts[2].texture = _car_textures.get(r.id)
 		parts[3].text = "YOU" if r.is_player else r.display_name
-		var col := HyperTheme.GOLD if r.is_player else (HyperTheme.CREAM_DIM if r.is_finished() else HyperTheme.CREAM)
+		var followed: bool = _follow_controls.visible and r.id == _followed
+		var col := HyperTheme.GOLD if r.is_player or followed else (HyperTheme.CREAM_DIM if r.is_finished() else HyperTheme.CREAM)
 		parts[3].add_theme_color_override("font_color", col)
+		parts[0].add_theme_stylebox_override("panel", _highlight if followed else _no_highlight)
+
+
+## Spectator follow controls: clickable rows, arrows and the highlighted
+## driver. Off in normal races (rows are then plain, as before).
+func set_follow(enabled: bool, followed_id: int) -> void:
+	_follow_controls.visible = enabled
+	_followed = followed_id
+	for parts in _tower_rows:
+		parts[0].mouse_filter = Control.MOUSE_FILTER_STOP if enabled else Control.MOUSE_FILTER_IGNORE
+		parts[0].mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if enabled else Control.CURSOR_ARROW
+
+
+func _on_row_input(event: InputEvent, panel: PanelContainer) -> void:
+	if not _follow_controls.visible or not panel.has_meta("racer_id"):
+		return
+	var mb := event as InputEventMouseButton
+	if mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
+		follow_requested.emit(int(panel.get_meta("racer_id")))
+		panel.accept_event()
+
+
+func _arrow_button(text: String, direction: int) -> Button:
+	var b := Button.new()
+	b.text = text
+	b.focus_mode = Control.FOCUS_NONE
+	b.add_theme_font_size_override("font_size", 20)
+	b.custom_minimum_size = Vector2(52, 34)
+	for state in ["normal", "hover", "pressed", "focus", "disabled"]:
+		var box: StyleBox = _theme.get_stylebox(state, "Button").duplicate()
+		box.content_margin_left = 10
+		box.content_margin_right = 10
+		box.content_margin_top = 2
+		box.content_margin_bottom = 4
+		b.add_theme_stylebox_override(state, box)
+	b.pressed.connect(func() -> void: follow_step_requested.emit(direction))
+	return b
 
 
 func set_tower_visible(on: bool) -> void:

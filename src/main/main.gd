@@ -67,6 +67,8 @@ var menu_choice: Choice = Choice.FIRE_TO_ACCELERATE
 var races_started := 0
 var history: RaceHistory
 var director := SpectatorDirector.new()
+## Spectator: this race's starting grid (fixed order for the camera arrows).
+var spectator_start_grid: Array[int] = []
 var sim_speed := 1
 var _race_grid: Array[int] = []
 var _spectator_grid: Array[int] = []
@@ -119,6 +121,8 @@ func _ready() -> void:
 		names.append(RivalRoster.short_name(i))
 	session = RaceSession.new(track.checkpoint_count(), track.layout.lap_count, names)
 	hud.setup(resolver)
+	hud.follow_requested.connect(follow_driver)
+	hud.follow_step_requested.connect(follow_step)
 	var decals := Node2D.new()
 	decals.name = "Decals"
 	add_child(decals)
@@ -283,6 +287,8 @@ func reset_race() -> void:
 		c.place(track.grid_transform(slot))
 		progress[id].reset(c.global_position)
 		session.set_progress(id, progress[id].distance)
+	if session.spectator:
+		_follow_last_starter()
 	_update_camera_target()
 	camera.snap_to_target()
 	hud.history_panel.visible = session.spectator
@@ -448,6 +454,8 @@ func start_race() -> void:
 		if drivers[id] != null:
 			drivers[id].begin_race(race_seed(races_started, id))
 	session.start()
+	if session.spectator:
+		_follow_last_starter()
 	_race_open = true
 	race_began.emit()
 	if garage != null and not session.spectator:
@@ -522,6 +530,25 @@ func _show_player_car(on: bool) -> void:
 		car.place(Transform2D(0.0, Vector2(-100000, -100000)))
 
 
+## Spectator camera: every race starts on the car in the last grid slot.
+func _follow_last_starter() -> void:
+	spectator_start_grid = grid_order.duplicate()
+	if not spectator_start_grid.is_empty():
+		director.follow(spectator_start_grid[-1])
+
+
+## Spectator: follow this driver (clicked in the standings). Presentation only.
+func follow_driver(id: int) -> void:
+	if session.spectator and session.is_participating(id) and grid_order.has(id):
+		director.follow(id)
+
+
+## Spectator: previous (-1) / next (+1) driver in this race's starting-grid order.
+func follow_step(direction: int) -> void:
+	if session.spectator:
+		follow_driver(SpectatorDirector.grid_neighbour(spectator_start_grid, director.target_id, direction))
+
+
 func _update_camera_target(step: float = 0.0) -> void:
 	if not session.spectator:
 		camera.target = car
@@ -566,6 +593,7 @@ func _present_finishers() -> void:
 
 
 func _refresh_hud() -> void:
+	hud.set_follow(session.spectator, director.target_id)
 	hud.update_tower(session.standings())
 	if session.spectator:
 		var leader := session.standings()[0] if session.racer_count() > 0 else null

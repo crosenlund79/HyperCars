@@ -15,6 +15,7 @@ const ROWS := [
 	["Lighting pilot", "L (dusk lighting on / off, experiment)"],
 	["Back to menu", "Esc on the grid or results"],
 	["SPECTATING", ""],
+	["Follow a driver", "Click a name in the standings, or the < > arrows (grid order)"],
 	["History / Counts", "Tab"],
 	["Hide / show panel", "H"],
 	["Scroll history", "Left / Right"],

@@ -27,3 +27,9 @@ Spectator keys: **Tab** switch Race History / Position Counts · **Left/Right** 
 - [ ] **Ellie "Sparrow":** quick and tidy through corners in clean air; with a car right behind her she sometimes hesitates (lifts) or weaves (over-corrects) and loses time.
 - [ ] Hank, Maya, Dante, Greta, Finn and Nina drive like the M2 opponents (no personality yet).
 - [ ] No rival is visibly faster on straights or gets faster when behind (no catch-up).
+
+## Camera selection (follow-up, 2026-11-15)
+- [ ] Each spectator race starts with the camera on the car in the last grid slot (its row is outlined in gold).
+- [ ] Clicking a car icon or name in the standings follows that driver with a smooth camera move; it stays on them.
+- [ ] The < and > buttons under the standings step through the starting grid order (not the live positions), wrapping around.
+- [ ] Works at x1 and in fast mode (F); a new race resets to its last-grid starter; the history panel is unchanged.
