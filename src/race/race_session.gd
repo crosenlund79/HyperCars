@@ -20,6 +20,10 @@ var elapsed := 0.0
 var finish_order: Array[int] = []
 ## Spectator mode: the player (racer 0) does not take part.
 var spectator := false
+## Racer ids driven by humans (single-player: just the player, id 0).
+var human_ids: Array[int] = [PLAYER_ID]
+## Racer ids not taking part in the current race (e.g. a rival sitting out).
+var sitting_out: Array[int] = []
 var _checkpoint_count: int
 var _lap_count: int
 var _names: PackedStringArray
@@ -48,7 +52,7 @@ func reset() -> void:
 	finish_order.clear()
 	racers.clear()
 	for i in _names.size():
-		racers.append(RacerState.new(i, _names[i], i == PLAYER_ID, _checkpoint_count, _lap_count))
+		racers.append(RacerState.new(i, _names[i], human_ids.has(i), _checkpoint_count, _lap_count))
 
 
 ## Only allowed while choosing the mode.
@@ -58,7 +62,31 @@ func set_spectator(on: bool) -> void:
 
 
 func is_participating(racer_id: int) -> bool:
-	return not (spectator and racer_id == PLAYER_ID)
+	if sitting_out.has(racer_id):
+		return false
+	return not (spectator and human_ids.has(racer_id))
+
+
+## Humans for this session (before the start); rebuilds the racers.
+func set_humans(ids: Array[int]) -> void:
+	if state != State.MODE_SELECT:
+		return
+	human_ids = ids.duplicate()
+	reset()
+
+
+## Racers sitting out the next race (before the start).
+func set_sitting_out(ids: Array[int]) -> void:
+	if state == State.MODE_SELECT:
+		sitting_out = ids.duplicate()
+
+
+## True when every participating human has finished.
+func humans_finished() -> bool:
+	for id in human_ids:
+		if is_participating(id) and not racers[id].is_finished():
+			return false
+	return true
 
 
 func participants() -> Array[RacerState]:
@@ -121,7 +149,7 @@ func checkpoint_reached(index: int, racer_id: int = PLAYER_ID) -> LapTracker.Res
 		finish_order.append(racer_id)
 		r.finish_position = finish_order.size()
 		r.finish_time = elapsed
-		if (not spectator and racer_id == PLAYER_ID) or (spectator and all_finished()):
+		if (not spectator and human_ids.has(racer_id) and humans_finished()) or (spectator and all_finished()):
 			state = State.FINISHED
 	return result
 

@@ -38,15 +38,16 @@ static func ensure_actions() -> void:
 	_add(TOGGLE_STYLE, [_key(KEY_C), _joy_button(JOY_BUTTON_RIGHT_SHOULDER)])
 
 
-## Digital steering like a joystick: -1, 0 or +1.
-static func steer() -> float:
-	var left := Input.is_action_pressed(STEER_LEFT)
-	var right := Input.is_action_pressed(STEER_RIGHT)
+## Digital steering like a joystick: -1, 0 or +1. prefix selects a player's
+## own actions ("" = the default single-player actions).
+static func steer(prefix: String = "") -> float:
+	var left := Input.is_action_pressed(prefix + STEER_LEFT)
+	var right := Input.is_action_pressed(prefix + STEER_RIGHT)
 	return float(int(right) - int(left))
 
 
-static func fire_held() -> bool:
-	return Input.is_action_pressed(FIRE)
+static func fire_held(prefix: String = "") -> bool:
+	return Input.is_action_pressed(prefix + FIRE)
 
 
 static func _add(action: String, events: Array) -> void:

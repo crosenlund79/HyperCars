@@ -62,7 +62,10 @@ var resolver: AssetResolver
 var session: RaceSession
 var racing_line: RacingLine
 var cars: Array[Car] = []
+## Computer drivers by racer id (null for human-driven cars).
 var drivers: Array[AiDriver] = []
+## Every car's controls by racer id: humans and AI supply the same commands.
+var inputs: Array[DriverInput] = []
 var progress: Array[RaceProgress] = []
 ## grid_order[slot] = racer id, for the current mode.
 var grid_order: Array[int] = []
@@ -146,6 +149,7 @@ func _ready() -> void:
 	car.setup(driving_params, session.control_mode, resolver.get_texture(AssetCatalog.CAR_PLAYER))
 	cars.append(car)
 	drivers.append(null)
+	inputs.append(HumanDriverInput.new(RaceSession.PLAYER_ID))
 	var rival_ids: Array[int] = []
 	var car_textures := {}
 	var full_names := {}
@@ -160,6 +164,7 @@ func _ready() -> void:
 		cars.append(ai_car)
 		var params: AiParams = load(RivalRoster.params_path(i)) if RivalRoster.has_personality(i) else ai_params
 		drivers.append(AiDriver.new(racing_line, params))
+		inputs.append(AiDriverInput.new(i, drivers[-1]))
 		rival_ids.append(i)
 		car_textures[i] = texture
 		full_names[i] = RivalRoster.full_name(i)
@@ -286,7 +291,8 @@ func reset_race() -> void:
 	_restart_timer = -1.0
 	_stuck_time = 0.0
 	_best_progress = -INF
-	_show_player_car(not session.spectator)
+	for id in cars.size():
+		_show_car(id, grid_order.has(id))
 	for slot in grid_order.size():
 		var id := grid_order[slot]
 		var c := cars[id]
@@ -417,15 +423,8 @@ func _physics_process(_delta: float) -> void:
 			elif allow_exit and Input.is_action_just_pressed(PlayerControls.BACK):
 				exit_requested.emit()
 			return
-		RaceSession.State.RACING:
-			if not session.spectator:
-				car.steer = PlayerControls.steer()
-				car.fire = PlayerControls.fire_held()
 		RaceSession.State.FINISHED:
 			if not session.spectator:
-				# After the flag the player has no control; the car brakes to a stop.
-				car.steer = 0.0
-				car.fire = car.model.control_mode == CarModel.ControlMode.FIRE_TO_BRAKE
 				var skip_garage := garage != null and Input.is_action_just_pressed(PlayerControls.HISTORY_VIEW)
 				if Input.is_action_just_pressed(PlayerControls.FIRE) or skip_garage:
 					_race_grid = session.reversed_grid()
@@ -439,7 +438,7 @@ func _physics_process(_delta: float) -> void:
 	if session.spectator and _spectator_input():
 		return
 	_update_progress()
-	_drive_opponents(step)
+	_drive_cars(step)
 	if combat.enabled:
 		_combat_tick(step)
 	session.tick(step)
@@ -458,8 +457,7 @@ func start_race() -> void:
 	car.model.control_mode = session.control_mode
 	for id in grid_order:
 		cars[id].active = true
-		if drivers[id] != null:
-			drivers[id].begin_race(race_seed(races_started, id))
+		inputs[id].begin_race(race_seed(races_started, id))
 	session.start()
 	if session.spectator:
 		_follow_last_starter()
@@ -528,13 +526,19 @@ func _spectator_tick(step: float) -> void:
 			start_race()
 
 
-func _show_player_car(on: bool) -> void:
-	car.visible = on
-	car.collision_layer = 2 if on else 0
-	car.collision_mask = 3 if on else 0
+## Cars not in this race (the player when spectating, a rival sitting out) are
+## hidden, without collision, and parked far away.
+func _show_car(id: int, on: bool) -> void:
+	var c := cars[id]
+	c.visible = on
+	# Only touch the physics body when its presence changes: re-assigning the
+	# same collision layers re-registers the body and changes contact order.
+	if c.collision_layer != (2 if on else 0) or c.collision_mask != (3 if on else 0):
+		c.collision_layer = 2 if on else 0
+		c.collision_mask = 3 if on else 0
 	if not on:
-		car.active = false
-		car.place(Transform2D(0.0, Vector2(-100000, -100000)))
+		c.active = false
+		c.place(Transform2D(0.0, Vector2(-100000, -100000)))
 
 
 ## Spectator camera: every race starts on the car in the last grid slot.
@@ -636,21 +640,12 @@ func _update_progress() -> void:
 		session.set_progress(id, progress[id].distance)
 
 
-func _drive_opponents(step: float) -> void:
+## Every car in the race takes its command for this tick from its DriverInput.
+func _drive_cars(step: float) -> void:
 	for id in grid_order:
-		if drivers[id] == null:
-			continue
-		var others: Array = []
-		for other in grid_order:
-			if other != id:
-				others.append({"distance": progress[other].distance, "lateral": progress[other].lateral,
-					"speed": cars[other].model.forward_speed()})
-		var me := {"position": cars[id].global_position, "heading": cars[id].model.heading,
-			"speed": cars[id].model.forward_speed(), "distance": progress[id].distance,
-			"lateral": progress[id].lateral}
-		var out := drivers[id].decide(me, others, step)
-		cars[id].steer = out.steer
-		cars[id].fire = out.fire
+		var cmd := inputs[id].drive(self, step)
+		cars[id].steer = cmd.steer
+		cars[id].fire = cmd.fire
 
 
 func _on_checkpoint_reached(index: int, body: Node2D) -> void:
@@ -660,28 +655,34 @@ func _on_checkpoint_reached(index: int, body: Node2D) -> void:
 	session.checkpoint_reached(index, c.racer_id)
 
 
-## Combat for one tick: the player's Up/Down presses and the rivals' decisions
-## become fire requests, then the combat world advances; destroyed cars stop
-## where they are, respawned cars carry on.
+## Combat for one tick: the humans' Up/Down presses and then the rivals'
+## decisions become fire requests (same rules for all), then the combat world
+## advances; destroyed cars stop where they are, respawned cars carry on.
 func _combat_tick(step: float) -> void:
 	var states := _combat_states()
-	if session.state == RaceSession.State.RACING and not session.spectator and not combat.is_wrecked(RaceSession.PLAYER_ID):
-		if Input.is_action_just_pressed(PlayerControls.FIRE_FRONT):
-			combat.request(RaceSession.PLAYER_ID, CombatWorld.FRONT, states)
-		if Input.is_action_just_pressed(PlayerControls.FIRE_REAR):
-			combat.request(RaceSession.PLAYER_ID, CombatWorld.REAR, states)
+	for id in session.human_ids:
+		if grid_order.has(id):
+			_request_weapons(id, inputs[id].weapons(self, step, states), states)
 	if session.state != RaceSession.State.MODE_SELECT:
-		_ai_weapons(step, states)
+		for id in grid_order:
+			if not inputs[id].is_human():
+				_request_weapons(id, inputs[id].weapons(self, step, states), states)
 	var result := combat.step(step, states)
 	for id in result.destroyed:
 		cars[id].active = false
 		cars[id].model.velocity = Vector2.ZERO
-		if drivers[id] != null:
-			drivers[id].on_destroyed()
+		inputs[id].on_destroyed()
 	for id in result.respawned:
 		cars[id].model.velocity = Vector2.ZERO
 		if session.state != RaceSession.State.MODE_SELECT:
 			cars[id].active = true
+
+
+func _request_weapons(id: int, cmd: Dictionary, states: Array) -> void:
+	if cmd.front:
+		combat.request(id, CombatWorld.FRONT, states)
+	if cmd.rear:
+		combat.request(id, CombatWorld.REAR, states)
 
 
 func _combat_states() -> Array:
@@ -690,41 +691,3 @@ func _combat_states() -> Array:
 		states.append({"position": cars[i].global_position, "heading": cars[i].model.heading,
 			"present": grid_order.has(i)})
 	return states
-
-
-func _ai_weapons(step: float, states: Array) -> void:
-	for id in grid_order:
-		var d := drivers[id]
-		if d == null or combat.is_wrecked(id) or session.racers[id].is_finished():
-			continue
-		var front_ready := combat.can_fire(id, CombatWorld.FRONT)
-		var rear_ready := combat.can_fire(id, CombatWorld.REAR)
-		if not front_ready and not rear_ready:
-			continue
-		var targets: Array = []
-		for other in grid_order:
-			if other == id:
-				continue
-			targets.append({"position": cars[other].global_position, "velocity": cars[other].model.velocity,
-				"distance": progress[other].distance, "lateral": progress[other].lateral,
-				"speed": cars[other].model.forward_speed(), "wrecked": combat.is_wrecked(other)})
-		var me := {"position": cars[id].global_position, "heading": cars[id].model.heading,
-			"speed": cars[id].model.forward_speed(), "distance": progress[id].distance, "lateral": progress[id].lateral}
-		var r := session.racers[id]
-		var ctx := {"front_ready": front_ready, "rear_ready": rear_ready, "front_ammo": combat.ammo[id][CombatWorld.FRONT],
-			"front_start": combat.start_ammo[id][CombatWorld.FRONT], "laps_left": r.tracker.lap_count - r.tracker.laps_completed,
-			"lap_count": r.tracker.lap_count, "missile_speed": weapon_rules.missile_speed, "hit_radius": weapon_rules.hit_radius,
-			"mine_fuse": weapon_rules.mine_fuse,
-			"pressure": d.params.pressure_attack_drop > 0.0 and d.under_pressure(me, targets)}
-		var out: Dictionary
-		if combat_style == WeaponRules.Style.TACTICAL:
-			ctx.merge({"front_weapon": combat.weapon_of(id, CombatWorld.FRONT), "rear_weapon": combat.weapon_of(id, CombatWorld.REAR),
-				"rear_ammo": combat.ammo[id][CombatWorld.REAR], "rear_start": combat.start_ammo[id][CombatWorld.REAR],
-				"homing_range": weapon_rules.homing_range, "super_orbit_radius": weapon_rules.super_orbit_radius})
-			out = d.decide_weapons_tactical(me, targets, ctx, step)
-		else:
-			out = d.decide_weapons(me, targets, ctx, step)
-		if out.front:
-			combat.request(id, CombatWorld.FRONT, states)
-		if out.rear:
-			combat.request(id, CombatWorld.REAR, states)
