@@ -33,6 +33,9 @@ var _main_menu: VBoxContainer
 var _race_menu: VBoxContainer
 var _settings_panel: SettingsPanel
 var _controls_panel: ControlsPanel
+var _achievements_panel: AchievementsPanel
+## Achievement store shown by the ACHIEVEMENTS panel (set before setup; may be null).
+var achievements: AchievementStore
 var _music: AudioStreamPlayer
 var _sfx: AudioStreamPlayer
 var _time := 0.0
@@ -70,8 +73,8 @@ func setup(p_resolver: AssetResolver, p_settings: AudioSettings) -> void:
 
 	_load_weapons_pref()
 	_main_menu = _menu(root, [["RACE", _open_race], ["SPECTATE RIVALS", func() -> void: _start(2)],
-		["WEAPONS", _toggle_weapons], ["COMBAT", _toggle_style], ["LAPS", _cycle_laps], ["SETTINGS", _open_settings],
-		["CONTROLS", _open_controls], ["QUIT", func() -> void: quit_requested.emit()]])
+		["WEAPONS", _toggle_weapons], ["COMBAT", _toggle_style], ["LAPS", _cycle_laps], ["ACHIEVEMENTS", _open_achievements],
+		["SETTINGS", _open_settings], ["CONTROLS", _open_controls], ["QUIT", func() -> void: quit_requested.emit()]])
 	_weapons_button = _main_menu.get_child(2)
 	_style_button = _main_menu.get_child(3)
 	_laps_button = _main_menu.get_child(4)
@@ -96,6 +99,13 @@ func setup(p_resolver: AssetResolver, p_settings: AudioSettings) -> void:
 	root.add_child(_controls_panel)
 	_controls_panel.setup()
 	_controls_panel.closed.connect(_show_main)
+	_achievements_panel = AchievementsPanel.new()
+	root.add_child(_achievements_panel)
+	_achievements_panel.setup(achievements if achievements != null else AchievementStore.new("user://unused_achievements.cfg"), resolver)
+	_achievements_panel.closed.connect(_show_main)
+	_achievements_panel.refresh()
+	_achievements_panel.reset_size()
+	_achievements_panel.position = (Vector2(1280, 720) - _achievements_panel.size) * 0.5
 	for panel in [_settings_panel, _controls_panel]:
 		panel.reset_size()
 		panel.position = Vector2((1280 - panel.size.x) * 0.5, 250 if panel == _settings_panel else (720 - panel.size.y) * 0.5 - 10)
@@ -229,6 +239,13 @@ func _open_settings() -> void:
 	_settings_panel.focus_first()
 
 
+func _open_achievements() -> void:
+	_sfx_play("ui/ui_select")
+	_achievements_panel.refresh()
+	_show_only(_achievements_panel)
+	_achievements_panel.focus_first()
+
+
 func _open_controls() -> void:
 	_sfx_play("ui/ui_select")
 	_show_only(_controls_panel)
@@ -241,29 +258,30 @@ func _show_main() -> void:
 
 
 func _show_only(node: Control) -> void:
-	for n in [_main_menu, _race_menu, _settings_panel, _controls_panel]:
+	for n in [_main_menu, _race_menu, _settings_panel, _controls_panel, _achievements_panel]:
 		n.visible = n == node
-	_logo.visible = node != _controls_panel
-	_tagline.visible = node != _controls_panel
+	_logo.visible = node != _controls_panel and node != _achievements_panel
+	_tagline.visible = _logo.visible
 	node.modulate.a = 0.0
 	create_tween().tween_property(node, "modulate:a", 1.0, 0.18)
 
 
 func _menu(root: Control, items: Array, width: int = 380) -> VBoxContainer:
 	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 6)
+	box.add_theme_constant_override("separation", 4)
 	box.custom_minimum_size = Vector2(width, 0)
 	root.add_child(box)
 	for item in items:
 		var b := Button.new()
 		b.text = item[0]
-		b.custom_minimum_size = Vector2(width, 44)
+		b.custom_minimum_size = Vector2(width, 40)
+		b.add_theme_font_size_override("font_size", 20)
 		b.pressed.connect(item[1])
 		b.focus_entered.connect(func() -> void: _sfx_play("ui/ui_move"))
 		b.mouse_entered.connect(b.grab_focus)
 		box.add_child(b)
 	box.reset_size()
-	box.position = Vector2((1280 - width) * 0.5, 252)
+	box.position = Vector2((1280 - width) * 0.5, 248)
 	return box
 
 

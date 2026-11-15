@@ -16,6 +16,11 @@ extends Node2D
 signal exit_requested
 ## Garage races: the player asked for the garage after a race (the game root opens it).
 signal garage_requested
+## Read-only race hooks (achievements): a race started; a race's result is final
+## (every car finished, or the race was left after the player finished; cars
+## still running are placed in running order). Emitted once per race.
+signal race_began
+signal race_concluded(order: Array)
 
 enum Choice { FIRE_TO_ACCELERATE, FIRE_TO_BRAKE, SPECTATE }
 
@@ -90,6 +95,11 @@ var _garage_settled := false
 ## Physics ticks to ignore grid input after the garage closes (the closing key
 ## must not also act on the grid panel).
 var _grid_input_delay := 0
+## Achievements (M3.5): persistent store set by the game root before the scene
+## enters the tree; null = no tracking (tests, tools). The tracker only reads.
+var achievements: AchievementStore
+var achievement_tracker: AchievementTracker
+var _race_open := false
 ## Start with the lighting pilot on (e.g. for comparison runs).
 @export var lighting_on_start := false
 
@@ -169,6 +179,11 @@ func _ready() -> void:
 		add_child(lighting)
 		lighting.setup(track, cars, combat, resolver)
 		lighting.set_enabled(lighting_on_start)
+	if achievements != null:
+		achievement_tracker = AchievementTracker.new()
+		achievement_tracker.name = "AchievementTracker"
+		add_child(achievement_tracker)
+		achievement_tracker.setup(self, achievements)
 	_race_grid = first_grid(cars.size(), player_first_grid_slot)
 	_spectator_grid = rival_ids.duplicate()
 	grid_order = _race_grid
@@ -177,6 +192,7 @@ func _ready() -> void:
 
 func _exit_tree() -> void:
 	set_sim_speed(1)
+	_conclude_race()
 	if garage != null and garage.race_pending():
 		garage.abandon_race()
 
@@ -246,6 +262,8 @@ func _show_menu() -> void:
 
 
 func reset_race() -> void:
+	_conclude_race()
+	_race_open = false
 	if garage != null and garage.race_pending():
 		garage.abandon_race()
 	_garage_settled = false
@@ -294,6 +312,18 @@ func _apply_loadouts() -> void:
 	elif combat_style == WeaponRules.Style.TACTICAL:
 		var q := RivalArmoury.QUICK_RACE_PLAYER
 		combat.set_loadout(RaceSession.PLAYER_ID, q[0], q[1], q[2], q[3])
+
+
+## Reports the race result once it is final (see race_concluded). Only a race
+## that reached the flag counts; one left while racing is not reported.
+func _conclude_race() -> void:
+	if not _race_open or session.state != RaceSession.State.FINISHED:
+		return
+	_race_open = false
+	var order: Array = []
+	for r in session.standings():
+		order.append(r.id)
+	race_concluded.emit(order)
 
 
 ## Garage race: once the player has finished, pays the prize and keeps the
@@ -401,6 +431,8 @@ func _physics_process(_delta: float) -> void:
 		_combat_tick(step)
 	session.tick(step)
 	_settle_garage()
+	if session.state == RaceSession.State.FINISHED and session.all_finished():
+		_conclude_race()
 	if session.spectator:
 		_spectator_tick(step)
 	_update_camera_target(step)
@@ -416,6 +448,8 @@ func start_race() -> void:
 		if drivers[id] != null:
 			drivers[id].begin_race(race_seed(races_started, id))
 	session.start()
+	_race_open = true
+	race_began.emit()
 	if garage != null and not session.spectator:
 		garage.begin_race()
 	hud.hide_message()

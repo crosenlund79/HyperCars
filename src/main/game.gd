@@ -9,6 +9,9 @@ extends Node
 
 const MAIN_SCENE := preload("res://src/main/main.tscn")
 
+## Where achievements and rival careers are saved (tests use a scratch file).
+@export var achievements_path := AchievementStore.DEFAULT_PATH
+
 var resolver: AssetResolver
 var settings: AudioSettings
 var title: TitleScreen
@@ -16,6 +19,9 @@ var race: Node2D
 var _fade: ColorRect
 var garage: PlayerGarage
 var garage_screen: GarageScreen
+## Achievements (M3.5): one persistent store for the installation, the toast.
+var achievements: AchievementStore
+var toast: AchievementToast
 
 
 func _ready() -> void:
@@ -24,8 +30,16 @@ func _ready() -> void:
 	settings.load_settings()
 	settings.apply()
 	resolver = AssetResolver.new()
+	achievements = AchievementStore.new(achievements_path)
+	achievements.load_store()
+	toast = AchievementToast.new()
+	toast.name = "AchievementToast"
+	add_child(toast)
+	toast.setup(resolver)
+	achievements.unlocked.connect(toast.show_unlock)
 	title = TitleScreen.new()
 	title.name = "Title"
+	title.achievements = achievements
 	add_child(title)
 	title.setup(resolver, settings)
 	title.start_requested.connect(start_race)
@@ -57,6 +71,7 @@ func start_race(choice: int, with_garage: bool = false) -> void:
 	race.allow_exit = true
 	if with_garage and choice != 2:
 		race.garage = garage
+	race.achievements = achievements
 	add_child(race)
 	race.garage_requested.connect(_open_garage)
 	race.camera.make_current()

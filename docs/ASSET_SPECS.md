@@ -41,6 +41,8 @@ Any resolution is accepted as long as the **aspect ratio and orientation** match
 | `custom/graphics/track/start_line.png` | 32 x 128 | 24 x 150 | Start/finish strip, long axis across the road; stretched to road width. |
 | `custom/graphics/track/tarmac.png` | 256 x 256 | tile = 256 | Seamless repeating road surface, opaque. |
 | `custom/graphics/track/wall.png` | 128 x 32 | 80 x 20 | Barrier strip, seamless left-right, repeated along the track edge; transparent background. |
+| `custom/graphics/ui/achievement_badge.png` | 64 x 64 | 48 x 48 | Unlocked achievement medal (toast and list); square, centred, transparent. |
+| `custom/graphics/ui/achievement_locked.png` | 64 x 64 | 48 x 48 | Locked achievement medal; same contract as the unlocked one. |
 | `custom/graphics/ui/button.png` | 96 x 48 | nine-patch, 16 px margins | Menu button nine-patch (16 px corners); hover/pressed/focus states are tints of it. |
 | `custom/graphics/ui/garage_backdrop.png` | 640 x 360 | 1280 x 720 | Garage screen background, full screen (16:9), opaque; the centre is covered by the weapon cards. |
 | `custom/graphics/ui/hud_panel.png` | 96 x 96 | nine-patch, 24 px margins | Nine-patch panel; 24 px corners are not stretched (scaled with the texture). |
@@ -64,6 +66,7 @@ Any resolution is accepted as long as the **aspect ratio and orientation** match
 | `custom/audio/music/music_race` | yes | Music | Race music loop, stereo. |
 | `custom/audio/race/finish` | no | Effects | Finish jingle (player finishes / spectator winner). |
 | `custom/audio/race/start_go` | no | Effects | Played when the race starts. |
+| `custom/audio/ui/achievement` | no | Effects | Achievement unlocked jingle. |
 | `custom/audio/ui/shop_buy` | no | Effects | Garage: weapon bought (coins). |
 | `custom/audio/ui/shop_sell` | no | Effects | Garage: weapon sold. |
 | `custom/audio/ui/ui_back` | no | Effects | Menu back. |

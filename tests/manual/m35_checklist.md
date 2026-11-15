@@ -35,3 +35,11 @@ All prices, cooldowns and amounts are provisional. Note anything that feels unfa
 - [ ] Finn (super missiles + mines) is unpredictable, but never misses a near-perfect chance.
 - [ ] Nina (6 homing + 2 mines) waits for high-confidence shots and fires few, but they usually hit.
 - [ ] Classic spectating still looks like M3 (front missiles + mines for everyone).
+
+## Stage 4 — Achievements and Living Legends
+- [ ] Title → ACHIEVEMENTS: 30 entries with medals, "n / 30 unlocked", six show "???" until unlocked; the LIVING LEGENDS table lists each rival's races, wins, podiums and current winless run.
+- [ ] Winning a race shows a small "ACHIEVEMENT UNLOCKED — First Flag" card at the top right with a jingle; several unlocks queue one after another.
+- [ ] Spectate a few races (also at fast speed): rival careers grow by one race each per completed race, never twice; ARMCHAIR EXPERT after 10 watched races.
+- [ ] Quit and restart the game: unlocked achievements and rival careers are still there; an achievement never unlocks twice.
+- [ ] RESET ACHIEVEMENTS asks "Erase all achievements and rival careers?"; CANCEL keeps everything, YES, ERASE clears it.
+- [ ] Races play exactly the same with achievements (nothing in racing, AI or combat depends on them).

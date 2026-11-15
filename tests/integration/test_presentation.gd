@@ -146,6 +146,7 @@ func test_history_panel_hides_without_stopping_the_race() -> void:
 
 func test_title_starts_a_race_and_returns() -> void:
 	var game := GAME_SCENE.instantiate()
+	game.achievements_path = "user://test_game_achievements.cfg"
 	add_child_autofree(game)
 	await wait_frames(3)
 	assert_true(game.title._ui.visible)

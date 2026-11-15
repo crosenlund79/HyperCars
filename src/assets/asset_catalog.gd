@@ -39,6 +39,8 @@ const LAMP_POST := "scenery/lamp_post"
 const HOMING_MISSILE := "weapons/homing_missile"
 const SUPER_MISSILE := "weapons/super_missile"
 const GARAGE_BACKDROP := "ui/garage_backdrop"
+const ACHIEVEMENT_BADGE := "ui/achievement_badge"
+const ACHIEVEMENT_LOCKED := "ui/achievement_locked"
 
 ## display_size: world/screen pixels the texture is scaled to (sprites, strips).
 ## tile_world_size: world pixels covered by one repeat of a seamless tile.
@@ -118,6 +120,10 @@ const SPECS := {
 		"notes": "Super missile (orbits its car), nose pointing right (+X), centred; also the HUD / garage icon."},
 	GARAGE_BACKDROP: {"template_size": Vector2i(640, 360), "display_size": Vector2(1280, 720),
 		"notes": "Garage screen background, full screen (16:9), opaque; the centre is covered by the weapon cards."},
+	ACHIEVEMENT_BADGE: {"template_size": Vector2i(64, 64), "display_size": Vector2(48, 48),
+		"notes": "Unlocked achievement medal (toast and list); square, centred, transparent."},
+	ACHIEVEMENT_LOCKED: {"template_size": Vector2i(64, 64), "display_size": Vector2(48, 48),
+		"notes": "Locked achievement medal; same contract as the unlocked one."},
 	LAMP_POST: {"template_size": Vector2i(48, 48), "display_size": Vector2(56, 56),
 		"notes": "Lighting pilot: top-down lamp post, lamp head towards the top (-Y), rotated to face the track."},
 }
@@ -141,6 +147,7 @@ const AUDIO := {
 	"weapons/explosion": {"loop": false, "bus": "Effects", "notes": "Missile/mine explosion and car destroyed."},
 	"weapons/mine_drop": {"loop": false, "bus": "Effects", "notes": "Mine dropped (clunk + arming beep)."},
 	"weapons/empty": {"loop": false, "bus": "Effects", "notes": "Fire pressed with no ammunition left."},
+	"ui/achievement": {"loop": false, "bus": "Effects", "notes": "Achievement unlocked jingle."},
 	"ui/shop_buy": {"loop": false, "bus": "Effects", "notes": "Garage: weapon bought (coins)."},
 	"ui/shop_sell": {"loop": false, "bus": "Effects", "notes": "Garage: weapon sold."},
 	"weapons/homing_launch": {"loop": false, "bus": "Effects", "notes": "Homing missile fired (launch + seeker chirp)."},

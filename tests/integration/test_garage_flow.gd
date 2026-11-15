@@ -168,6 +168,7 @@ func test_tactical_spectating_with_rival_loadouts_completes() -> void:
 
 func test_game_opens_the_garage_before_the_first_garage_race() -> void:
 	var game := GAME_SCENE.instantiate()
+	game.achievements_path = "user://test_game_achievements.cfg"
 	add_child_autofree(game)
 	await wait_frames(3)
 	await game.start_race(0, true)
