@@ -124,6 +124,30 @@ const SPECS := {
 		"notes": "Unlocked achievement medal (toast and list); square, centred, transparent."},
 	ACHIEVEMENT_LOCKED: {"template_size": Vector2i(64, 64), "display_size": Vector2(48, 48),
 		"notes": "Locked achievement medal; same contract as the unlocked one."},
+	"variant_2/track/grass": {"template_size": Vector2i(256, 256), "tile_world_size": 256.0,
+		"notes": "Variant 2 ground; same contract as track/grass (seamless, opaque)."},
+	"variant_2/track/tarmac": {"template_size": Vector2i(256, 256), "tile_world_size": 256.0,
+		"notes": "Variant 2 road surface; same contract as track/tarmac."},
+	"variant_2/track/wall": {"template_size": Vector2i(128, 32), "display_size": Vector2(80, 20),
+		"notes": "Variant 2 barrier strip; same contract as track/wall."},
+	"variant_2/scenery/prop_1": {"template_size": Vector2i(128, 128), "display_size": Vector2(128, 128),
+		"notes": "Variant 2 tall prop (sways), top-down, centred, transparent; any rotation."},
+	"variant_2/scenery/prop_2": {"template_size": Vector2i(72, 72), "display_size": Vector2(72, 72),
+		"notes": "Variant 2 medium prop, top-down, centred, transparent; any rotation."},
+	"variant_2/scenery/prop_3": {"template_size": Vector2i(56, 56), "display_size": Vector2(56, 56),
+		"notes": "Variant 2 small prop, top-down, centred, transparent; any rotation."},
+	"variant_3/track/grass": {"template_size": Vector2i(256, 256), "tile_world_size": 256.0,
+		"notes": "Variant 3 ground; same contract as track/grass (seamless, opaque)."},
+	"variant_3/track/tarmac": {"template_size": Vector2i(256, 256), "tile_world_size": 256.0,
+		"notes": "Variant 3 road surface; same contract as track/tarmac."},
+	"variant_3/track/wall": {"template_size": Vector2i(128, 32), "display_size": Vector2(80, 20),
+		"notes": "Variant 3 barrier strip; same contract as track/wall."},
+	"variant_3/scenery/prop_1": {"template_size": Vector2i(128, 128), "display_size": Vector2(128, 128),
+		"notes": "Variant 3 tall prop (sways), top-down, centred, transparent; any rotation."},
+	"variant_3/scenery/prop_2": {"template_size": Vector2i(72, 72), "display_size": Vector2(72, 72),
+		"notes": "Variant 3 medium prop, top-down, centred, transparent; any rotation."},
+	"variant_3/scenery/prop_3": {"template_size": Vector2i(56, 56), "display_size": Vector2(56, 56),
+		"notes": "Variant 3 small prop, top-down, centred, transparent; any rotation."},
 	LAMP_POST: {"template_size": Vector2i(48, 48), "display_size": Vector2(56, 56),
 		"notes": "Lighting pilot: top-down lamp post, lamp head towards the top (-Y), rotated to face the track."},
 }
@@ -153,6 +177,17 @@ const AUDIO := {
 	"weapons/homing_launch": {"loop": false, "bus": "Effects", "notes": "Homing missile fired (launch + seeker chirp)."},
 	"weapons/super_launch": {"loop": false, "bus": "Effects", "notes": "Super missile fired (rising whirl)."},
 }
+
+
+## Track theme variants: the asset variant n uses for a shared logical name —
+## "variant_<n>/<logical>" when the catalogue defines it, otherwise the shared
+## asset. Variant 1 (the baseline) always uses the shared assets.
+static func themed(logical: String, variant: int) -> String:
+	if variant > 1:
+		var key := "variant_%d/%s" % [variant, logical]
+		if SPECS.has(key):
+			return key
+	return logical
 
 
 ## Logical name of opponent car n (1-based), cycling if more cars than templates.

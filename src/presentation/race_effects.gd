@@ -25,7 +25,7 @@ var _confetti_colors := [Color("b23a22"), Color("e2b23c"), Color("3f9c96"), Colo
 
 
 ## mark_layer sits under the cars (on the road); the rest draws above.
-func setup(cars: Array[Car], resolver: AssetResolver, mark_layer: Node2D) -> void:
+func setup(cars: Array[Car], resolver: AssetResolver, mark_layer: Node2D, dust_color: Color = Color(0.75, 0.66, 0.5, 0.7)) -> void:
 	_cars = cars
 	_resolver = resolver
 	_marks = MultiMeshInstance2D.new()
@@ -50,7 +50,7 @@ func setup(cars: Array[Car], resolver: AssetResolver, mark_layer: Node2D) -> voi
 	for c in cars:
 		_last_mark_pos.append(c.global_position)
 		_smoke.append(_emitter(resolver.get_texture(AssetCatalog.SMOKE), Color(0.92, 0.9, 0.86, 0.75), 18, 0.9))
-		_dust.append(_emitter(resolver.get_texture(AssetCatalog.DUST), Color(0.75, 0.66, 0.5, 0.7), 10, 0.6))
+		_dust.append(_emitter(resolver.get_texture(AssetCatalog.DUST), dust_color, 10, 0.6))
 		c.wall_hit.connect(_on_hit.bind(c))
 		c.car_hit.connect(func(_other: Car, speed: float) -> void: _on_hit(Vector2.ZERO, speed, c))
 

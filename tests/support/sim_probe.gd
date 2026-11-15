@@ -1,13 +1,13 @@
 extends SceneTree
 ## Test helper, run in a fresh Godot process by the determinism tests:
 ##   godot --headless --path <project> --fixed-fps 60 -s res://tests/support/sim_probe.gd -- \
-##         mode=race|spectate speed=1 presentation=1 ticks=900 weapons=0|1 style=0|1 achievements=0|1
+##         mode=race|spectate speed=1 presentation=1 ticks=900 weapons=0|1 style=0|1 achievements=0|1 theme=1..3
 ## Prints "PROBE <md5>" of every car's and driver's exact state after `ticks`.
 ## A fresh process matters: Godot's physics broadphase keeps history between
 ## scenes in one process, which changes the order multi-car contacts resolve.
 
 var main: Node2D
-var opts := {"mode": "spectate", "speed": "1", "presentation": "1", "ticks": "900", "weapons": "0", "lighting": "0", "style": "0", "achievements": "0"}
+var opts := {"mode": "spectate", "speed": "1", "presentation": "1", "ticks": "900", "weapons": "0", "lighting": "0", "style": "0", "achievements": "0", "theme": "1"}
 var tick := 0
 const PROBE_STORE := "user://probe_achievements.cfg"
 
@@ -23,6 +23,8 @@ func _initialize() -> void:
 		main.lighting_on_start = opts.lighting == "1"
 	if opts.achievements == "1":
 		main.achievements = AchievementStore.new(PROBE_STORE)
+	if "track_variant" in main:
+		main.track_variant = int(opts.theme)
 	root.add_child(main)
 	physics_frame.connect(_on_tick)
 

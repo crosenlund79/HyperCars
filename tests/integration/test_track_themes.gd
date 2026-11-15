@@ -1,0 +1,124 @@
+extends GutTest
+## Track theme variants: three generic variants (1 = baseline), per-variant
+## ground / road / barrier / props with fallback to the shared assets, visual
+## only (races bit-identical on every variant), title selection.
+
+const MAIN_SCENE := preload("res://src/main/main.tscn")
+const SETTINGS := "user://test_track_theme_settings.cfg"
+
+
+func after_each() -> void:
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SETTINGS))
+
+
+func test_three_generic_variants() -> void:
+	var names := {}
+	for n in range(1, TrackTheme.VARIANT_COUNT + 1):
+		var t := TrackTheme.load_variant(n)
+		assert_eq(t.variant, n)
+		assert_false(t.display_name.is_empty())
+		names[t.display_name] = true
+		assert_gt(t.scenery.size(), 0)
+		assert_eq(t.scenery_weights.size(), t.scenery.size())
+		assert_eq(t.scenery_sway.size(), t.scenery.size())
+		for logical in t.scenery:
+			assert_true(AssetCatalog.SPECS.has(t.asset(logical)), "variant %d prop %s" % [n, logical])
+	assert_eq(names.size(), 3, "distinct display names")
+	assert_eq(TrackTheme.load_variant(99).variant, 3, "clamped")
+
+
+func test_variant_assets_fall_back_to_shared_ones() -> void:
+	assert_eq(AssetCatalog.themed("track/grass", 1), "track/grass", "Variant 1 = shared baseline")
+	assert_eq(AssetCatalog.themed("track/grass", 2), "variant_2/track/grass")
+	assert_eq(AssetCatalog.themed("track/wall", 3), "variant_3/track/wall")
+	assert_eq(AssetCatalog.themed("track/start_line", 3), "track/start_line", "not overridden: shared")
+	assert_eq(AssetCatalog.themed(AssetCatalog.CAR_PLAYER, 2), AssetCatalog.CAR_PLAYER)
+
+
+func test_variant_assets_keep_the_shared_contract_and_load() -> void:
+	var r := AssetResolver.new("user://no_overrides_here")
+	for v in [2, 3]:
+		for base in ["track/grass", "track/tarmac", "track/wall"]:
+			var key := AssetCatalog.themed(base, v)
+			assert_ne(key, base)
+			assert_eq(AssetCatalog.SPECS[key].template_size, AssetCatalog.SPECS[base].template_size, key)
+			assert_eq(AssetCatalog.SPECS[key].get("tile_world_size"), AssetCatalog.SPECS[base].get("tile_world_size"), key)
+			assert_eq(AssetCatalog.SPECS[key].get("display_size"), AssetCatalog.SPECS[base].get("display_size"), key)
+		for p in ["scenery/prop_1", "scenery/prop_2", "scenery/prop_3"]:
+			var key2 := AssetCatalog.themed(p, v)
+			var tex := r.get_texture(key2)
+			assert_not_null(tex, key2)
+			assert_eq(Vector2i(tex.get_width(), tex.get_height()), AssetCatalog.SPECS[key2].template_size, key2)
+	assert_eq(AssetResolver.fallback_path("variant_2/track/grass"), "res://assets/graphics/variant_2/track/template_grass.png")
+
+
+func test_track_uses_the_variant_art_with_identical_geometry() -> void:
+	var r := AssetResolver.new("user://no_overrides_here")
+	var built := []
+	for v in [1, 2, 3]:
+		var m: Node2D = MAIN_SCENE.instantiate()
+		m.presentation_enabled = false
+		m.track_variant = v
+		add_child_autofree(m)
+		await wait_physics_frames(1)
+		var ground: Polygon2D = m.track.get_node("Ground")
+		assert_eq(ground.texture, r.get_texture(AssetCatalog.themed("track/grass", v)), "variant %d ground" % v)
+		var shapes := []
+		for c in m.track.get_children():
+			if c is CollisionObject2D:
+				for s in c.get_children():
+					if s is CollisionPolygon2D:
+						shapes.append(s.polygon)
+					elif s is CollisionShape2D:
+						shapes.append([s.position, s.shape])
+		built.append([m.track.centerline, m.track.checkpoint_samples, shapes.size(), m.grid_order])
+		if v == 3:
+			assert_string_contains(m.hud._message_box.get_child(0).text, "SNOW PASS")
+	assert_eq(built[1], built[0], "same geometry and grid")
+	assert_eq(built[2], built[0])
+
+
+func test_races_are_identical_on_every_variant() -> void:
+	for args in [["mode=race", "ticks=1800", "weapons=1"], ["mode=spectate", "ticks=2400", "weapons=1", "style=1"]]:
+		var base := ProbeRunner.run(PackedStringArray(args + ["theme=1"]))
+		assert_eq(base.length(), 32, base)
+		for v in ["2", "3"]:
+			assert_eq(ProbeRunner.run(PackedStringArray(args + ["theme=" + v])), base, "%s theme %s" % [str(args), v])
+
+
+func test_variant_props_stay_clear_of_the_track() -> void:
+	var m: Node2D = MAIN_SCENE.instantiate()
+	m.track_variant = 3
+	add_child_autofree(m)
+	await wait_physics_frames(1)
+	var half: float = m.track.layout.road_width * 0.5
+	var props := 0
+	for s in m.scenery.get_children():
+		if s is Sprite2D and s.texture == m.resolver.get_texture("variant_3/scenery/prop_1"):
+			props += 1
+			assert_true(TrackScenery._clear_of_track(s.position, m.track.centerline, half + 60.0))
+	assert_gt(props, 10, "variant props placed")
+	assert_gt(m.scenery.sway_count(), 0, "tall props sway")
+
+
+func test_title_cycles_and_remembers_the_track() -> void:
+	var settings := AudioSettings.new(SETTINGS)
+	var title := TitleScreen.new()
+	add_child_autofree(title)
+	title.setup(AssetResolver.new("user://no_overrides_here"), settings)
+	assert_eq(title.track_variant, 1)
+	assert_string_contains(title._track_button.text, TrackTheme.load_variant(1).display_name.to_upper())
+	title._cycle_track()
+	assert_eq(title.track_variant, 2)
+	var track: Track = title._backdrop.get_child(0)
+	assert_eq(track.theme.variant, 2, "backdrop shows the chosen variant")
+	title._cycle_track()
+	title._cycle_track()
+	assert_eq(title.track_variant, 1, "wraps")
+	title._cycle_track()
+	var again := TitleScreen.new()
+	add_child_autofree(again)
+	again.setup(AssetResolver.new("user://no_overrides_here"), settings)
+	assert_eq(again.track_variant, 2, "saved")
+	title.stop_audio()
+	again.stop_audio()

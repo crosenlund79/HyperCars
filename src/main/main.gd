@@ -53,6 +53,10 @@ const LAP_OPTIONS: Array[int] = [3, 7, 20, 50]
 ## Esc on the grid asks to leave (set by the title screen).
 @export var allow_exit := false
 @export var weapon_rules: WeaponRules = preload("res://src/combat/default_weapon_rules.tres")
+## Track theme variant (1 = baseline). Visual only; set before the scene starts.
+@export_range(1, 3) var track_variant := 1
+var track_theme: TrackTheme
+var hud_track_name := ""
 
 var resolver: AssetResolver
 var session: RaceSession
@@ -114,7 +118,9 @@ var _race_open := false
 func _ready() -> void:
 	PlayerControls.ensure_actions()
 	resolver = AssetResolver.new()
-	track.build(resolver)
+	track_theme = TrackTheme.load_variant(track_variant)
+	track.build(resolver, track_theme)
+	hud_track_name = track_theme.display_name
 	track.checkpoint_reached.connect(_on_checkpoint_reached)
 	var names := PackedStringArray(["YOU"])
 	for i in range(1, opponent_count + 1):
@@ -169,7 +175,7 @@ func _ready() -> void:
 		effects = RaceEffects.new()
 		effects.name = "Effects"
 		add_child(effects)
-		effects.setup(cars, resolver, decals)
+		effects.setup(cars, resolver, decals, track_theme.dust_color)
 		race_audio = RaceAudio.new()
 		race_audio.name = "RaceAudio"
 		add_child(race_audio)
@@ -262,6 +268,7 @@ func set_combat_style(style: WeaponRules.Style) -> void:
 
 
 func _show_menu() -> void:
+	hud.track_name = hud_track_name
 	hud.show_menu(choice_name(menu_choice), weapons_enabled, session.lap_count(), combat_style)
 
 

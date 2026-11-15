@@ -50,6 +50,18 @@ Any resolution is accepted as long as the **aspect ratio and orientation** match
 | `custom/graphics/ui/star_bronze.png` | 48 x 48 | 22 x 22 | 3rd place marker; same contract as the gold star. |
 | `custom/graphics/ui/star_gold.png` | 48 x 48 | 22 x 22 | 1st place marker in the race history; square, centred, transparent background. |
 | `custom/graphics/ui/star_silver.png` | 48 x 48 | 22 x 22 | 2nd place marker; same contract as the gold star. |
+| `custom/graphics/variant_2/scenery/prop_1.png` | 128 x 128 | 128 x 128 | Variant 2 tall prop (sways), top-down, centred, transparent; any rotation. |
+| `custom/graphics/variant_2/scenery/prop_2.png` | 72 x 72 | 72 x 72 | Variant 2 medium prop, top-down, centred, transparent; any rotation. |
+| `custom/graphics/variant_2/scenery/prop_3.png` | 56 x 56 | 56 x 56 | Variant 2 small prop, top-down, centred, transparent; any rotation. |
+| `custom/graphics/variant_2/track/grass.png` | 256 x 256 | tile = 256 | Variant 2 ground; same contract as track/grass (seamless, opaque). |
+| `custom/graphics/variant_2/track/tarmac.png` | 256 x 256 | tile = 256 | Variant 2 road surface; same contract as track/tarmac. |
+| `custom/graphics/variant_2/track/wall.png` | 128 x 32 | 80 x 20 | Variant 2 barrier strip; same contract as track/wall. |
+| `custom/graphics/variant_3/scenery/prop_1.png` | 128 x 128 | 128 x 128 | Variant 3 tall prop (sways), top-down, centred, transparent; any rotation. |
+| `custom/graphics/variant_3/scenery/prop_2.png` | 72 x 72 | 72 x 72 | Variant 3 medium prop, top-down, centred, transparent; any rotation. |
+| `custom/graphics/variant_3/scenery/prop_3.png` | 56 x 56 | 56 x 56 | Variant 3 small prop, top-down, centred, transparent; any rotation. |
+| `custom/graphics/variant_3/track/grass.png` | 256 x 256 | tile = 256 | Variant 3 ground; same contract as track/grass (seamless, opaque). |
+| `custom/graphics/variant_3/track/tarmac.png` | 256 x 256 | tile = 256 | Variant 3 road surface; same contract as track/tarmac. |
+| `custom/graphics/variant_3/track/wall.png` | 128 x 32 | 80 x 20 | Variant 3 barrier strip; same contract as track/wall. |
 | `custom/graphics/weapons/homing_missile.png` | 40 x 16 | 30 x 12 | Homing missile, nose pointing right (+X), centred; also the HUD / garage icon. |
 | `custom/graphics/weapons/mine.png` | 64 x 32 | 26 x 26 | Mine: horizontal strip of 2 frames (32x32 each: lamp off / lamp on), blinks while armed; also the HUD mine icon. |
 | `custom/graphics/weapons/missile.png` | 40 x 16 | 30 x 12 | Missile, nose pointing right (+X), centred; also the HUD missile icon. Homing/super missiles are tinted. |

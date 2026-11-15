@@ -43,6 +43,8 @@ var _car_textures: Dictionary = {}
 var _full_names: Dictionary = {}
 var _results_key := ""
 var _menu_key := ""
+## Track theme name shown on the grid panel.
+var track_name := ""
 ## Spectator race history (created by setup_history).
 var history_panel: HistoryPanel
 
@@ -156,7 +158,8 @@ func show_menu(choice: String, weapons: bool = false, laps: int = 3, style: int 
 	_menu_key = key
 	_results_key = ""
 	_clear_message()
-	_message_box.add_child(_centered(HyperTheme.label("GET READY", 22, HyperTheme.CREAM_DIM, 600)))
+	var header := "GET READY" if track_name.is_empty() else "GET READY  -  %s" % track_name.to_upper()
+	_message_box.add_child(_centered(HyperTheme.label(header, 22, HyperTheme.CREAM_DIM, 600)))
 	_message_box.add_child(_centered(HyperTheme.label("<   %s   >" % choice, 34, HyperTheme.GOLD, 700)))
 	_message_box.add_child(_centered(HyperTheme.label("%s     %s COMBAT     %d LAPS" % [weapons_text(weapons),
 		WeaponRules.style_name(style), laps], 26, HyperTheme.RED if weapons else HyperTheme.CREAM, 700)))

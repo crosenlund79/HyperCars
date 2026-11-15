@@ -12,6 +12,9 @@ var _weapons_button: Button
 ## Race length preference (laps) for racing and spectating (saved).
 var laps := 3
 var _laps_button: Button
+## Track theme variant for racing and spectating (saved); the backdrop shows it.
+var track_variant := 1
+var _track_button: Button
 ## Combat style preference (WeaponRules.Style) for racing and spectating (saved).
 var combat_style := 0
 var _style_button: Button
@@ -44,6 +47,9 @@ var _time := 0.0
 func setup(p_resolver: AssetResolver, p_settings: AudioSettings) -> void:
 	resolver = p_resolver
 	settings = p_settings
+	var pref := ConfigFile.new()
+	if pref.load(settings.path) == OK:
+		track_variant = clampi(int(pref.get_value("game", "track_variant", 1)), 1, TrackTheme.VARIANT_COUNT)
 	_build_backdrop()
 	_ui = CanvasLayer.new()
 	_ui.layer = 5
@@ -68,16 +74,19 @@ func setup(p_resolver: AssetResolver, p_settings: AudioSettings) -> void:
 	_tagline = HyperTheme.label("Top-down combat racing, hand-painted", 20, HyperTheme.CREAM, 500)
 	_tagline.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_tagline.size = Vector2(1280, 30)
-	_tagline.position = Vector2(0, 222)
+	_tagline.position = Vector2(0, 214)
 	root.add_child(_tagline)
 
 	_load_weapons_pref()
 	_main_menu = _menu(root, [["RACE", _open_race], ["SPECTATE RIVALS", func() -> void: _start(2)],
-		["WEAPONS", _toggle_weapons], ["COMBAT", _toggle_style], ["LAPS", _cycle_laps], ["ACHIEVEMENTS", _open_achievements],
+		["WEAPONS", _toggle_weapons], ["COMBAT", _toggle_style], ["LAPS", _cycle_laps], ["TRACK", _cycle_track],
+		["ACHIEVEMENTS", _open_achievements],
 		["SETTINGS", _open_settings], ["CONTROLS", _open_controls], ["QUIT", func() -> void: quit_requested.emit()]])
 	_weapons_button = _main_menu.get_child(2)
 	_style_button = _main_menu.get_child(3)
 	_laps_button = _main_menu.get_child(4)
+	_track_button = _main_menu.get_child(5)
+	_update_track_button()
 	_update_weapons_button()
 	_update_style_button()
 	_update_laps_button()
@@ -205,6 +214,25 @@ func _update_style_button() -> void:
 	_style_button.text = "COMBAT: %s" % WeaponRules.style_name(combat_style)
 
 
+func _cycle_track() -> void:
+	_sfx_play("ui/ui_select")
+	track_variant = track_variant % TrackTheme.VARIANT_COUNT + 1
+	_update_track_button()
+	var cfg := ConfigFile.new()
+	cfg.load(settings.path)
+	cfg.set_value("game", "track_variant", track_variant)
+	cfg.save(settings.path)
+	var pan := _pan
+	_backdrop.free()
+	_build_backdrop()
+	_pan = pan
+	_camera.make_current()
+
+
+func _update_track_button() -> void:
+	_track_button.text = "TRACK: %s" % TrackTheme.load_variant(track_variant).display_name.to_upper()
+
+
 func _update_laps_button() -> void:
 	_laps_button.text = "LAPS: %d" % laps
 
@@ -274,14 +302,19 @@ func _menu(root: Control, items: Array, width: int = 380) -> VBoxContainer:
 	for item in items:
 		var b := Button.new()
 		b.text = item[0]
-		b.custom_minimum_size = Vector2(width, 40)
+		b.custom_minimum_size = Vector2(width, 38)
 		b.add_theme_font_size_override("font_size", 20)
+		for state in ["normal", "hover", "pressed", "focus", "disabled"]:
+			var sb: StyleBox = root.theme.get_stylebox(state, "Button").duplicate()
+			sb.content_margin_top = 4
+			sb.content_margin_bottom = 6
+			b.add_theme_stylebox_override(state, sb)
 		b.pressed.connect(item[1])
 		b.focus_entered.connect(func() -> void: _sfx_play("ui/ui_move"))
 		b.mouse_entered.connect(b.grab_focus)
 		box.add_child(b)
 	box.reset_size()
-	box.position = Vector2((1280 - width) * 0.5, 248)
+	box.position = Vector2((1280 - width) * 0.5, 244)
 	return box
 
 
@@ -299,7 +332,7 @@ func _build_backdrop() -> void:
 	track.set_script(TRACK_SCRIPT)
 	track.layout = LAYOUT
 	_backdrop.add_child(track)
-	track.build(resolver)
+	track.build(resolver, TrackTheme.load_variant(track_variant))
 	# The backdrop never races: remove its collision and checkpoint nodes.
 	for child in track.get_children():
 		if child is CollisionObject2D:

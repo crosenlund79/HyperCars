@@ -11,6 +11,9 @@ const CHECKPOINT_DEPTH := 30.0
 const GROUND_MARGIN := 900.0
 
 @export var layout: TrackLayout
+## Visual theme variant (ground, road, barrier). Geometry and collision are
+## the same for every variant. Null = Variant 1.
+var theme: TrackTheme
 
 var centerline := PackedVector2Array()
 var checkpoint_samples := PackedInt32Array()
@@ -18,7 +21,8 @@ var checkpoint_samples := PackedInt32Array()
 var path: ClosedPath
 
 
-func build(resolver: AssetResolver) -> void:
+func build(resolver: AssetResolver, p_theme: TrackTheme = null) -> void:
+	theme = p_theme if p_theme != null else TrackTheme.load_variant(1)
 	for child in get_children():
 		child.free()
 	centerline = layout.sample_centerline()
@@ -27,10 +31,10 @@ func build(resolver: AssetResolver) -> void:
 	var half := layout.road_width * 0.5
 	var left_edge := TrackLayout.offset_line(centerline, -half)
 	var right_edge := TrackLayout.offset_line(centerline, half)
-	_build_ground(resolver.get_texture(AssetCatalog.GRASS))
-	_build_road(resolver.get_texture(AssetCatalog.TARMAC), left_edge, right_edge)
-	_build_start_line(resolver.get_texture(AssetCatalog.START_LINE))
-	_build_walls(resolver.get_texture(AssetCatalog.WALL), half, left_edge, right_edge)
+	_build_ground(resolver.get_texture(theme.asset(AssetCatalog.GRASS)))
+	_build_road(resolver.get_texture(theme.asset(AssetCatalog.TARMAC)), left_edge, right_edge)
+	_build_start_line(resolver.get_texture(theme.asset(AssetCatalog.START_LINE)))
+	_build_walls(resolver.get_texture(theme.asset(AssetCatalog.WALL)), half, left_edge, right_edge)
 	_build_checkpoints()
 
 
@@ -61,7 +65,7 @@ func _build_ground(texture: Texture2D) -> void:
 	bounds = bounds.grow(GROUND_MARGIN)
 	var corners := PackedVector2Array([bounds.position, Vector2(bounds.end.x, bounds.position.y), bounds.end,
 		Vector2(bounds.position.x, bounds.end.y)])
-	var poly := _textured_polygon("Ground", texture, corners, AssetCatalog.SPECS[AssetCatalog.GRASS].tile_world_size)
+	var poly := _textured_polygon("Ground", texture, corners, AssetCatalog.SPECS[theme.asset(AssetCatalog.GRASS)].tile_world_size)
 	add_child(poly)
 
 
@@ -69,7 +73,7 @@ func _build_road(texture: Texture2D, left_edge: PackedVector2Array, right_edge: 
 	var n := left_edge.size()
 	var verts := PackedVector2Array(left_edge)
 	verts.append_array(right_edge)
-	var poly := _textured_polygon("Road", texture, verts, AssetCatalog.SPECS[AssetCatalog.TARMAC].tile_world_size)
+	var poly := _textured_polygon("Road", texture, verts, AssetCatalog.SPECS[theme.asset(AssetCatalog.TARMAC)].tile_world_size)
 	var quads: Array = []
 	for i in n:
 		var j := (i + 1) % n
@@ -93,7 +97,7 @@ func _textured_polygon(node_name: String, texture: Texture2D, verts: PackedVecto
 
 
 func _build_walls(texture: Texture2D, half: float, left_edge: PackedVector2Array, right_edge: PackedVector2Array) -> void:
-	var wall_spec: Dictionary = AssetCatalog.SPECS[AssetCatalog.WALL]
+	var wall_spec: Dictionary = AssetCatalog.SPECS[theme.asset(AssetCatalog.WALL)]
 	var wall_width: float = wall_spec.display_size.y
 	var body := StaticBody2D.new()
 	body.name = "Walls"
@@ -131,7 +135,7 @@ func _build_start_line(texture: Texture2D) -> void:
 	sprite.texture = texture
 	sprite.position = t.origin
 	sprite.rotation = t.get_rotation()
-	var display := Vector2(AssetCatalog.SPECS[AssetCatalog.START_LINE].display_size.x, layout.road_width)
+	var display := Vector2(AssetCatalog.SPECS[theme.asset(AssetCatalog.START_LINE)].display_size.x, layout.road_width)
 	sprite.scale = AssetCatalog.scale_for(texture, display)
 	add_child(sprite)
 

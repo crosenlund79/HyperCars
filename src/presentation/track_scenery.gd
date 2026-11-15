@@ -3,6 +3,7 @@ extends Node2D
 ## Decorative trackside scenery and road decals. Visual only: no collision
 ## shapes, no physics, its own random generator (never the race seeds), and it
 ## only reads the track's geometry. Ambient animation: trees sway, flags wave.
+## The props and every asset follow the track's theme variant (TrackTheme).
 
 const SEED := 4242
 ## Minimum distance from any decoration's centre to the barrier face (px).
@@ -11,10 +12,12 @@ const CLEARANCE := 70.0
 var _sway: Array[Sprite2D] = []
 var _flags: Array[Sprite2D] = []
 var _time := 0.0
+var _theme: TrackTheme
 
 
 ## decals go on the road under the cars; props sit on the grass.
 func build(track: Track, resolver: AssetResolver, decal_layer: Node2D) -> void:
+	_theme = track.theme if track.theme != null else TrackTheme.load_variant(1)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = SEED
 	var c := track.centerline
@@ -44,8 +47,9 @@ func build(track: Track, resolver: AssetResolver, decal_layer: Node2D) -> void:
 			var st := _sprite(self, resolver, AssetCatalog.GRANDSTAND, p, start_dir.angle())
 			st.z_index = 1
 	# Props scattered around the circuit, clear of the barriers.
-	var kinds := [[AssetCatalog.TREE_ROUND, 0.22, true], [AssetCatalog.TREE_BLOOM, 0.12, true], [AssetCatalog.BUSH, 0.2, false],
-		[AssetCatalog.FLOWERS, 0.18, false], [AssetCatalog.ROCK, 0.1, false]]
+	var kinds := []
+	for k in _theme.scenery.size():
+		kinds.append([_theme.scenery[k], _theme.scenery_weights[k], _theme.scenery_sway[k]])
 	var placed := 0
 	var attempts := 0
 	while placed < 140 and attempts < 2000:
@@ -117,7 +121,8 @@ static func _pick(kinds: Array, rng: RandomNumberGenerator) -> Array:
 	return kinds[0]
 
 
-func _sprite(parent: Node, resolver: AssetResolver, logical: String, pos: Vector2, rot: float, tint: Color = Color.WHITE) -> Sprite2D:
+func _sprite(parent: Node, resolver: AssetResolver, shared_logical: String, pos: Vector2, rot: float, tint: Color = Color.WHITE) -> Sprite2D:
+	var logical := _theme.asset(shared_logical)
 	var spr := Sprite2D.new()
 	spr.texture = resolver.get_texture(logical)
 	spr.position = pos
@@ -130,11 +135,12 @@ func _sprite(parent: Node, resolver: AssetResolver, logical: String, pos: Vector
 
 func _flag(resolver: AssetResolver, pos: Vector2) -> Sprite2D:
 	var spr := Sprite2D.new()
-	spr.texture = resolver.get_texture(AssetCatalog.FLAG)
-	spr.hframes = AssetCatalog.SPECS[AssetCatalog.FLAG].frames
+	var logical := _theme.asset(AssetCatalog.FLAG)
+	spr.texture = resolver.get_texture(logical)
+	spr.hframes = AssetCatalog.SPECS[logical].frames
 	spr.position = pos
 	var frame_size := Vector2(spr.texture.get_width() / float(spr.hframes), spr.texture.get_height())
-	spr.scale = AssetCatalog.SPECS[AssetCatalog.FLAG].display_size / frame_size
+	spr.scale = AssetCatalog.SPECS[logical].display_size / frame_size
 	spr.offset = Vector2(0, -frame_size.y * 0.4)
 	spr.z_index = 2
 	spr.set_meta("offset", _flags.size() % 2)

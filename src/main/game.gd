@@ -72,6 +72,7 @@ func start_race(choice: int, with_garage: bool = false) -> void:
 	if with_garage and choice != 2:
 		race.garage = garage
 	race.achievements = achievements
+	race.track_variant = title.track_variant
 	add_child(race)
 	race.garage_requested.connect(_open_garage)
 	race.camera.make_current()
