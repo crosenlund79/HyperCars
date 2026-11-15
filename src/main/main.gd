@@ -327,6 +327,7 @@ func _setup_split_screen() -> void:
 	hud.layer = 4
 	hud.set_info_visible(false)
 	hud.set_tower_visible(false)  # each view shows its own standings at its outer edge
+	hud.set_message_min_top(PlayerViews.INFO_BOTTOM)  # grid panel / results below both info panels
 	hud.set_banner_low(true)
 	_park = Node2D.new()
 	_park.name = "CameraPark"
@@ -896,8 +897,9 @@ func _process(_delta: float) -> void:
 		hud.set_net_quality("" if network_lost else net.quality_text(), net.connection_bad())
 	if lighting != null and Input.is_action_just_pressed(PlayerControls.TOGGLE_LIGHTING):
 		lighting.set_enabled(not lighting.enabled)
-	_refresh_hud()
+	# the finish banner first, so results shown in the same frame wait for it
 	_present_finishers()
+	_refresh_hud()
 	if _listener != null:
 		var mid := Vector2.ZERO
 		for id in session.human_ids:
@@ -946,6 +948,7 @@ func _refresh_hud() -> void:
 	if player_views != null:
 		var standings := session.standings()
 		for v in player_views.views:
+			v.hud.set_results_up(session.state == RaceSession.State.FINISHED)
 			_refresh_player_hud(v.hud, v.racer_id)
 			v.hud.update_tower(standings)
 		if session.state == RaceSession.State.FINISHED:

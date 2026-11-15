@@ -13,6 +13,9 @@ const BASE := Vector2(1280, 720)
 const DIVIDER := 4.0
 ## Camera zoom per view: a little wider than single-player to compensate for the narrower view.
 const VIEW_ZOOM := Vector2(0.85, 0.85)
+## Bottom of each view's info panel (top-left of the view), plus a margin:
+## shared centre panels start below it.
+const INFO_BOTTOM := 216.0
 
 var views: Array = []
 

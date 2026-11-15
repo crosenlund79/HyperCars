@@ -59,6 +59,13 @@ var _banner: Label
 var _banner_tween: Tween
 ## Results wait for the banner to fade before they appear.
 var _message_waiting := false
+## The results panel is up: the live tower and the DESTROYED countdown are
+## hidden (the results supersede them; nothing duplicated or covered) and no
+## banner is flashed over it.
+var _results_up := false
+var _tower_enabled := true
+## Split-screen shared HUD: centre panels start below the players' info panels.
+var _message_min_top := 0.0
 var _message_tween: Tween
 var _stars: Array[Texture2D] = []
 var _car_textures: Dictionary = {}
@@ -201,6 +208,7 @@ func show_menu(choice: String, weapons: bool = false, laps: int = 3, style: int 
 		return
 	_menu_key = key
 	_results_key = ""
+	set_results_up(false)
 	_clear_message()
 	var header := "GET READY" if track_name.is_empty() else "GET READY  -  %s" % track_name.to_upper()
 	_message_box.add_child(_centered(HyperTheme.label(header, 22, HyperTheme.CREAM_DIM, 600)))
@@ -224,6 +232,7 @@ func set_net_quality(text: String, bad: bool) -> void:
 func show_notice(title: String, text: String, footer: String) -> void:
 	_menu_key = ""
 	_results_key = ""
+	set_results_up(false)
 	_clear_message()
 	_message_box.add_child(_centered(HyperTheme.label(title, 34, HyperTheme.RED, 700)))
 	_message_box.add_child(_centered(HyperTheme.label(text, 22, HyperTheme.CREAM, 600)))
@@ -240,7 +249,7 @@ static func weapons_text(on: bool) -> String:
 func update_combat(enabled: bool, front: int, front_ammo: int, rear: int, rear_ammo: int, wreck_left: float,
 		front_cooldown: float = 0.0, rear_cooldown: float = 0.0) -> void:
 	_combat_box.visible = enabled
-	_wreck_label.visible = enabled and wreck_left > 0.0
+	_wreck_label.visible = enabled and wreck_left > 0.0 and not _results_up
 	if not enabled:
 		return
 	_set_slot(_front_icon, _front_label, _front_bar, front, front_ammo, front_cooldown)
@@ -312,11 +321,15 @@ func setup_history(resolver: AssetResolver, history: RaceHistory, car_textures: 
 	add_child(history_panel)
 	history_panel.setup(resolver, history, car_textures, names)
 	history_panel.visible = false
+	# centre panels and banners draw above the history panel, never under it
+	move_child(_message, -1)
+	move_child(_banner, -1)
 
 
 func hide_message() -> void:
 	_message.visible = false
 	_message_waiting = false
+	set_results_up(false)
 	_menu_key = ""
 	_results_key = ""
 
@@ -431,7 +444,23 @@ func _arrow_button(text: String, direction: int) -> Button:
 
 
 func set_tower_visible(on: bool) -> void:
-	_tower_box.visible = on
+	_tower_enabled = on
+	_tower_box.visible = _tower_enabled and not _results_up
+
+
+## Results on screen (this HUD's or, for a split-screen view, the shared one):
+## the race overlays (tower, DESTROYED countdown) step aside.
+func set_results_up(on: bool) -> void:
+	if on == _results_up:
+		return
+	_results_up = on
+	_tower_box.visible = _tower_enabled and not on
+	if on:
+		_wreck_label.visible = false
+
+
+func results_up() -> bool:
+	return _results_up
 
 
 ## Human racers and their identity colours; own_ids are the humans this HUD
@@ -472,6 +501,12 @@ func copy_field_from(other: Hud) -> void:
 	set_field(other._car_textures, other._full_names)
 
 
+## Split-screen shared HUD: centre panels (grid panel, results) start below
+## the players' info panels at the top of each view.
+func set_message_min_top(y: float) -> void:
+	_message_min_top = y
+
+
 ## Split-screen shared HUD and spectating (history panel at the top): the
 ## banner sits low on the screen.
 func set_banner_low(on: bool) -> void:
@@ -489,7 +524,11 @@ func show_results(standings: Array[RacerState], footer: String = "Fire to race a
 		key += "|%d:%d:%.3f" % [r.id, r.finish_position, r.finish_time]
 	if key == _results_key and _message.visible:
 		return
+	# Already on screen (another car finished, a footer or the exact network
+	# times arrived): update in place, without fading out and in again.
+	var update := _results_up and _message.visible and not _results_key.is_empty()
 	_results_key = key
+	set_results_up(true)
 	_menu_key = ""
 	_clear_message()
 	var laps: int = standings[0].tracker.lap_count if not standings.is_empty() else 0
@@ -546,7 +585,7 @@ func show_results(standings: Array[RacerState], footer: String = "Fire to race a
 	for l in names:
 		l.custom_minimum_size.x = name_width
 	_message_box.add_child(_centered(HyperTheme.label(footer, 17, HyperTheme.CREAM_DIM, 500)))
-	_present_message(Vector2(640, 0), true)
+	_present_message(Vector2(640, 0), true, update)
 
 
 ## Plain-text results (kept for logs and tests).
@@ -566,6 +605,8 @@ static func results_text(standings: Array[RacerState], footer: String = "Fire to
 ## Big animated banner ("GO!", "FINISH!"). Purely visual. Results waiting
 ## for it appear once it has faded.
 func flash_banner(text: String, color: Color = HyperTheme.GOLD, hold: float = BANNER_HOLD) -> void:
+	if _results_up and _message.visible:
+		return  # never over the results (e.g. a late finisher after the stuck-player net)
 	if _banner_tween != null and _banner_tween.is_valid():
 		_banner_tween.kill()
 	_banner.text = text
@@ -618,18 +659,38 @@ func _clear_message() -> void:
 
 
 ## Centres the panel on screen and fades it in; with after_banner, only once
-## a GO! / FINISH! banner still on screen has faded (never on top of it).
-func _present_message(_anchor: Vector2, after_banner: bool = false) -> void:
+## a GO! / FINISH! banner still on screen has faded (never on top of it). An
+## in-place update keeps the current fade state.
+func _present_message(_anchor: Vector2, after_banner: bool = false, update: bool = false) -> void:
 	_message.visible = true
 	_message.reset_size()
 	_message.size = _message.get_combined_minimum_size()
-	_message.position = (Vector2(1280, 720) - _message.size) * 0.5
+	_message.position = _message_position(_message.size)
+	if update:
+		return
 	if _message_tween != null and _message_tween.is_valid():
 		_message_tween.kill()  # an earlier panel's fade-in must not reveal this one
 	_message.modulate.a = 0.0
 	_message_waiting = after_banner and banner_showing()
 	if not _message_waiting:
 		_fade_in_message()
+
+
+## Centred, but clear of what else is on screen: below the split-screen info
+## panels, and beside the spectator history panel when it fits there (the
+## results), so neither hides the other.
+func _message_position(size: Vector2) -> Vector2:
+	var screen := Vector2(1280, 720)
+	var pos := (screen - size) * 0.5
+	pos.y = maxf(pos.y, _message_min_top)
+	if history_panel != null and history_panel.visible:
+		var room := history_panel.position.x - 16.0
+		if size.x <= room - 16.0:
+			pos.x = (room - size.x) * 0.5 + 8.0
+			if _info.visible:
+				pos.y = maxf(pos.y, _info.position.y + _info.size.y + 12.0)
+	pos.y = minf(pos.y, screen.y - size.y - 8.0)
+	return pos
 
 
 func _release_message() -> void:
