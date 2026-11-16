@@ -85,7 +85,8 @@ Any resolution is accepted as long as the **aspect ratio and orientation** match
 | `custom/audio/ui/ui_back` | no | Effects | Menu back. |
 | `custom/audio/ui/ui_move` | no | Effects | Menu focus change. |
 | `custom/audio/ui/ui_select` | no | Effects | Menu confirm. |
-| `custom/audio/vehicles/engine_loop` | yes | Engine | Seamless engine loop around 46 Hz fundamental; pitched up with speed. WAV recommended for exact looping. |
+| `custom/audio/vehicles/engine_loop` | yes | Engine | Engine foundation: seamless deep loop (template ~41 Hz firing, body around 100-200 Hz), heard all the time; pitched about 0.78x (standstill) to 1.3x (top speed). WAV recommended for exact looping. |
+| `custom/audio/vehicles/engine_load` | yes | Engine | Engine load layer: seamless loop at the same pitch as the foundation (template: 2x firing order + soft intake roar, ~200-400 Hz), faded in while accelerating, silent when cruising. WAV recommended. |
 | `custom/audio/vehicles/impact_car` | no | Effects | Car-to-car bump, < 1 s. |
 | `custom/audio/vehicles/impact_wall` | no | Effects | Car hits barrier, < 1 s. |
 | `custom/audio/vehicles/tire_squeal` | yes | Effects | Seamless tyre squeal loop; WAV recommended. |

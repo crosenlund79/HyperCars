@@ -313,6 +313,8 @@ func _set_hud_humans() -> void:
 		for id in own:
 			marked[id] = colors[id]
 		player_marker.set_marked(marked)
+	if race_audio != null:  # own car(s) always heard, rivals limited to the nearest
+		race_audio.local_ids = own
 
 
 func is_two_player() -> bool:

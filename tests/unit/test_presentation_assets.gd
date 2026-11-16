@@ -66,7 +66,7 @@ func test_every_catalogued_sound_has_a_playable_template() -> void:
 
 func test_templates_are_not_silent() -> void:
 	# Decode the WAV templates and check they carry signal.
-	for logical in ["vehicles/engine_loop", "vehicles/tire_squeal"]:
+	for logical in ["vehicles/engine_loop", "vehicles/engine_load", "vehicles/tire_squeal"]:
 		var wav: AudioStreamWAV = load(AssetResolver.audio_fallback_path(logical))
 		var data := wav.data
 		var peak := 0
@@ -149,3 +149,11 @@ func test_font_and_licence_are_shipped() -> void:
 	assert_true(ResourceLoader.exists(HyperTheme.FONT_PATH))
 	assert_true(FileAccess.file_exists("res://assets/fonts/Fredoka_OFL.txt"))
 	assert_string_contains(FileAccess.get_file_as_string("res://assets/fonts/Fredoka_OFL.txt"), "SIL Open Font License")
+
+
+func test_engine_load_layer_override_takes_precedence_and_loops() -> void:
+	_write("audio/vehicles/engine_load.wav", _wav_bytes(2205))
+	var stream := AssetResolver.new(_root).get_audio("vehicles/engine_load", true)
+	assert_true(stream is AudioStreamWAV)
+	assert_almost_eq(stream.get_length(), 0.1, 0.01)
+	assert_eq((stream as AudioStreamWAV).loop_mode, AudioStreamWAV.LOOP_FORWARD)

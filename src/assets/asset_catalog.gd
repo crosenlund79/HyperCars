@@ -159,7 +159,9 @@ const SPECS := {
 ## Replaceable audio: logical name -> spec. bus: Music / Engine / Effects.
 const AUDIO := {
 	"vehicles/engine_loop": {"loop": true, "bus": "Engine",
-		"notes": "Seamless engine loop around 46 Hz fundamental; pitched up with speed. WAV recommended for exact looping."},
+		"notes": "Engine foundation: seamless deep loop (template ~41 Hz firing, body around 100-200 Hz), heard all the time; pitched about 0.78x (standstill) to 1.3x (top speed). WAV recommended for exact looping."},
+	"vehicles/engine_load": {"loop": true, "bus": "Engine",
+		"notes": "Engine load layer: seamless loop at the same pitch as the foundation (template: 2x firing order + soft intake roar, ~200-400 Hz), faded in while accelerating, silent when cruising. WAV recommended."},
 	"vehicles/tire_squeal": {"loop": true, "bus": "Effects", "notes": "Seamless tyre squeal loop; WAV recommended."},
 	"vehicles/impact_car": {"loop": false, "bus": "Effects", "notes": "Car-to-car bump, < 1 s."},
 	"vehicles/impact_wall": {"loop": false, "bus": "Effects", "notes": "Car hits barrier, < 1 s."},

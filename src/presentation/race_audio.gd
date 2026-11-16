@@ -1,17 +1,34 @@
 class_name RaceAudio
 extends Node
-## Race soundscape: one engine voice per car (pitch follows speed, louder on
-## throttle), tyre squeal from sliding, impact sounds, race start and finish
-## cues, trackside ambience and menu/race music. Read-only: it observes car
-## state and hit signals and never changes the race.
+## Race soundscape: engines, tyre squeal from sliding, impact sounds, race start
+## and finish cues, trackside ambience and menu/race music. Read-only: it
+## observes car state and hit signals and never changes the race.
+##
+## Engines (P2): per car a deep foundation loop plus a load layer that fades in
+## while the car accelerates and goes quiet when cruising; pitch follows speed
+## on a flattening curve within a narrow range, rises a little under load and
+## dips when braking, all smoothed. Load and braking are estimated from the
+## car's own speed changes, so it works the same for the host, network clients,
+## AI and humans. Only the nearest few rival engines play (plus your own car).
 
-const ENGINE_MIN_PITCH := 0.7
-const ENGINE_MAX_PITCH := 2.6
 const SLIDE_SQUEAL := 80.0
 const MAX_DISTANCE := 1600.0
 
 var _cars: Array[Car] = []
 var _engines: Array[AudioStreamPlayer2D] = []
+var _loads: Array[AudioStreamPlayer2D] = []
+## Per-car smoothed engine state: speed last frame, load / brake estimates,
+## pitch, voice weight (0..1, fades with the nearest-voices choice).
+var _last_speed := PackedFloat32Array()
+var _load := PackedFloat32Array()
+var _brake := PackedFloat32Array()
+var _pitch := PackedFloat32Array()
+var _voice := PackedFloat32Array()
+var _clock := 0.0
+## Engine tuning (default_engine_sound.tres).
+var engine_params: EngineSoundParams = preload("res://src/audio/default_engine_sound.tres")
+## Racer ids driven on this computer: always audible, at full engine volume.
+var local_ids: Array[int] = [RaceSession.PLAYER_ID]
 var _squeals: Array[AudioStreamPlayer2D] = []
 var _impacts: Array[AudioStreamPlayer2D] = []
 var _next_impact := 0
@@ -31,10 +48,18 @@ func setup(cars: Array[Car], resolver: AssetResolver, sound_parent: Node2D) -> v
 	_cars = cars
 	_resolver = resolver
 	var engine := resolver.get_audio("vehicles/engine_loop", true)
+	var load := resolver.get_audio("vehicles/engine_load", true)
 	var squeal := resolver.get_audio("vehicles/tire_squeal", true)
 	for i in cars.size():
-		_engines.append(_player2d(sound_parent, engine, "Engine", -6.0))
+		_engines.append(_player2d(sound_parent, engine, "Engine", -80.0))
+		_loads.append(_player2d(sound_parent, load, "Engine", -80.0))
 		_squeals.append(_player2d(sound_parent, squeal, "Effects", -80.0))
+	_last_speed.resize(cars.size())
+	_load.resize(cars.size())
+	_brake.resize(cars.size())
+	_pitch.resize(cars.size())
+	_pitch.fill(engine_params.pitch_idle)
+	_voice.resize(cars.size())
 	for k in 10:
 		_impacts.append(_player2d(sound_parent, null, "Effects", 0.0))
 	for c in cars:
@@ -61,7 +86,9 @@ func play_cue(logical: String) -> void:
 	_cue.play()
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	_clock += delta
+	var voiced := _voiced_cars()
 	for i in _cars.size():
 		var c := _cars[i]
 		var engine := _engines[i]
@@ -69,7 +96,7 @@ func _process(_delta: float) -> void:
 		var running := c.visible and c.model != null and (c.active or c.model.velocity.length() > 1.0)
 		if not running or fast:
 			if engine.playing and (not c.visible or fast):
-				engine.stop()
+				_stop_engine(i)
 			if squeal.playing:
 				squeal.stop()
 			if not running or not c.visible:
@@ -77,14 +104,10 @@ func _process(_delta: float) -> void:
 		if fast:
 			continue
 		engine.global_position = c.global_position
+		_loads[i].global_position = c.global_position
 		squeal.global_position = c.global_position
 		var speed := absf(c.model.forward_speed())
-		var ratio := clampf(speed / c.model.params.max_speed, 0.0, 1.2)
-		engine.pitch_scale = lerpf(ENGINE_MIN_PITCH, ENGINE_MAX_PITCH, ratio)
-		var throttle := c.active and c.model.is_accelerating(c.fire)
-		engine.volume_db = lerpf(-14.0, -5.0, ratio) + (1.5 if throttle else -2.0)
-		if not engine.playing:
-			engine.play(_rng.randf() * 0.9)
+		_update_engine(i, c, speed, voiced.has(i), delta)
 		var slide := absf(c.model.lateral_speed())
 		if c.active and slide > SLIDE_SQUEAL:
 			squeal.volume_db = lerpf(-20.0, -6.0, clampf((slide - SLIDE_SQUEAL) / 220.0, 0.0, 1.0))
@@ -97,7 +120,7 @@ func _process(_delta: float) -> void:
 
 ## Stop everything on exit so no playback outlives the scene.
 func _exit_tree() -> void:
-	for p in _engines + _squeals + _impacts:
+	for p in _engines + _loads + _squeals + _impacts:
 		p.stop()
 		p.stream = null
 	for p in [_music, _ambience, _cue]:
@@ -120,8 +143,104 @@ func play_at(logical: String, pos: Vector2) -> void:
 
 
 func stop_cars() -> void:
-	for p in _engines + _squeals:
+	for p in _engines + _loads + _squeals:
 		p.stop()
+
+
+## Pitch and volumes of one engine for its state (pure; also used by tests).
+## speed_ratio: forward speed / max speed. load: 0..1 how hard the engine
+## works (accelerating). brake: 0..1 braking. time: seconds, for the drift.
+## Returns {pitch, base_db, load_db}.
+static func engine_targets(p: EngineSoundParams, speed_ratio: float, load: float, brake: float, time: float,
+		phase: float = 0.0) -> Dictionary:
+	var r := clampf(speed_ratio, 0.0, 1.0)
+	var pitch := lerpf(p.pitch_idle, p.pitch_top, pow(r, p.pitch_curve))
+	pitch += p.load_pitch * clampf(load, 0.0, 1.0) + p.brake_pitch * clampf(brake, 0.0, 1.0)
+	pitch *= 1.0 + p.drift_amount * sin(TAU * p.drift_hz * time + phase)
+	var base_db := lerpf(p.volume_idle_db, p.volume_top_db, r) - 2.0 * clampf(brake, 0.0, 1.0)
+	var l := clampf(load, 0.0, 1.0)
+	var load_db := p.load_volume_db + linear_to_db(maxf(l, 0.001))
+	return {"pitch": pitch, "base_db": base_db, "load_db": load_db}
+
+
+func _update_engine(i: int, c: Car, speed: float, voiced: bool, delta: float) -> void:
+	var p := engine_params
+	var dt := maxf(delta, 0.0001)
+	var accel := (speed - _last_speed[i]) / dt
+	_last_speed[i] = speed
+	var max_speed := c.model.params.max_speed
+	# How hard the engine works: actual acceleration, or a held throttle below
+	# top speed where the input is known (simulated cars). Clamp spikes from
+	# collisions and network snapshots.
+	var effort := accel / maxf(1.0, c.model.params.acceleration)
+	var want_load := clampf((effort - p.load_deadzone) / (1.0 - p.load_deadzone), 0.0, 1.0)
+	if c.active and c.model.is_accelerating(c.fire):
+		# held throttle: full effort low down, fading out towards top speed
+		want_load = maxf(want_load, 0.85 * clampf((0.97 - speed / max_speed) / 0.3, 0.0, 1.0))
+	# near top speed the frequent small recoveries after each turn only add a
+	# little life (cruise_load), so long fast stretches stay calm
+	var headroom := clampf((1.0 - speed / max_speed) / 0.1, 0.0, 1.0)
+	want_load *= lerpf(p.cruise_load, 1.0, headroom)
+	var want_brake := clampf(-accel / maxf(1.0, c.model.params.brake_deceleration), 0.0, 1.0)
+	var k_load := 1.0 - exp(-dt / p.load_smoothing)
+	_load[i] = lerpf(_load[i], want_load, k_load)
+	_brake[i] = lerpf(_brake[i], want_brake, k_load)
+	var target := engine_targets(p, speed / max_speed, _load[i], _brake[i], _clock, float(i) * 1.7)
+	_pitch[i] = lerpf(_pitch[i], target.pitch, 1.0 - exp(-dt / p.pitch_smoothing))
+	_voice[i] = move_toward(_voice[i], 1.0 if voiced else 0.0, dt / maxf(0.01, p.voice_fade))
+	var engine := _engines[i]
+	var load := _loads[i]
+	if _voice[i] <= 0.0:
+		if engine.playing:
+			_stop_engine(i)
+		return
+	var gain := linear_to_db(_voice[i]) + (0.0 if local_ids.has(c.racer_id) else p.rival_offset_db)
+	var k_vol := 1.0 - exp(-dt / p.volume_smoothing)
+	engine.pitch_scale = _pitch[i]
+	load.pitch_scale = _pitch[i]
+	engine.volume_db = lerpf(engine.volume_db, target.base_db + gain, k_vol) if engine.playing else target.base_db + gain
+	load.volume_db = lerpf(load.volume_db, target.load_db + gain, k_vol) if load.playing else target.load_db + gain
+	if not engine.playing:
+		var offset := _rng.randf() * 0.9
+		engine.play(offset)
+		if load.stream != null:
+			load.play(offset)
+
+
+func _stop_engine(i: int) -> void:
+	_engines[i].stop()
+	_loads[i].stop()
+
+
+## Engines heard this frame: the local car(s) and the nearest rivals.
+func _voiced_cars() -> Dictionary:
+	var out := {}
+	var ear := _ear()
+	var rivals: Array = []
+	for i in _cars.size():
+		var c := _cars[i]
+		if not c.visible:
+			continue
+		if local_ids.has(c.racer_id):
+			out[i] = true
+		else:
+			rivals.append([c.global_position.distance_squared_to(ear), i])
+	rivals.sort()
+	for k in mini(engine_params.max_rival_voices, rivals.size()):
+		out[rivals[k][1]] = true
+	return out
+
+
+## Where the listener is: the current 2D listener (split-screen), else the camera.
+func _ear() -> Vector2:
+	var vp := get_viewport()
+	if vp == null:
+		return Vector2.ZERO
+	var listener := vp.get_audio_listener_2d()
+	if listener != null:
+		return listener.global_position
+	var cam := vp.get_camera_2d()
+	return cam.get_screen_center_position() if cam != null else Vector2.ZERO
 
 
 func _impact(c: Car, speed: float, logical: String) -> void:

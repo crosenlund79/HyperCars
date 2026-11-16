@@ -273,3 +273,23 @@ func test_spectator_banner_stays_clear_of_the_history_panel() -> void:
 	assert_false(banner.intersects(history), "winner banner below the history panel")
 	_main.set_menu_choice(0)
 	assert_eq(hud._banner.position.y, Hud.BANNER_Y, "back at the top when racing")
+
+
+# --- P2 Stage 1: engine voices (presentation only) ---
+
+func test_engines_limit_rival_voices_and_always_play_your_own() -> void:
+	await _make_presented()
+	_main.inputs[P1] = AiDriverInput.new(P1, AiDriver.new(_main.racing_line, load(RivalRoster.params_path(2))))
+	_main.start_race()
+	await wait_physics_frames(240)
+	var audio: RaceAudio = _main.race_audio
+	assert_eq(audio.local_ids, [P1] as Array[int])
+	assert_true(audio._engines[P1].playing, "own engine")
+	assert_true(audio._loads[P1].playing, "own load layer")
+	await wait_seconds(audio.engine_params.voice_fade + 0.1)
+	var rivals := 0
+	for i in _main.cars.size():
+		if i != P1 and audio._engines[i].playing:
+			rivals += 1
+	assert_lte(rivals, audio.engine_params.max_rival_voices, "only the nearest rivals are heard")
+	assert_lt(audio._engines[P1].pitch_scale, 1.5, "deep pitch range")
