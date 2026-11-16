@@ -101,3 +101,14 @@ func test_high_latency_and_loss_fire_to_brake() -> void:
 		return
 	assert_eq(r[1].results, r[0].results)
 	assert_has(r[0].results[0].order, float(RaceSession.PLAYER_2_ID), "the client's car finished")
+
+
+func test_experimental_crossing_layout_agrees_with_prediction() -> void:
+	# J1: the figure-eight with an elevated crossing; the client predicts its own
+	# car through both levels (level-aware walls), the host stays authoritative.
+	var r := await _run(24741, ["laps=1", "layout=exp_figure8_01", "latency=40"])
+	assert_true(r[0].has("results") and r[1].has("results"), str(r))
+	if not r[0].has("results") or not r[1].has("results"):
+		return
+	assert_eq(r[1].results[0], r[0].results[0], "client shows the host's result")
+	assert_eq(r[0].results[0].order.size(), 10)

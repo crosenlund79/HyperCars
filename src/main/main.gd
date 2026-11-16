@@ -63,6 +63,8 @@ var hud_track_name := ""
 ## null, the developer command line (DevLayouts, "--layout=<id>") may pick one;
 ## otherwise the scene's normal circuit is used.
 var layout_override: TrackLayout = null
+## J1: road level of each car (0 ground, 1 elevated). Always 0 on flat circuits.
+var car_levels := PackedInt32Array()
 
 var resolver: AssetResolver
 var session: RaceSession
@@ -248,6 +250,7 @@ func _ready() -> void:
 			inputs.append(HumanDriverInput.new(RaceSession.PLAYER_2_ID, PlayerControls.ensure_player_actions(2, player_devices[1])))
 	for c in cars:
 		progress.append(RaceProgress.new(track.path))
+	car_levels.resize(cars.size())
 	combat = CombatWorld.new(weapon_rules, cars.size(), track.path, track.layout.road_width * 0.5)
 	history = RaceHistory.new(rival_ids)
 	hud.setup_history(resolver, history, car_textures, full_names)
@@ -477,6 +480,7 @@ func reset_race() -> void:
 	_restart_timer = -1.0
 	_stuck_time = 0.0
 	_best_progress = -INF
+	car_levels.fill(0)  # the grid is on the ground
 	for id in cars.size():
 		_show_car(id, grid_order.has(id))
 	for slot in grid_order.size():
@@ -750,6 +754,7 @@ func _physics_process(_delta: float) -> void:
 	if session.spectator and _spectator_input():
 		return
 	_update_progress()
+	_update_levels()
 	_drive_cars(step)
 	if combat.enabled:
 		_combat_tick(step)
@@ -864,14 +869,44 @@ func _spectator_tick(step: float) -> void:
 func _show_car(id: int, on: bool) -> void:
 	var c := cars[id]
 	c.visible = on
-	# Only touch the physics body when its presence changes: re-assigning the
-	# same collision layers re-registers the body and changes contact order.
-	if c.collision_layer != (2 if on else 0) or c.collision_mask != (3 if on else 0):
-		c.collision_layer = 2 if on else 0
-		c.collision_mask = 3 if on else 0
+	_apply_car_collision(id, on)
 	if not on:
 		c.active = false
 		c.place(Transform2D(0.0, Vector2(-100000, -100000)))
+
+
+## Collision layers for a car's presence and road level. Only touches the
+## physics body when they change: re-assigning the same collision layers
+## re-registers the body and changes contact order.
+func _apply_car_collision(id: int, present: bool) -> void:
+	var c := cars[id]
+	var want := Track.car_collision(car_levels[id]) if present else Vector2i.ZERO
+	if c.collision_layer != want.x or c.collision_mask != want.y:
+		c.collision_layer = want.x
+		c.collision_mask = want.y
+
+
+## J1: each car's road level from its progress along its own branch; a car
+## changes level (and collision layers) only at the ends of an elevation zone,
+## which the layout keeps clear of the other road. Flat circuits: nothing.
+func _update_levels() -> void:
+	if not track.layout.has_elevation():
+		return
+	for id in grid_order:
+		var level := track.level_at_distance(progress[id].distance)
+		if level != car_levels[id]:
+			car_levels[id] = level
+			_apply_car_collision(id, true)
+
+
+## A car's road level as this computer knows it (a network client reads the
+## host's progress from the snapshots).
+func level_of(id: int) -> int:
+	if not track.layout.has_elevation():
+		return 0
+	if net != null and net.is_client():
+		return track.level_at_distance(session.racers[id].progress)
+	return car_levels[id]
 
 
 ## Spectator camera: every race starts on the car in the last grid slot.

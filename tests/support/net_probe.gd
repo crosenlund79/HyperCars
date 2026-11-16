@@ -80,6 +80,8 @@ func _on_client_message(_from: int, msg: Array) -> void:
 func _make_race(role: NetRace.Role, track: int = int(opts.track)) -> Node2D:
 	var m: Node2D = load("res://src/main/main.tscn").instantiate()
 	m.presentation_enabled = false
+	if DevLayouts.LAYOUTS.has(opts.get("layout", "")):
+		m.layout_override = load(DevLayouts.LAYOUTS[opts.layout])
 	m.human_count = 2
 	m.track_variant = track
 	m.net = NetRace.new(link, role)

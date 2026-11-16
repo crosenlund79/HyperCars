@@ -7,6 +7,10 @@ signal checkpoint_reached(index: int, body: Node2D)
 
 const WALL_LAYER := 1
 const CAR_LAYER := 2
+## J1 (elevated layouts only): barriers of the elevated road and cars on it
+## use their own collision layers, so the two levels never touch.
+const WALL_UPPER_LAYER := 4
+const CAR_UPPER_LAYER := 8
 const CHECKPOINT_DEPTH := 30.0
 const GROUND_MARGIN := 900.0
 
@@ -99,21 +103,24 @@ func _textured_polygon(node_name: String, texture: Texture2D, verts: PackedVecto
 func _build_walls(texture: Texture2D, half: float, left_edge: PackedVector2Array, right_edge: PackedVector2Array) -> void:
 	var wall_spec: Dictionary = AssetCatalog.SPECS[theme.asset(AssetCatalog.WALL)]
 	var wall_width: float = wall_spec.display_size.y
-	var body := StaticBody2D.new()
-	body.name = "Walls"
-	body.collision_layer = WALL_LAYER
-	body.collision_mask = 0
-	add_child(body)
-	for edge in [left_edge, right_edge]:
-		var segments := PackedVector2Array()
-		for i in edge.size():
-			segments.append(edge[i])
-			segments.append(edge[(i + 1) % edge.size()])
-		var shape := ConcavePolygonShape2D.new()
-		shape.segments = segments
-		var cs := CollisionShape2D.new()
-		cs.shape = shape
-		body.add_child(cs)
+	if layout.has_elevation():
+		_build_level_walls(left_edge, right_edge)
+	else:
+		var body := StaticBody2D.new()
+		body.name = "Walls"
+		body.collision_layer = WALL_LAYER
+		body.collision_mask = 0
+		add_child(body)
+		for edge in [left_edge, right_edge]:
+			var segments := PackedVector2Array()
+			for i in edge.size():
+				segments.append(edge[i])
+				segments.append(edge[(i + 1) % edge.size()])
+			var shape := ConcavePolygonShape2D.new()
+			shape.segments = segments
+			var cs := CollisionShape2D.new()
+			cs.shape = shape
+			body.add_child(cs)
 	# Visual barriers sit just outside the collision faces so the car meets their inner edge.
 	for side in [-1.0, 1.0]:
 		var line := Line2D.new()
@@ -126,6 +133,46 @@ func _build_walls(texture: Texture2D, half: float, left_edge: PackedVector2Array
 		line.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 		line.joint_mode = Line2D.LINE_JOINT_ROUND
 		add_child(line)
+
+
+## Elevated layouts: each barrier segment belongs to the level of its stretch
+## of road ("Walls" ground, "WallsUpper" bridge), so a car only meets the
+## barriers of its own level where the roads cross.
+func _build_level_walls(left_edge: PackedVector2Array, right_edge: PackedVector2Array) -> void:
+	var segments := [PackedVector2Array(), PackedVector2Array()]
+	for edge in [left_edge, right_edge]:
+		for i in edge.size():
+			var level := level_of_sample(i)
+			segments[level].append(edge[i])
+			segments[level].append(edge[(i + 1) % edge.size()])
+	for level in 2:
+		var body := StaticBody2D.new()
+		body.name = "Walls" if level == 0 else "WallsUpper"
+		body.collision_layer = WALL_LAYER if level == 0 else WALL_UPPER_LAYER
+		body.collision_mask = 0
+		add_child(body)
+		var shape := ConcavePolygonShape2D.new()
+		shape.segments = segments[level]
+		var cs := CollisionShape2D.new()
+		cs.shape = shape
+		body.add_child(cs)
+
+
+## Road level of centreline sample i (0 ground, 1 elevated).
+func level_of_sample(i: int) -> int:
+	return layout.level_at(path.cumulative[i], path.length)
+
+
+## Road level at a car's progress (arc distance along its branch).
+func level_at_distance(s: float) -> int:
+	return layout.level_at(s, path.length)
+
+
+## Collision layer / mask of a present car on a road level.
+static func car_collision(level: int) -> Vector2i:
+	if level == 0:
+		return Vector2i(CAR_LAYER, WALL_LAYER | CAR_LAYER)
+	return Vector2i(CAR_UPPER_LAYER, WALL_UPPER_LAYER | CAR_UPPER_LAYER)
 
 
 func _build_start_line(texture: Texture2D) -> void:

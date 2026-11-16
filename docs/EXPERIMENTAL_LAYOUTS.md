@@ -23,3 +23,21 @@ Layouts are `TrackLayout` resources; `elevation_zones` (arc-length intervals alo
 centreline) mark elevated road. `TrackLayout.validate()` checks crossings, zone ends,
 the grid and checkpoint placement. Layout ids are neutral and independent of the
 visual theme variants.
+
+## Road levels (J1)
+
+On an elevated layout each car has a road level (0 ground, 1 bridge) from its
+progress along its own branch; it changes only at the ends of an elevation zone,
+which validation keeps clear of the other road. Ground cars use collision layer 2
+and the ground barriers (layer 1); bridge cars use layer 8 and the bridge barriers
+(layer 4) — so the two levels never touch, while cars on the same level collide as
+everywhere else. Checkpoint gates are never on the bridge. A network client's own
+(predicted) car uses the barriers of the level shown by the host's snapshots.
+
+Not yet level-aware (later stages, J4): weapons. Missiles, mines and explosions use
+flat 2D distance, so with weapons on they can hit a car on the other level at the
+crossing. Test the prototype with No Guns for clean level behaviour.
+
+Prototype fingerprints (fresh processes, `tests/support/sim_probe.gd`, layout
+`exp_figure8_01`): `mode=spectate ticks=4800 weapons=0` → `7fb45fa02e9fcbfae31a1181a6fca7fa`,
+`mode=race ticks=3600 weapons=0` → `a1d5d5c90f374570917f821a5b23e72b`.

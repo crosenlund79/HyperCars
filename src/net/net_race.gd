@@ -223,7 +223,10 @@ func _drive_local_car(cmd: Dictionary) -> void:
 	if not _predicting():
 		c.active = false
 		return
-	c.collision_mask = 1  # walls only: other cars are shown in the past, contacts come from the host
+	# walls of its own road level only: other cars are shown in the past, contacts come from the host
+	var walls := Track.WALL_LAYER if race.level_of(race.local_player_id) == 0 else Track.WALL_UPPER_LAYER
+	if c.collision_mask != walls:
+		c.collision_mask = walls
 	c.active = true
 	if race.session.racers[race.local_player_id].is_finished():
 		c.steer = 0.0
