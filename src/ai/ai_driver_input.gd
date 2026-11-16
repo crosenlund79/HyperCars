@@ -30,7 +30,7 @@ func drive(race: Node, step: float) -> Dictionary:
 	var progress: Array[RaceProgress] = race.progress
 	var others: Array = []
 	for other in race.grid_order:
-		if other != id:
+		if other != id and not _gone(race, other):
 			others.append({"distance": progress[other].distance, "lateral": progress[other].lateral,
 				"speed": cars[other].model.forward_speed(), "wrecked": race.combat.is_wrecked(other)})
 	var me := {"position": cars[id].global_position, "heading": cars[id].model.heading,
@@ -56,7 +56,7 @@ func weapons(race: Node, step: float, _states: Array) -> Dictionary:
 	var d := driver
 	var targets: Array = []
 	for other in race.grid_order:
-		if other == id:
+		if other == id or _gone(race, other):
 			continue
 		targets.append({"position": cars[other].global_position, "velocity": cars[other].model.velocity,
 			"distance": progress[other].distance, "lateral": progress[other].lateral,
@@ -75,3 +75,12 @@ func weapons(race: Node, step: float, _states: Array) -> Dictionary:
 			"homing_range": rules.homing_range, "super_orbit_radius": rules.super_orbit_radius})
 		return d.decide_weapons_tactical(me, targets, ctx, step)
 	return d.decide_weapons(me, targets, ctx, step)
+
+
+## Not on the road for anyone: retired (a DNF car is off the road, without
+## collisions) or down in a jump's gap (under or beside the road). Rivals
+## neither queue behind nor aim at such a car.
+static func _gone(race: Node, other: int) -> bool:
+	if race.session.racers[other].dnf:
+		return true
+	return race.jumps != null and race.jumps.is_down(other)

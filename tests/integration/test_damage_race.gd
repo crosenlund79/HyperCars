@@ -335,3 +335,27 @@ func test_figure_eight_race_with_damage_completes() -> void:
 		t += 8
 	assert_eq(_main.session.state, RaceSession.State.FINISHED)
 	assert_eq(_main.session.finish_order.size(), 9)
+
+
+## Found in the J6 sweep: a rival queued for ever behind a retired car, which
+## is off the road (invisible, no collisions) but still sat in the AI's
+## traffic. Rivals now ignore retired cars (and cars down in a jump's gap).
+func test_rivals_drive_past_a_retired_car_on_their_line() -> void:
+	await _make()
+	await _start()
+	_park_rivals()
+	var s := 1200.0
+	_place(3, s, 0.0, 0.0, false, -28.0)  # two retired side by side: no lane to pass in
+	_place(5, s, 0.0, 0.0, false, 28.0)
+	for id in [3, 5]:  # worn down to nothing, as in a race
+		assert_true(_main.damage.damage(id, 1000.0))
+		_main._retire(id)
+	await wait_physics_frames(2)
+	assert_true(AiDriverInput._gone(_main, 3))
+	var c: Car = _main.cars[4]
+	c.place(Transform2D(_main.track.path.tangent_at(s - 150.0).angle(), _main.track.path.point_at(s - 150.0)))
+	c.model.velocity = _main.track.path.tangent_at(s - 150.0) * 120.0
+	c.active = true
+	_main.progress[4].reset(c.global_position)  # Hank, with his own AI
+	await wait_physics_frames(180)
+	assert_gt(_main.progress[4].distance, s + 200.0, "the rival drove on past the retired car")
