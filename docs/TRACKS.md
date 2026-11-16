@@ -70,6 +70,43 @@ level, damage) works as in local races.
 | `mode=spectate ticks=4800 weapons=1` | `fc95a9e552c5f93c2dcf008d008589f2` |
 | `mode=spectate ticks=4800 weapons=1 style=1` | `8166dda05ca676113b16c0ac77c660bb` |
 
+## Larkspur Ring (fast and flowing)
+
+`src/track/layouts/larkspur_ring.tres` — lap 13,225 px (about 33 s for the rivals, the
+fastest circuit: ~405 px/s average). One flowing loop, no crossings, no jump.
+
+1. **Main straight**: 3,000 px flat out from the start line.
+2. **The Lighthouse** (T1, R 120): the big stop of the lap at the end of the straight,
+   the main place to dive down the inside.
+3. **East run**: a fast right kink (R 700) and a long left sweeper (R 420) onto the top.
+4. **The Hook**: the top straight dives into the infield through two R 105 corners and
+   climbs out again: the second braking point, a place to defend or switch back.
+5. **West sweepers**: two wide lefts (R 420-600) and a long run back onto the straight.
+
+Racing (10-race spectator sessions): 6 different winners in No Guns; with weapons Rocco
+wins about half; 13-28 position changes in 3 laps, ~28 over 20 laps.
+
+## Ravenhook (technical and aggressive)
+
+`src/track/layouts/ravenhook.tres` — lap 13,469 px (about 36 s, ~377 px/s: the most
+technical). Corners of 100-160 px radius, two narrowings and a flyover jump.
+
+1. **Start straight** into **T1** (R 100, tight left) and **the climb** north.
+2. **The east block**: right onto the loop top (R 130), down the **narrowed east side**
+   (116 px wide) and a hard right (R 110) onto...
+3. **The Leap straight**, 3,000 px west: halfway along it **jumps over the climb**
+   (Raven's Leap: a flyover jump, 270 px gap over the road below, the same jump rules as
+   Kestrel; cleared from ~384 px/s, top speed flies 323 px). The approach is long enough
+   to reach top speed from the hard right; traffic or damage can still leave a car short.
+4. **The hairpin finger**: right (R 100) up the west side, the two-corner hairpin at the
+   top (R 115), then **the Needle**: 112 px wide straight back down, side by side only
+   with care.
+5. **The west loop**: two lefts (R 130, R 160) back onto the start straight.
+
+Racing (10-race sessions): 7 different winners in No Guns, 6 with Tactical weapons,
+Rocco most often with Classic weapons (6 / 10); every rival takes the Leap every lap;
+14-24 position changes in 3 laps, 44 over 20 laps without weapons.
+
 ## Legacy layouts (tests and developers only)
 
 The Classic Circuit (`circuit_01.tres`, the race scene's own layout) and the

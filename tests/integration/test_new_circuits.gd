@@ -204,3 +204,12 @@ func test_couch_and_network_on_ravenhook() -> void:
 	assert_null(_main.jumps, "no jumping online until J5")
 	assert_string_contains(_main.hud_track_name, "JUMP BRIDGED ONLINE")
 	link.close()
+
+
+func test_races_on_both_circuits_are_deterministic() -> void:
+	for id in ["larkspur_ring", "ravenhook"]:
+		var args := PackedStringArray(["mode=spectate", "ticks=2400", "weapons=1", "layout=" + id])
+		var a := ProbeRunner.run(args)
+		assert_ne(a, "")
+		assert_eq(ProbeRunner.run(args), a, id + ": same in a fresh process")
+		assert_eq(ProbeRunner.run(args + PackedStringArray(["speed=8"])), a, id + ": x8 = x1")

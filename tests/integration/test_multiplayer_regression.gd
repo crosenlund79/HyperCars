@@ -23,6 +23,22 @@ const M6_FINGERPRINTS := {
 }
 
 
+## Recorded with Weapons Hot (start lock) and rear-quarter contact (2026-11-16),
+## everything on. Both change races on purpose (the start is calmer, contacts
+## turn cars); with lock=0 contact=0 the M6 values above still hold.
+const CURRENT_FINGERPRINTS := {
+	"mode=race ticks=3600 weapons=0": "974a578e9cb4e08bb219805ecc38ba2c",
+	"mode=race ticks=3600 weapons=1 style=1": "44b8c78a9c31c51dad59b9f36865b6ab",
+	"mode=spectate ticks=4800 weapons=1": "4fcd259c71c63a708292e1ec608ad633",
+	"mode=spectate ticks=4800 weapons=1 style=1": "2e50a2cfcb8c6485dc7f3df8982c794b",
+}
+
+
+func test_current_fingerprints() -> void:
+	for args in CURRENT_FINGERPRINTS:
+		assert_eq(ProbeRunner.run(PackedStringArray(args.split(" "))), CURRENT_FINGERPRINTS[args], args)
+
+
 func test_single_player_and_spectator_fingerprints_unchanged() -> void:
 	for args in FINGERPRINTS:
 		assert_eq(ProbeRunner.run(PackedStringArray((args + " damage=0 lock=0 contact=0").split(" "))), FINGERPRINTS[args],

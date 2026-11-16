@@ -14,6 +14,8 @@ or off).
 | `RIVAL_OVERTOOK_PLAYER`, Nina "The Hunter" (racer 9) | Nina passes the player | `voice/nina_thank_you` | the Hunter - Thank you (if overtaken by The Hunter).mp3 |
 | `RIVAL_OVERTOOK_PLAYER`, Victor "The Professor" (racer 1) | Victor passes the player | `voice/victor_clean` | The Professor - Clean (if overtaken by The Professor).mp3 |
 
+| `WEAPONS_HOT` (a race announcement) | weapons unlock after the starting field has crossed the start line (Weapons Hot) | `voice/announcer_weapons_hot` | Announcer - Weapons Hot (When all drivers have passed the starting line - and weapons are unlocked).mp3 |
+
 Rivals are matched by racer id (`RivalRoster`), never by name. Other rivals passing
 the player, and the player passing a rival, say nothing (no recordings).
 
@@ -23,6 +25,10 @@ player by ≥ 24 px of race distance for 0.6 s and then lead by ≥ 24 px for 0.
 passes); comparisons involving a car that finished, retired (DNF) or is not racing are
 dropped; a car whose distance jumps (jump recovery, a network correction) restarts
 its comparisons silently; nothing is reported in the first 3 s of a race.
+
+Race announcements (`VoiceCatalog.ANNOUNCEMENTS`, so far "Weapons hot") are never
+skipped by chance and are not held back by the short gap after a line, but they never
+start over a line that is still playing. "Weapons hot" is also said when spectating.
 
 ## One voice, memory, silence (`VoiceSelector`)
 
