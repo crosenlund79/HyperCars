@@ -29,3 +29,20 @@ extends Resource
 ## Car-to-car contact: fraction of the closing speed bounced apart (0..1). Equal masses,
 ## symmetric for every car. Added in M2; PROVISIONAL.
 @export_range(0.0, 1.0) var car_restitution: float = 0.4
+
+## Aggressive contact (car-to-car only; walls, steering, throttle, brakes and
+## grip are unchanged). A contact also gives each car a brief yaw disturbance
+## from where it was struck: the angular impulse (contact offset x impulse,
+## per car_half_length^2) times contact_yaw_factor. Struck behind its centre
+## a car gets the full effect (the rear quarter is easy to rotate); struck
+## ahead of its centre only contact_front_factor of it. The extra rotation is
+## capped at contact_yaw_max (rad/s) and fades with contact_yaw_damping (1/s),
+## so a hard rear-quarter hit turns a car by roughly 15-25 degrees, which the
+## driver can correct: never a scripted spin. PROVISIONAL (not in the manual).
+## contact_yaw_factor = 0 switches it off. All cars are equal: same mass.
+@export var contact_yaw_factor := 0.9
+@export var contact_front_factor := 0.3
+@export var contact_yaw_max := 1.6
+@export var contact_yaw_damping := 4.0
+## Half the car's length (px) used for the lever arm (template car 64 px long).
+@export var car_half_length := 32.0

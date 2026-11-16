@@ -47,10 +47,13 @@ func place(at: Transform2D) -> void:
 		model.position = global_position
 		model.heading = global_rotation
 		model.velocity = Vector2.ZERO
+		model.yaw_rate = 0.0
 
 
 func _physics_process(_delta: float) -> void:
 	if model == null or not active:
+		if model != null:
+			model.yaw_rate = 0.0  # a stopped (wrecked, parked) car does not keep a knock for later
 		return
 	if not airborne:
 		model.update(FIXED_STEP, steer, fire)
@@ -64,7 +67,7 @@ func _physics_process(_delta: float) -> void:
 		var other := collision.get_collider() as Car
 		if other != null and other.model != null:
 			var closing := -(model.velocity - other.model.velocity).dot(normal)
-			CarModel.resolve_car_collision(model, other.model, normal)
+			CarModel.resolve_car_collision(model, other.model, normal, collision.get_position(), global_position, other.global_position)
 			if closing > 0.0:
 				car_hit.emit(other, closing)
 			motion = collision.get_remainder().slide(normal)

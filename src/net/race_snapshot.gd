@@ -42,7 +42,7 @@ static func capture_combat(combat: CombatWorld) -> Array:
 	var mines := PackedFloat32Array()
 	for m in combat.mines:
 		mines.append_array([m.owner, m.pos.x, m.pos.y, m.age])
-	return [ammo, timers, shots, mines]
+	return [ammo, timers, shots, mines, 1 if combat.locked else 0]
 
 
 static func encode(snap: Array) -> PackedByteArray:
@@ -141,3 +141,5 @@ static func apply_combat(combat: CombatWorld, c: Array) -> void:
 	for k in range(0, mine_data.size(), 4):
 		mines.append({"owner": int(mine_data[k]), "pos": Vector2(mine_data[k + 1], mine_data[k + 2]), "age": mine_data[k + 3]})
 	combat.mines = mines
+	if c.size() > 4:
+		combat.locked = int(c[4]) == 1  # Weapons Hot: the host's lock

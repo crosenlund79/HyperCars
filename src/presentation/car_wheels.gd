@@ -1,7 +1,7 @@
 class_name CarWheels
 extends Node2D
 ## Four instances of the shared wheel under a car's body (P2). The front wheels
-## turn with the steering (about +-10 degrees), the rear wheels shift a pixel
+## turn with the steering (about +-26 degrees), the rear wheels shift a pixel
 ## or two sideways under cornering load; both ease back to neutral.
 ## Read-only presentation: it follows the car's visible state (the steering
 ## command when the car is simulated here, otherwise its turning rate, e.g. a

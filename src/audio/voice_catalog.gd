@@ -13,7 +13,11 @@ extends RefCounted
 ## 1.0; small = rare), "min_count" (only once this interaction has happened at
 ## least that many times in the race: escalating lines).
 
-enum Event { PLAYER_DESTROYED, PLAYER_HIT_WALL, RIVAL_OVERTOOK_PLAYER }
+enum Event { PLAYER_DESTROYED, PLAYER_HIT_WALL, RIVAL_OVERTOOK_PLAYER, WEAPONS_HOT }
+
+## Race announcements: always said when nothing is playing (no random
+## silence, and the short gap after a line does not hold them back).
+const ANNOUNCEMENTS: Array[Event] = [Event.WEAPONS_HOT]
 
 ## Speaker ids: the announcer, or a rival's racer id (RivalRoster, 1..9).
 const ANNOUNCER := -1
@@ -32,6 +36,8 @@ const LINES: Array[Dictionary] = [
 		"event": Event.RIVAL_OVERTOOK_PLAYER, "source": "the Hunter - Thank you (if overtaken by The Hunter).mp3"},
 	{"id": "victor_clean", "logical": "voice/victor_clean", "speaker": VICTOR,
 		"event": Event.RIVAL_OVERTOOK_PLAYER, "source": "The Professor - Clean (if overtaken by The Professor).mp3"},
+	{"id": "announcer_weapons_hot", "logical": "voice/announcer_weapons_hot", "speaker": ANNOUNCER,
+		"event": Event.WEAPONS_HOT, "source": "Announcer - Weapons Hot (When all drivers have passed the starting line - and weapons are unlocked).mp3"},
 ]
 
 

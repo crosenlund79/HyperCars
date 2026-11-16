@@ -11,6 +11,8 @@ var control_mode: ControlMode = ControlMode.FIRE_TO_ACCELERATE
 var position := Vector2.ZERO
 var heading := 0.0
 var velocity := Vector2.ZERO
+## Extra rotation (rad/s) from being struck by another car; fades quickly.
+var yaw_rate := 0.0
 
 
 func _init(p_params: DrivingParams = null, p_mode: ControlMode = ControlMode.FIRE_TO_ACCELERATE) -> void:
@@ -46,6 +48,11 @@ func update(delta: float, steer: float, fire: bool) -> void:
 	if params.full_steer_speed > 0.0:
 		steer_factor = clampf(velocity.length() / params.full_steer_speed, 0.0, 1.0)
 	heading = wrapf(heading + clampf(steer, -1.0, 1.0) * deg_to_rad(params.turn_rate_degrees) * steer_factor * delta, -PI, PI)
+	if yaw_rate != 0.0:  # knocked by another car (see resolve_car_collision)
+		heading = wrapf(heading + yaw_rate * delta, -PI, PI)
+		yaw_rate *= exp(-params.contact_yaw_damping * delta)
+		if absf(yaw_rate) < 0.01:
+			yaw_rate = 0.0
 
 	var fwd_dir := forward()
 	var side_dir := fwd_dir.orthogonal()
@@ -80,7 +87,10 @@ func apply_wall_collision(normal: Vector2) -> void:
 
 ## Equal-mass contact between two cars. normal points from b towards a.
 ## Only the closing velocity along the normal changes, identically for both cars.
-static func resolve_car_collision(a: CarModel, b: CarModel, normal: Vector2) -> void:
+## With the contact point (and both cars' centres), each car is also turned a
+## little by where it was struck (rear quarter most, nose least).
+static func resolve_car_collision(a: CarModel, b: CarModel, normal: Vector2, contact := Vector2.INF,
+		a_centre := Vector2.ZERO, b_centre := Vector2.ZERO) -> void:
 	var closing := (a.velocity - b.velocity).dot(normal)
 	if closing >= 0.0:
 		return
@@ -88,3 +98,18 @@ static func resolve_car_collision(a: CarModel, b: CarModel, normal: Vector2) -> 
 	var impulse := -(1.0 + restitution) * closing * 0.5
 	a.velocity += normal * impulse
 	b.velocity -= normal * impulse
+	if contact != Vector2.INF:
+		a.apply_contact_yaw(contact - a_centre, normal * impulse)
+		b.apply_contact_yaw(contact - b_centre, -normal * impulse)
+
+
+## Yaw from an impulse j (px/s) received at offset r (px) from the car's centre.
+func apply_contact_yaw(r: Vector2, j: Vector2) -> void:
+	if params.contact_yaw_factor <= 0.0:
+		return
+	var along := r.dot(forward()) / params.car_half_length  # -1 tail .. +1 nose
+	var where := params.contact_front_factor
+	if along < 0.0:
+		where = lerpf(params.contact_front_factor, 1.0, clampf(-along / 0.6, 0.0, 1.0))
+	var kick := params.contact_yaw_factor * where * r.cross(j) / (params.car_half_length * params.car_half_length)
+	yaw_rate = clampf(yaw_rate + kick, -params.contact_yaw_max, params.contact_yaw_max)

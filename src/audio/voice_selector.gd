@@ -12,6 +12,7 @@ var rng: RandomNumberGenerator
 var available: Callable
 
 var _quiet_until := -INF
+var _speaking_until := -INF
 var _last_line := ""
 var _speaker_last := {}
 var _interactions := {}
@@ -28,6 +29,7 @@ func _init(p_params: VoiceParams, p_rng: RandomNumberGenerator = null) -> void:
 ## New race: forget everything said and seen.
 func reset() -> void:
 	_quiet_until = -INF
+	_speaking_until = -INF
 	_last_line = ""
 	_speaker_last.clear()
 	_interactions.clear()
@@ -50,7 +52,10 @@ func interaction_count(event: int, speaker: int) -> int:
 func choose(now: float, events: Array) -> Dictionary:
 	var pool: Array = []
 	var silence := 0.0
+	var announcement := false
 	for e in events:
+		if VoiceCatalog.ANNOUNCEMENTS.has(e.event):
+			announcement = true
 		var key := Vector2i(e.event, e.speaker)
 		var memory: Dictionary = _interactions.get(key, {"count": 0, "last": -INF})
 		var count: int = memory.count + 1
@@ -72,7 +77,15 @@ func choose(now: float, events: Array) -> Dictionary:
 					w *= params.same_line_factor
 				pool.append([line, w])
 		_interactions[key] = {"count": count, "last": now}
-	if pool.is_empty() or busy(now):
+	if pool.is_empty():
+		return {}
+	if announcement:  # an official race announcement: said unless a line is still playing
+		if now < _speaking_until:
+			return {}
+		for p in pool:
+			if VoiceCatalog.ANNOUNCEMENTS.has(p[0].event):
+				return p[0]
+	if busy(now):
 		return {}
 	var recent := 0
 	for t in _spoken_at:
@@ -93,6 +106,7 @@ func choose(now: float, events: Array) -> Dictionary:
 ## A line started playing now and lasts `duration` seconds.
 func spoke(line: Dictionary, now: float, duration: float) -> void:
 	_quiet_until = now + duration + params.min_gap
+	_speaking_until = now + duration
 	_last_line = line.id
 	_speaker_last[line.speaker] = now
 	_spoken_at.append(now)
@@ -105,4 +119,5 @@ func _silence_for(event: int) -> float:
 		VoiceCatalog.Event.PLAYER_DESTROYED: return params.silence_destroyed
 		VoiceCatalog.Event.RIVAL_OVERTOOK_PLAYER: return params.silence_overtake
 		VoiceCatalog.Event.PLAYER_HIT_WALL: return params.silence_wall
+		VoiceCatalog.Event.WEAPONS_HOT: return 0.0
 	return 1.0

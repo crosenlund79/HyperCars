@@ -15,6 +15,7 @@ var _main: Node2D
 func before_each() -> void:
 	_main = MAIN_SCENE.instantiate()
 	_main.presentation_enabled = false
+	_main.weapons_lock_enabled = false  # these tests fire at once (the start lock: test_weapons_hot.gd)
 	add_child_autofree(_main)
 	await wait_physics_frames(2)
 
@@ -35,8 +36,8 @@ func _tap(action: String) -> void:
 
 
 func test_classic_reproduces_m3_combat_exactly() -> void:
-	assert_eq(ProbeRunner.run(["mode=race", "ticks=1800", "weapons=1", "damage=0"]), M3_CLASSIC_RACE_HASH)
-	assert_eq(ProbeRunner.run(["mode=spectate", "ticks=1800", "weapons=1", "damage=0"]), M3_CLASSIC_SPECTATE_HASH)
+	assert_eq(ProbeRunner.run(["mode=race", "ticks=1800", "weapons=1", "damage=0", "lock=0", "contact=0"]), M3_CLASSIC_RACE_HASH)
+	assert_eq(ProbeRunner.run(["mode=spectate", "ticks=1800", "weapons=1", "damage=0", "lock=0", "contact=0"]), M3_CLASSIC_SPECTATE_HASH)
 
 
 func test_tactical_is_identical_at_normal_and_fast_speed() -> void:

@@ -128,6 +128,8 @@ func _collect_destructions() -> void:
 		var e: Dictionary = events[k]
 		if e.kind == "destroyed" and mine.has(e.car):
 			_pending.append({"event": VoiceCatalog.Event.PLAYER_DESTROYED, "speaker": VoiceCatalog.ANNOUNCER})
+		elif e.kind == "unlock":  # Weapons Hot (also when spectating: a race announcement)
+			_pending.append({"event": VoiceCatalog.Event.WEAPONS_HOT, "speaker": VoiceCatalog.ANNOUNCER})
 	_event_index = events.size()
 
 

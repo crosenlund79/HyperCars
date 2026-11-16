@@ -16,7 +16,7 @@ extends Resource
 
 @export_group("Motion (visual only)")
 ## Front wheels: angle at full steering, and smoothing time (s).
-@export var max_steer_degrees := 10.0
+@export var max_steer_degrees := 26.0
 @export var steer_smoothing := 0.08
 ## Rear wheels: sideways shift at the hardest cornering (display px), and
 ## smoothing time (s).

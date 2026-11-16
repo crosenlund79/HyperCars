@@ -52,6 +52,11 @@ func drive(race: Node, _step: float) -> Dictionary:
 	return {"steer": _steer, "fire": _fire}
 
 
+func discard_pending_shots() -> void:
+	_front_used = _front_total
+	_rear_used = _rear_total
+
+
 ## One shot per new press (at most one per slot per tick, like a local player).
 func weapons(race: Node, _step: float, _states: Array) -> Dictionary:
 	var out := {"front": false, "rear": false}

@@ -37,6 +37,7 @@ func after_each() -> void:
 func _make(role: NetRace.Role, parent: Node) -> Node2D:
 	var m: Node2D = MAIN_SCENE.instantiate()
 	m.presentation_enabled = false
+	m.weapons_lock_enabled = false  # these tests fire at once (the start lock: test_weapons_hot.gd)
 	m.human_count = 2
 	m.net = NetRace.new(host_link if role == NetRace.Role.HOST else client_link, role)
 	parent.add_child(m)

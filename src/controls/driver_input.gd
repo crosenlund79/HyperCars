@@ -31,5 +31,11 @@ func weapons(_race: Node, _step: float, _states: Array) -> Dictionary:
 
 
 ## The car was destroyed.
+## Weapons Hot: weapon presses made while weapons were locked are dropped
+## (never fired later).
+func discard_pending_shots() -> void:
+	pass
+
+
 func on_destroyed() -> void:
 	pass

@@ -16,6 +16,9 @@ const W := WeaponRules.Weapon
 
 var rules: WeaponRules
 var enabled := false
+## Weapons Hot: until the whole starting field has crossed the start line
+## nobody can fire (no shot, no ammunition, no cooldown, no event).
+var locked := false
 var style: WeaponRules.Style = WeaponRules.Style.CLASSIC
 var path: ClosedPath
 ## J4: the track layout when it has road levels (elevation zones); null on a
@@ -81,6 +84,7 @@ func reset() -> void:
 	projectiles.clear()
 	mines.clear()
 	events.clear()
+	locked = false
 
 
 func car_count() -> int:
@@ -109,7 +113,7 @@ func weapon_of(id: int, slot: int) -> int:
 
 
 func can_fire(id: int, slot: int) -> bool:
-	return enabled and not is_wrecked(id) and cooldown[id] <= 0.0 and ammo[id][slot] > 0 \
+	return enabled and not locked and not is_wrecked(id) and cooldown[id] <= 0.0 and ammo[id][slot] > 0 \
 		and weapon_of(id, slot) != W.NONE \
 		and (style == WeaponRules.Style.CLASSIC or slot_cooldown[id][slot] <= 0.0)
 
@@ -131,7 +135,7 @@ func slot_cooldown_length(slot: int) -> float:
 ## Fire request from a car (player key or AI decision). cars: see step().
 ## Returns true when a weapon was launched.
 func request(id: int, slot: int, cars: Array) -> bool:
-	if not enabled or is_wrecked(id) or cooldown[id] > 0.0:
+	if not enabled or locked or is_wrecked(id) or cooldown[id] > 0.0:
 		return false
 	var tactical := style == WeaponRules.Style.TACTICAL
 	if tactical and slot_cooldown[id][slot] > 0.0:
@@ -350,6 +354,16 @@ func _follow_level(p: Dictionary) -> void:
 	p.hint = proj.index
 	p.level = layout.level_at(proj.distance, path.length)
 	p.band = layout.in_transition(proj.distance, path.length)
+
+
+## Weapons Hot: the starting field is through, weapons are live for everyone
+## (logged once as an "unlock" event, so presentation and the network client
+## see the exact moment).
+func unlock() -> void:
+	if not locked:
+		return
+	locked = false
+	events.append({"kind": "unlock", "type": W.NONE, "pos": Vector2.ZERO, "car": -1, "owner": -1})
 
 
 ## Exact combat state for determinism checks.

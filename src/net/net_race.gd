@@ -13,7 +13,7 @@ enum Role { HOST, CLIENT }
 enum Msg { WELCOME, HELLO, SETUP, READY, START, SNAP, INPUT, RESULTS, EVENTS, BYE, REJECT, JOINED }
 
 ## Wire protocol version and game build: both must match before a session starts.
-const PROTOCOL := 3  # 3: M6 condition / DNF in snapshots
+const PROTOCOL := 4  # 3: M6 condition / DNF in snapshots; 4: Weapons Hot lock
 const GAME_BUILD := "hypercars-m5.2"
 
 

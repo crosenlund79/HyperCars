@@ -25,9 +25,10 @@ const M6_FINGERPRINTS := {
 
 func test_single_player_and_spectator_fingerprints_unchanged() -> void:
 	for args in FINGERPRINTS:
-		assert_eq(ProbeRunner.run(PackedStringArray((args + " damage=0").split(" "))), FINGERPRINTS[args], args + " (damage off)")
+		assert_eq(ProbeRunner.run(PackedStringArray((args + " damage=0 lock=0 contact=0").split(" "))), FINGERPRINTS[args],
+			args + " (damage, weapons lock and contact yaw off)")
 
 
 func test_m6_damage_fingerprints() -> void:
 	for args in M6_FINGERPRINTS:
-		assert_eq(ProbeRunner.run(PackedStringArray(args.split(" "))), M6_FINGERPRINTS[args], args)
+		assert_eq(ProbeRunner.run(PackedStringArray((args + " lock=0 contact=0").split(" "))), M6_FINGERPRINTS[args], args + " (weapons lock and contact yaw off)")

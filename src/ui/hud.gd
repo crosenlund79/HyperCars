@@ -39,6 +39,8 @@ var _cond_bar: ColorRect
 var _cond_label: Label
 var _out_label: Label
 var _cond_shown := 1.0
+## Weapons Hot: "WEAPONS LOCKED" under the weapon slots until the field is through.
+var _lock_label: Label
 var _weapon_textures: Dictionary = {}
 var _tower: VBoxContainer
 var _tower_box: VBoxContainer
@@ -126,6 +128,9 @@ func setup(resolver: AssetResolver) -> void:
 	_combat_box.add_child(_weapon_slot("F", _front_icon, _front_label, _front_bar))
 	_combat_box.add_child(_weapon_slot("R", _rear_icon, _rear_label, _rear_bar))
 	_combat_box.visible = false
+	_lock_label = HyperTheme.label("WEAPONS LOCKED", 15, Color("e0704f"), 700)
+	_lock_label.visible = false
+	box.add_child(_lock_label)
 	_cond_row = HBoxContainer.new()
 	_cond_row.add_theme_constant_override("separation", 6)
 	_cond_row.add_child(HyperTheme.label("CAR", 13, HyperTheme.CREAM_DIM, 700))
@@ -283,6 +288,17 @@ func update_combat(enabled: bool, front: int, front_ammo: int, rear: int, rear_a
 	_set_slot(_front_icon, _front_label, _front_bar, front, front_ammo, front_cooldown)
 	_set_slot(_rear_icon, _rear_label, _rear_bar, rear, rear_ammo, rear_cooldown)
 	_wreck_label.text = "DESTROYED  %.1f" % wreck_left
+
+
+## Weapons Hot: show the lock while weapons are on but not yet live.
+func set_weapons_locked(on: bool) -> void:
+	_lock_label.visible = on and _combat_box.visible and not _results_up
+	if _lock_label.visible:
+		_lock_label.modulate.a = 0.7 + 0.3 * absf(sin(Time.get_ticks_msec() / 260.0))
+
+
+func weapons_locked_shown() -> bool:
+	return _lock_label.visible
 
 
 ## M6: the car's condition (0..1). since_hit: seconds since it last took

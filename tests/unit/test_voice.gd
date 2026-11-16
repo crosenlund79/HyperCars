@@ -37,6 +37,7 @@ func test_every_supplied_recording_is_mapped_to_its_event_and_speaker() -> void:
 		"Rocco - Laughing (if overtaken by Rocco).mp3": [E.RIVAL_OVERTOOK_PLAYER, 2],
 		"the Hunter - Thank you (if overtaken by The Hunter).mp3": [E.RIVAL_OVERTOOK_PLAYER, 9],
 		"The Professor - Clean (if overtaken by The Professor).mp3": [E.RIVAL_OVERTOOK_PLAYER, 1],
+		"Announcer - Weapons Hot (When all drivers have passed the starting line - and weapons are unlocked).mp3": [E.WEAPONS_HOT, VoiceCatalog.ANNOUNCER],
 	}
 	assert_eq(VoiceCatalog.LINES.size(), expected.size())
 	var r := AssetResolver.new(_root)

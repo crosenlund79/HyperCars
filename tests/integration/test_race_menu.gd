@@ -85,12 +85,12 @@ func test_gameplay_controls_do_nothing_while_the_menu_is_open() -> void:
 
 
 func test_a_paused_and_resumed_race_is_identical_to_one_never_paused() -> void:
-	# established fingerprints (M6, with vehicle damage), the same with a
-	# 90-frame pause mid-race
-	assert_eq(ProbeRunner.run(PackedStringArray(["mode=race", "ticks=3600", "weapons=1", "style=1", "pause=1200"])),
-		"4f16242a5a774e12857f22320c4becbe", "racing")
-	assert_eq(ProbeRunner.run(PackedStringArray(["mode=spectate", "ticks=4800", "weapons=1", "pause=1500"])),
-		"b2054bce9ce15b9d2cee135243950e90", "spectating")
+	# the same fingerprint as an unpaused race (fresh processes), with a 90-frame pause mid-race
+	for c in [[["mode=race", "ticks=3600", "weapons=1", "style=1"], "pause=1200", "racing"],
+			[["mode=spectate", "ticks=4800", "weapons=1"], "pause=1500", "spectating"]]:
+		var plain := ProbeRunner.run(PackedStringArray(c[0]))
+		assert_ne(plain, "")
+		assert_eq(ProbeRunner.run(PackedStringArray(c[0] + [c[1]])), plain, c[2])
 
 
 func test_couch_race_pauses_for_either_player() -> void:

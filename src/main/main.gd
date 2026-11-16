@@ -125,6 +125,14 @@ var jump_view: JumpView = null
 var damage: DamageWorld
 var damage_rules: DamageRules = preload("res://src/damage/default_damage_rules.tres")
 var damage_enabled := true
+## Weapons Hot: weapons stay locked until every car in the race has crossed the
+## start line for the first time (or weapons_lock_timeout has passed, so a car
+## that never leaves the grid cannot hold everyone's weapons). off = no lock.
+var weapons_lock_enabled := true
+var weapons_lock_timeout := 15.0
+## Per car: has crossed the start line for the first time this race.
+var _crossed_start := PackedByteArray()
+signal weapons_unlocked
 var damage_view: DamageView = null
 ## Commentary and rival taunts (presentation; off with presentation_enabled).
 var voice: VoiceDirector = null
@@ -693,6 +701,7 @@ func on_network_start(race_number: int = races_started) -> void:
 	combat.reset()
 	combat.enabled = weapons_enabled
 	combat.style = combat_style
+	combat.locked = weapons_enabled and weapons_lock_enabled  # until the host says otherwise
 	_apply_loadouts()
 	hud.hide_message()
 	hud.flash_banner("GO!", HyperTheme.GOLD, GO_BANNER_HOLD)
@@ -892,6 +901,10 @@ func start_race() -> void:
 	if session.state != RaceSession.State.MODE_SELECT:
 		return
 	races_started += 1
+	# Weapons Hot: locked for everyone until the whole field is through the start line
+	combat.locked = combat.enabled and weapons_lock_enabled
+	_crossed_start.resize(cars.size())
+	_crossed_start.fill(0)
 	for id in session.human_ids:
 		if id < cars.size():
 			cars[id].model.control_mode = player_control_modes.get(id, session.control_mode)
@@ -1247,6 +1260,7 @@ func _refresh_hud() -> void:
 		combat.weapon_of(me, CombatWorld.REAR), combat.ammo[me][CombatWorld.REAR], combat.wreck_left[me],
 		_cooldown_fraction(CombatWorld.FRONT, me), _cooldown_fraction(CombatWorld.REAR, me))
 	_refresh_condition(hud, me)
+	hud.set_weapons_locked(combat.enabled and combat.locked and session.state != RaceSession.State.FINISHED)
 	if session.state == RaceSession.State.FINISHED:
 		if net != null:
 			hud.show_results(session.standings(), "Fire: next race" if net.is_host() else "Waiting for the host to continue")
@@ -1265,6 +1279,7 @@ func _refresh_player_hud(view_hud: Hud, id: int) -> void:
 		combat.weapon_of(id, CombatWorld.REAR), combat.ammo[id][CombatWorld.REAR], combat.wreck_left[id],
 		_cooldown_fraction(CombatWorld.FRONT, id), _cooldown_fraction(CombatWorld.REAR, id))
 	_refresh_condition(view_hud, id)
+	view_hud.set_weapons_locked(combat.enabled and combat.locked and session.state != RaceSession.State.FINISHED)
 
 
 ## M6: a HUD's condition row for racer id (own_car: the DNF notice is shown).
@@ -1356,12 +1371,15 @@ func _on_checkpoint_reached(index: int, body: Node2D) -> void:
 ## decisions become fire requests (same rules for all), then the combat world
 ## advances; destroyed cars stop where they are, respawned cars carry on.
 func _combat_tick(step: float) -> void:
+	_update_weapons_lock()
 	var states := _combat_states()
 	for id in session.human_ids:
 		if grid_order.has(id):
-			_request_weapons(id, inputs[id].weapons(self, step, states), states)
-	if session.state != RaceSession.State.MODE_SELECT:
-		for id in grid_order:
+			var cmd := inputs[id].weapons(self, step, states)
+			if not combat.locked:  # presses while locked are dropped, never fired later
+				_request_weapons(id, cmd, states)
+	if session.state != RaceSession.State.MODE_SELECT and not combat.locked:
+		for id in grid_order:  # (rivals do not even decide while locked: nothing stockpiled)
 			if not inputs[id].is_human():
 				_request_weapons(id, inputs[id].weapons(self, step, states), states)
 	var first_event := combat.events.size()
@@ -1378,6 +1396,27 @@ func _combat_tick(step: float) -> void:
 		cars[id].model.velocity = Vector2.ZERO
 		if session.state != RaceSession.State.MODE_SELECT and not damage.is_retired(id):
 			cars[id].active = true
+
+
+## Weapons Hot: unlocks once every car still in the race has crossed the
+## start line for the first time (race distance from below zero to zero or
+## more), or after weapons_lock_timeout seconds of racing.
+func _update_weapons_lock() -> void:
+	if not combat.locked or session.state != RaceSession.State.RACING:
+		return
+	var all_through := true
+	for id in grid_order:
+		if progress[id].distance >= 0.0:
+			_crossed_start[id] = 1  # a real first crossing; later moves never undo it
+		if not session.is_participating(id) or session.racers[id].is_done():
+			continue  # retired / finished cars never hold the field
+		if _crossed_start[id] == 0:
+			all_through = false
+	if all_through or session.elapsed >= weapons_lock_timeout:
+		combat.unlock()
+		for id in grid_order:
+			inputs[id].discard_pending_shots()
+		weapons_unlocked.emit()
 
 
 func _request_weapons(id: int, cmd: Dictionary, states: Array) -> void:
