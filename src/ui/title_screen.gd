@@ -21,9 +21,9 @@ var _laps_button: Button
 ## Track theme variant for racing and spectating (saved); the backdrop shows it.
 var track_variant := 1
 var _track_button: Button
-## Track layout id (DevLayouts; "" = Classic Circuit). Not saved: a launch starts
-## on the classic circuit unless the developer "--layout=<id>" argument is given.
-var layout_id: String = DevLayouts.selected_id()
+## Track layout id (DevLayouts). Not saved: a launch starts on Kestrel Ridge
+## (DevLayouts.DEFAULT) unless the developer "--layout=<id>" argument is given.
+var layout_id: String = DevLayouts.initial_id()
 var _layout_button: Button
 ## Combat style preference (WeaponRules.Style) for racing and spectating (saved).
 var combat_style := 0
@@ -274,10 +274,10 @@ func _cycle_track() -> void:
 	_camera.make_current()
 
 
-## Classic Circuit -> Figure Eight (Experimental) -> ... (not saved).
+## The player layouts in turn (not saved).
 func _cycle_layout() -> void:
 	_sfx_play("ui/ui_select")
-	var ids := DevLayouts.ids()
+	var ids := DevLayouts.ids(layout_id)
 	layout_id = ids[(ids.find(layout_id) + 1) % ids.size()]
 	_update_layout_button()
 	var pan := _pan

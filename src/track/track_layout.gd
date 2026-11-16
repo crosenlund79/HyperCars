@@ -38,7 +38,18 @@ extends Resource
 ## in px along the centreline: a ramp rises over ramp_length up to the lip at
 ## arc distance `lip`; the gap_length after it has no road (a pit) and must be
 ## flown over. Empty (every normal circuit) = no jumps.
+## A jump on the ground needs its own straight away from every crossing. A
+## FLYOVER jump sits on an elevated stretch (inside an elevation zone) whose
+## gap spans the road crossing underneath: cars fly over the traffic below.
 @export var jumps: PackedVector3Array = PackedVector3Array()
+## Optional jump physics for this layout (null = res://src/race/default_jump_rules.tres).
+@export var jump_rules: JumpRules = null
+## Optional narrower stretches of road, each Vector3(start, end, width) in px
+## along the centreline; the road tapers from road_width to `width` over
+## NARROW_TAPER at either end. Empty = the same width everywhere.
+@export var narrow_sections: PackedVector3Array = PackedVector3Array()
+## Display name of the circuit (empty = unnamed; DevLayouts names legacy ones).
+@export var display_name := ""
 
 ## Room beyond the road edge (px) that crossings, zone ends, checkpoint gates
 ## and the grid keep from the other road (barrier + a car length + margin).
@@ -53,6 +64,16 @@ const JUMP_RUNWAY := 200.0
 ## road are never on different levels while they touch. Must stay below
 ## GATE_ZONE_MARGIN; zone ends are validated to be far from the other road.
 const TRANSITION_BAND := 80.0
+## Length over which a narrow section tapers from / to the full width (px).
+const NARROW_TAPER := 120.0
+## Narrowest road a layout may use (px): two cars side by side.
+const MIN_NARROW_WIDTH := 96.0
+## A flyover jump's gap must span the road below plus its barriers and this margin (px).
+const FLYOVER_MARGIN := 20.0
+## Barrier strip width assumed by validation (px; the template barrier is 20).
+const BARRIER_ALLOWANCE := 20.0
+## A flyover jump keeps this much elevated road after its gap to land on (px).
+const FLYOVER_LANDING := 120.0
 
 
 ## Grid slot (0 = pole) as {distance_behind_line, lateral}; lateral > 0 = right.
@@ -85,7 +106,72 @@ func validate() -> PackedStringArray:
 	if errors.is_empty():
 		errors.append_array(validate_elevation())
 		errors.append_array(validate_jumps())
+		errors.append_array(validate_narrow_sections())
 	return errors
+
+
+## Half the drivable width at arc distance s (road_width / 2 except in a
+## narrow section, which tapers smoothly in and out).
+func half_width_at(s: float, lap_length: float) -> float:
+	var width := road_width
+	if narrow_sections.is_empty():
+		return width * 0.5
+	var w := fposmod(s, lap_length)
+	for n in narrow_sections:
+		if w > n.x and w < n.y:
+			var k := smoothstep(0.0, 1.0, clampf(minf(w - n.x, n.y - w) / NARROW_TAPER, 0.0, 1.0))
+			width = minf(width, lerpf(road_width, n.z, k))
+	return width * 0.5
+
+
+## half_width_at for every centreline sample.
+func half_widths(centerline: PackedVector2Array) -> PackedFloat32Array:
+	var out := PackedFloat32Array()
+	var path := ClosedPath.new(centerline)
+	for i in centerline.size():
+		out.append(half_width_at(path.cumulative[i], path.length))
+	return out
+
+
+## Problems with the narrow sections (empty when valid): on the ground, away
+## from crossings, the grid and jumps, not overlapping, wide enough for two cars.
+func validate_narrow_sections() -> PackedStringArray:
+	var errors := PackedStringArray()
+	if narrow_sections.is_empty():
+		return errors
+	var c := sample_centerline()
+	var path := ClosedPath.new(c)
+	var crossings := find_crossings(c)
+	for k in narrow_sections.size():
+		var n := narrow_sections[k]
+		if n.z < MIN_NARROW_WIDTH or n.z >= road_width:
+			errors.append("narrow section %d: width must be %.0f..%.0f px" % [k, MIN_NARROW_WIDTH, road_width])
+		if n.x < 0.0 or n.y > path.length - grid_extent() or n.y - n.x < 2.0 * NARROW_TAPER:
+			errors.append("narrow section %d must lie within the lap, clear of the grid, longer than its tapers" % k)
+		var s := n.x
+		while s <= n.y:
+			if level_at(s, path.length) != 0:
+				errors.append("narrow section %d must be on the ground level" % k)
+				break
+			s += sample_spacing
+		for x in crossings:
+			var reach := crossing_reach(x.angle)
+			for s_branch in [x.s_a, x.s_b]:
+				if s_branch > n.x - reach and s_branch < n.y + reach:
+					errors.append("narrow section %d is too close to a crossing" % k)
+		for j in jumps:
+			if n.x < j.x + j.z + JUMP_RUNWAY and j.x - j.y - JUMP_RUNWAY < n.y:
+				errors.append("narrow section %d overlaps a jump" % k)
+		for m in range(k + 1, narrow_sections.size()):
+			var o := narrow_sections[m]
+			if n.x < o.y and o.x < n.y:
+				errors.append("narrow sections %d and %d overlap" % [k, m])
+	return errors
+
+
+## A flyover jump: on an elevated stretch, flying over the road below.
+func is_flyover(k: int, lap_length: float) -> bool:
+	return level_at(jumps[k].x, lap_length) == 1
 
 
 func has_elevation() -> bool:
@@ -133,14 +219,20 @@ func validate_jumps() -> PackedStringArray:
 			if absf(tans[i].angle_to(dir)) > 0.02:
 				errors.append("jump %d must be on one straight (with %.0f px either side)" % [k, JUMP_RUNWAY])
 				break
-			if level_at(s, path.length) != 0 or in_transition(s, path.length):
-				errors.append("jump %d must be on the ground, clear of bridge ends" % k)
-				break
 			s += sample_spacing
-		for x in crossings:
-			for s_branch in [x.s_a, x.s_b]:
-				if s_branch > from - crossing_reach(x.angle) and s_branch < to + crossing_reach(x.angle):
-					errors.append("jump %d is too close to a crossing" % k)
+		if is_flyover(k, path.length):
+			errors.append_array(_validate_flyover(k, path, crossings))
+		else:
+			s = from
+			while s <= to:
+				if level_at(s, path.length) != 0 or in_transition(s, path.length):
+					errors.append("jump %d must be on the ground, clear of bridge ends" % k)
+					break
+				s += sample_spacing
+			for x in crossings:
+				for s_branch in [x.s_a, x.s_b]:
+					if s_branch > from - crossing_reach(x.angle) and s_branch < to + crossing_reach(x.angle):
+						errors.append("jump %d is too close to a crossing" % k)
 		for m in range(k + 1, jumps.size()):
 			var o := jumps[m]
 			if from < o.x + o.z + JUMP_RUNWAY and o.x - o.y - JUMP_RUNWAY < to:
@@ -149,6 +241,32 @@ func validate_jumps() -> PackedStringArray:
 	for g in range(1, gates.size()):
 		if not _gate_allowed(path.cumulative[gates[g]], c[gates[g]], path, crossings):
 			errors.append("checkpoint %d could not be placed clear of the jumps" % g)
+	return errors
+
+
+## A flyover jump: ramp, gap and landing on the elevated level (clear of the
+## zone ends), and the gap spans exactly one crossing: the whole road below
+## with its barriers (and a margin), so nothing below is under the deck.
+func _validate_flyover(k: int, path: ClosedPath, crossings: Array[Dictionary]) -> PackedStringArray:
+	var errors := PackedStringArray()
+	var j := jumps[k]
+	var s := j.x - j.y
+	while s <= j.x + j.z + FLYOVER_LANDING:
+		if level_at(s, path.length) != 1 or in_transition(s, path.length):
+			errors.append("flyover jump %d: ramp, gap and landing must be on the elevated road, clear of its ends" % k)
+			break
+		s += sample_spacing
+	var spanned := 0
+	for x in crossings:
+		var s_up: float = x.s_a if level_at(x.s_a, path.length) == 1 else x.s_b
+		var foot := (road_width * 0.5 + BARRIER_ALLOWANCE + FLYOVER_MARGIN) / maxf(sin(x.angle), 0.2)
+		if s_up > j.x - j.y - JUMP_RUNWAY and s_up < j.x + j.z + JUMP_RUNWAY:
+			if s_up - foot >= j.x and s_up + foot <= j.x + j.z:
+				spanned += 1
+			else:
+				errors.append("flyover jump %d: the gap must span the whole road below (%.0f px either side)" % [k, foot])
+	if spanned != 1:
+		errors.append("flyover jump %d must fly over exactly one crossing" % k)
 	return errors
 
 
@@ -367,6 +485,16 @@ static func offset_line(centerline: PackedVector2Array, distance: float) -> Pack
 	for i in centerline.size():
 		var right := Vector2(-tans[i].y, tans[i].x)
 		out.append(centerline[i] + right * distance)
+	return out
+
+
+## Centreline offset sideways per sample: distances[i] * side (side +1 = right).
+static func offset_line_by(centerline: PackedVector2Array, distances: PackedFloat32Array, side: float) -> PackedVector2Array:
+	var out := PackedVector2Array()
+	var tans := tangents(centerline)
+	for i in centerline.size():
+		var right := Vector2(-tans[i].y, tans[i].x)
+		out.append(centerline[i] + right * distances[i] * side)
 	return out
 
 

@@ -129,7 +129,7 @@ func test_bad_address_and_unreachable_host_give_clear_messages() -> void:
 
 func test_client_races_on_the_hosts_layout() -> void:
 	host_game.title.layout_id = "exp_figure8_01"
-	assert_eq(client_game.title.layout_id, DevLayouts.CLASSIC, "the client's own choice is the classic circuit")
+	assert_eq(client_game.title.layout_id, DevLayouts.DEFAULT, "the client's own choice is the default circuit")
 	await _connect_both()
 	assert_not_null(host_game.race)
 	assert_not_null(client_game.race)

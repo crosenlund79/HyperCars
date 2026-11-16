@@ -112,7 +112,7 @@ func decide(me: Dictionary, others: Array, delta: float) -> Dictionary:
 	if not passing and params.defend_distance > 0.0:
 		var chaser := _closing_car_behind(me, others)
 		if not chaser.is_empty():
-			var limit_d := line.road_half_width - params.pass_margin
+			var limit_d := line.half_width_at(s) - params.pass_margin
 			target_lateral = lerpf(target_lateral, clampf(chaser.lateral, -limit_d, limit_d), params.defend_strength)
 			blocked = true
 			if not _defending:
@@ -135,7 +135,7 @@ func decide(me: Dictionary, others: Array, delta: float) -> Dictionary:
 	if flustered:
 		lookahead *= 1.0 - params.fluster_overcorrection
 		deadband *= 1.0 - params.fluster_overcorrection
-	var limit := line.road_half_width - params.pass_margin
+	var limit := minf(line.half_width_at(s), line.half_width_at(s + lookahead)) - params.pass_margin
 	var aim_lateral := clampf(line.offset_at(s + lookahead) + lane_bias, -limit, limit)
 	var aim := line.point_with_lateral(s + lookahead, aim_lateral)
 	var error := wrapf((aim - me.position).angle() - me.heading, -PI, PI)
@@ -199,7 +199,7 @@ func under_pressure(me: Dictionary, others: Array) -> bool:
 
 ## Pass position honouring the driver's side preference and lane-clearance check.
 func _pass_lateral(me: Dictionary, ahead: Dictionary, others: Array, s: float) -> float:
-	var lateral := choose_pass_lateral(me.lateral, ahead.lateral)
+	var lateral := choose_pass_lateral(me.lateral, ahead.lateral, s)
 	if params.pass_side != 0:
 		if not _was_passing or pass_side_choice == 0.0:
 			if params.pass_side == 2:
@@ -207,7 +207,7 @@ func _pass_lateral(me: Dictionary, ahead: Dictionary, others: Array, s: float) -
 			else:
 				pass_side_choice = -_turn_direction(s)
 		var candidate: float = ahead.lateral + pass_side_choice * params.pass_offset
-		if absf(candidate) <= line.road_half_width - params.pass_margin:
+		if absf(candidate) <= line.half_width_at(s) - params.pass_margin:
 			lateral = candidate
 	if not is_nan(lateral) and params.pass_check_clearance:
 		for o in others:
@@ -276,9 +276,9 @@ func _nearest_car_ahead(me: Dictionary, others: Array, any_lane: bool = false) -
 
 ## Lateral position to pass a car at other_lateral: the side with room that is
 ## closest to where we are. NAN when neither side has room inside the road.
-func choose_pass_lateral(my_lateral: float, other_lateral: float) -> float:
+func choose_pass_lateral(my_lateral: float, other_lateral: float, s: float = NAN) -> float:
 	var options: Array[float] = []
-	var limit := line.road_half_width - params.pass_margin
+	var limit := (line.road_half_width if is_nan(s) else line.half_width_at(s)) - params.pass_margin
 	for side in [-1.0, 1.0]:
 		var candidate: float = other_lateral + side * params.pass_offset
 		if absf(candidate) <= limit:

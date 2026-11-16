@@ -37,6 +37,8 @@ var jumps_enabled := true
 
 var centerline := PackedVector2Array()
 var checkpoint_samples := PackedInt32Array()
+## Half the drivable width at each centreline sample (narrow sections).
+var half_widths := PackedFloat32Array()
 ## Centreline as a measurable path (race progress, AI navigation).
 var path: ClosedPath
 
@@ -49,8 +51,12 @@ func build(resolver: AssetResolver, p_theme: TrackTheme = null) -> void:
 	path = ClosedPath.new(centerline)
 	checkpoint_samples = layout.checkpoint_sample_indices(centerline.size(), centerline)
 	var half := layout.road_width * 0.5
+	half_widths = layout.half_widths(centerline)
 	var left_edge := TrackLayout.offset_line(centerline, -half)
 	var right_edge := TrackLayout.offset_line(centerline, half)
+	if not layout.narrow_sections.is_empty():
+		left_edge = TrackLayout.offset_line_by(centerline, half_widths, -1.0)
+		right_edge = TrackLayout.offset_line_by(centerline, half_widths, 1.0)
 	_build_ground(resolver.get_texture(theme.asset(AssetCatalog.GRASS)))
 	_build_road(resolver.get_texture(theme.asset(AssetCatalog.TARMAC)), left_edge, right_edge)
 	_build_start_line(resolver.get_texture(theme.asset(AssetCatalog.START_LINE)))
@@ -104,10 +110,12 @@ func _build_road(texture: Texture2D, left_edge: PackedVector2Array, right_edge: 
 		var j := (i + 1) % n
 		var quad := PackedInt32Array([i, j, n + j, n + i])
 		if layout.has_elevation() and level_of_sample(i) == 1:
-			deck_quads.append(quad)
+			if not in_flyover_gap(i):  # a flyover jump's gap has no deck
+				deck_quads.append(quad)
 		else:
 			quads.append(quad)
 	poly.polygons = quads
+	_build_flyover_ravines()  # under the road crossing below
 	add_child(poly)
 	if not deck_quads.is_empty():
 		# J2: the elevated road is its own surface above the ground level
@@ -155,12 +163,17 @@ func _build_walls(texture: Texture2D, half: float, left_edge: PackedVector2Array
 	# Visual barriers sit just outside the collision faces so the car meets their inner edge.
 	for side in [-1.0, 1.0]:
 		var points := TrackLayout.offset_line(centerline, side * (half + wall_width * 0.5))
+		if not layout.narrow_sections.is_empty():
+			var out := PackedFloat32Array()
+			for h in half_widths:
+				out.append(h + wall_width * 0.5)
+			points = TrackLayout.offset_line_by(centerline, out, side)
 		var line_name := "Barrier%s" % ("Left" if side < 0 else "Right")
 		if not layout.has_elevation():
 			add_child(_barrier_line(line_name, points, true, wall_width, texture))
 			continue
 		# J2: one open line per run of road on one level; bridge railings above the deck
-		for run in _level_runs():
+		for run in _deck_runs():
 			var pts := PackedVector2Array()
 			for k in range(run.from, run.to + 1):  # one shared point joins the runs
 				pts.append(points[k % points.size()])
@@ -212,8 +225,8 @@ func in_transition(s: float) -> bool:
 ## band (near a bridge end) it belongs to both levels; in the air (J3) it meets
 ## only the barriers and other flying cars.
 static func car_collision(level: int, transition: bool = false, airborne: bool = false) -> Vector2i:
-	if airborne:
-		return Vector2i(CAR_AIR_LAYER, WALL_LAYER | CAR_AIR_LAYER)
+	if airborne:  # over a flyover jump: the barriers of its own (elevated) road
+		return Vector2i(CAR_AIR_LAYER, (WALL_LAYER if level == 0 else WALL_UPPER_LAYER) | CAR_AIR_LAYER)
 	if transition:
 		return Vector2i(CAR_LAYER | CAR_UPPER_LAYER, WALL_LAYER | WALL_UPPER_LAYER | CAR_LAYER | CAR_UPPER_LAYER)
 	if level == 0:
@@ -256,6 +269,73 @@ func _level_runs() -> Array:
 	return runs
 
 
+## _level_runs with the elevated runs broken where a flyover jump's gap has no
+## deck (no railings or shadow over the gap). Without flyovers: _level_runs.
+func _deck_runs() -> Array:
+	var runs := _level_runs()
+	if not _has_flyover():
+		return runs
+	var out: Array = []
+	var n := centerline.size()
+	for run in runs:
+		if run.level != 1:
+			out.append(run)
+			continue
+		var from: int = run.from
+		var k: int = run.from
+		while k < run.to:
+			if in_flyover_gap(k % n):
+				if k > from:
+					out.append({"level": 1, "from": from, "to": k})
+				while k < run.to and in_flyover_gap(k % n):
+					k += 1
+				from = k
+			else:
+				k += 1
+		if run.to > from:
+			out.append({"level": 1, "from": from, "to": run.to})
+	return out
+
+
+func _has_flyover() -> bool:
+	if not jumps_enabled or not layout.has_jumps() or not layout.has_elevation():
+		return false
+	for k in layout.jumps.size():
+		if layout.is_flyover(k, path.length):
+			return true
+	return false
+
+
+## Centreline sample i lies in the gap of a flyover jump (built only with jumps on).
+func in_flyover_gap(i: int) -> bool:
+	if not jumps_enabled or not layout.has_jumps():
+		return false
+	var s := path.cumulative[i]
+	for k in layout.jumps.size():
+		var j := layout.jumps[k]
+		if s > j.x and s < j.x + j.z and layout.is_flyover(k, path.length):
+			return true
+	return false
+
+
+## The ravine of each flyover jump: earth across the gap, drawn under the road
+## that crosses it (procedural, no artwork).
+func _build_flyover_ravines() -> void:
+	if not _has_flyover():
+		return
+	var half: float = layout.road_width * 0.5 + AssetCatalog.SPECS[theme.asset(AssetCatalog.WALL)].display_size.y + 16.0
+	for k in layout.jumps.size():
+		if not layout.is_flyover(k, path.length):
+			continue
+		var j := layout.jumps[k]
+		var pit := _strip(j.x, j.x + j.z, half, GAP_COLOR)
+		pit.name = "Ravine%d" % k
+		add_child(pit)
+		var depth := _strip(j.x + 18.0, j.x + j.z - 18.0, half - 14.0, GAP_DEPTH)
+		depth.name = "RavineDepth%d" % k
+		add_child(depth)
+
+
 ## How high the road is at arc distance s (0 ground .. 1 full bridge height):
 ## the bridge rises over the first and falls over the last part of its zone.
 func bridge_height(s: float) -> float:
@@ -271,7 +351,7 @@ func bridge_height(s: float) -> float:
 ## bridge's height (none where it meets the ground). Procedural, no artwork.
 func _build_bridge_shadow(half_outer: float) -> void:
 	var tans := TrackLayout.tangents(centerline)
-	for run in _level_runs():
+	for run in _deck_runs():
 		if run.level != 1:
 			continue
 		var left := PackedVector2Array()
@@ -312,13 +392,25 @@ func _build_jumps(half: float) -> void:
 		var node := Node2D.new()
 		node.name = "Jump%d" % k
 		add_child(node)
-		for c in 3:  # approach chevrons
-			node.add_child(_chevron(ramp_from - 70.0 - c * 55.0, half * 0.55, JUMP_CHEVRON))
+		var flyover := layout.is_flyover(k, path.length)
+		if flyover:
+			node.z_index = BRIDGE_DECK_Z  # painted on the elevated deck (the ravine is under the road below)
+		for c in 3:  # approach chevrons (a flyover: only where the deck is)
+			var at := ramp_from - 70.0 - c * 55.0
+			if not flyover or (layout.level_at(at - 40.0, path.length) == 1 and not layout.in_transition(at - 40.0, path.length)):
+				node.add_child(_chevron(at, half * 0.55, JUMP_CHEVRON))
 		var ramp := _strip(ramp_from, lip, half - 4.0, RAMP_COLOR)
 		ramp.name = "Ramp"
 		node.add_child(ramp)
 		for c in 2:
 			node.add_child(_chevron(ramp_from + j.y * (0.3 + 0.35 * c), half * 0.45, RAMP_EDGE))
+		if flyover:
+			node.add_child(_strip(lip - 7.0, lip, half - 2.0, RAMP_EDGE))  # the lip
+			node.add_child(_strip(gap_end, gap_end + 9.0, half + 2.0, GAP_RIM))  # far edge of the gap
+			for stripe in 4:  # landing zone
+				var a := gap_end + 30.0 + stripe * 34.0
+				node.add_child(_strip(a, a + 14.0, half - 10.0, LANDING_COLOR))
+			continue
 		var pit := _strip(lip, gap_end, half + 14.0, GAP_COLOR)
 		pit.name = "Gap"
 		node.add_child(pit)

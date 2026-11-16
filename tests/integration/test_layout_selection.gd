@@ -1,11 +1,14 @@
 extends GutTest
-## Quick fix: the title screen's LAYOUT selector (Classic Circuit / Figure Eight
-## (Experimental)), independent of the TRACK theme, applied to every kind of
-## race, never saved, shown before racing; the classic circuit is unchanged.
+## The title screen's LAYOUT selector, independent of the TRACK theme, applied
+## to every kind of race, never saved, shown before racing. Since the first
+## original circuit, players get Kestrel Ridge (the default and only player
+## layout); the legacy Classic Circuit and Figure Eight stay loadable by id
+## (developer argument, tests) and are unchanged.
 
 const GAME_SCENE := preload("res://src/main/game.tscn")
 const CLASSIC := "res://src/track/circuit_01.tres"
 const FIGURE8 := "exp_figure8_01"
+const KESTREL := "kestrel_ridge"
 
 var _game: Node
 
@@ -34,18 +37,23 @@ func _back() -> void:
 	await wait_frames(30)
 
 
-func test_selector_defaults_to_classic_and_cycles_without_saving() -> void:
+func test_selector_defaults_to_kestrel_ridge_and_offers_no_legacy_layout() -> void:
 	var t: TitleScreen = _game.title
-	assert_eq(t.layout_id, DevLayouts.CLASSIC, "fresh launch: classic circuit")
-	assert_eq(t._layout_button.text, "LAYOUT: CLASSIC CIRCUIT")
+	assert_eq(t.layout_id, KESTREL, "fresh launch: Kestrel Ridge")
+	assert_eq(t._layout_button.text, "LAYOUT: KESTREL RIDGE")
 	t._cycle_layout()
-	assert_eq(t.layout_id, FIGURE8)
-	assert_eq(t._layout_button.text, "LAYOUT: FIGURE EIGHT (EXPERIMENTAL)")
+	assert_eq(t.layout_id, KESTREL, "the only player layout")
+	assert_eq(DevLayouts.ids(), [KESTREL] as Array[String], "legacy layouts are not offered")
 	var cfg := ConfigFile.new()
 	cfg.load(t.settings.path)
 	assert_false(cfg.has_section_key("game", "layout"), "never saved")
+	# a developer-preselected legacy layout stays reachable and cycles back
+	t.layout_id = FIGURE8
 	t._cycle_layout()
-	assert_eq(t.layout_id, DevLayouts.CLASSIC, "back to classic")
+	assert_eq(t.layout_id, KESTREL)
+	assert_eq(DevLayouts.ids(FIGURE8), [KESTREL, FIGURE8] as Array[String])
+	assert_eq(DevLayouts.initial_id(PackedStringArray(["--layout=exp_figure8_01"])), FIGURE8)
+	assert_eq(DevLayouts.initial_id(PackedStringArray()), KESTREL)
 
 
 func test_title_menu_fits_at_1280x720() -> void:
@@ -57,12 +65,21 @@ func test_title_menu_fits_at_1280x720() -> void:
 	assert_true(_game.title._layout_button.is_visible_in_tree())
 
 
-func test_classic_circuit_is_unchanged() -> void:
+func test_title_races_start_on_kestrel_ridge() -> void:
+	var race := await _start(0)
+	assert_eq(DevLayouts.id_of(race.track.layout), KESTREL)
+	assert_true(race.track.layout.has_elevation())
+	assert_true(race.track.layout.has_jumps())
+	assert_not_null(race.jumps, "the jump is on in local races")
+	assert_string_contains(race.hud_track_name, "Kestrel Ridge", "shown on the grid panel")
+
+
+func test_legacy_classic_circuit_is_unchanged() -> void:
+	_game.title.layout_id = "classic_01"
 	var race := await _start(0)
 	assert_eq(race.track.layout.resource_path, CLASSIC)
-	assert_null(race.layout_override)
 	assert_false(race.track.layout.has_elevation())
-	assert_string_contains(race.hud_track_name, "Classic Circuit", "shown on the grid panel")
+	assert_string_contains(race.hud_track_name, "Classic Circuit")
 
 
 func test_layout_applies_to_every_kind_of_race_with_any_theme() -> void:
@@ -90,4 +107,4 @@ func test_menu_choice_wins_over_the_command_line_inside_the_game() -> void:
 	assert_false(race.use_command_line_layout)
 	assert_eq(race.track.layout.resource_path, CLASSIC)
 	assert_eq(DevLayouts.load_layout(DevLayouts.CLASSIC), null)
-	assert_eq(DevLayouts.ids()[0], DevLayouts.CLASSIC)
+	assert_eq(DevLayouts.ids()[0], KESTREL)

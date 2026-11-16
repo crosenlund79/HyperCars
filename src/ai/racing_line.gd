@@ -11,15 +11,24 @@ var speeds := PackedFloat32Array()
 ## Furthest the racing line itself goes from the centreline (px).
 var max_lateral := 0.0
 var road_half_width := 0.0
+## Per sample (narrow sections): half the road width and the line's limit;
+## empty = road_half_width / max_lateral everywhere.
+var half_widths := PackedFloat32Array()
+var _max_lat := PackedFloat32Array()
 ## Highest target speed on the line (straights).
 var top_speed := 0.0
 var _normals := PackedVector2Array()
 
 
-func _init(p_center: ClosedPath, road_width: float, driving: DrivingParams, ai: AiParams) -> void:
+func _init(p_center: ClosedPath, road_width: float, driving: DrivingParams, ai: AiParams,
+		p_half_widths: PackedFloat32Array = PackedFloat32Array()) -> void:
 	center = p_center
 	road_half_width = road_width * 0.5
 	max_lateral = maxf(0.0, road_half_width - ai.line_margin)
+	if p_half_widths.size() == center.points.size():
+		half_widths = p_half_widths
+		for h in half_widths:
+			_max_lat.append(maxf(0.0, h - ai.line_margin))
 	var n := center.points.size()
 	for i in n:
 		var t := (center.points[(i + 1) % n] - center.points[(i - 1 + n) % n]).normalized()
@@ -43,6 +52,13 @@ func offset_at(s: float) -> float:
 	return lerpf(offsets[i], offsets[j], clampf(t, 0.0, 1.0))
 
 
+## Half the road width at distance s (narrow sections; else road_half_width).
+func half_width_at(s: float) -> float:
+	if half_widths.is_empty():
+		return road_half_width
+	return half_widths[center.index_at(s)]
+
+
 func speed_at(s: float) -> float:
 	return speeds[center.index_at(s)]
 
@@ -60,7 +76,8 @@ func _optimise(iterations: int) -> void:
 	for it in iterations:
 		for i in n:
 			var mid := (position((i - 2 + n) % n) + position((i + 2) % n)) * 0.5
-			offsets[i] = clampf((mid - center.points[i]).dot(_normals[i]), -max_lateral, max_lateral)
+			var lim := max_lateral if _max_lat.is_empty() else _max_lat[i]
+			offsets[i] = clampf((mid - center.points[i]).dot(_normals[i]), -lim, lim)
 
 
 func _build_speeds(driving: DrivingParams, ai: AiParams) -> void:

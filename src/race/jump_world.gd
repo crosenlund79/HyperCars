@@ -105,6 +105,12 @@ func step(id: int, dt: float, s: float, speed_along: float, active: bool) -> Str
 	return ""
 
 
+## The car is down in the ravine of a flyover jump (under it runs the road
+## below: no collisions there, drawn on the ground level).
+func is_down_in_flyover(id: int) -> bool:
+	return is_down(id) and jump_of[id] >= 0 and layout.is_flyover(jump_of[id], path.length)
+
+
 ## Where a car that fell into jump k is set back on the road.
 func recovery_distance(k: int) -> float:
 	var j := layout.jumps[k]

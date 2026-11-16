@@ -204,7 +204,7 @@ func _ready() -> void:
 	track.build(resolver, track_theme)
 	hud_track_name = "%s  -  %s" % [track_theme.display_name, DevLayouts.display_name(DevLayouts.id_of(layout_override))]
 	if track.layout.has_jumps() and net != null:
-		hud_track_name += "  (JUMP OFF ONLINE)"
+		hud_track_name += "  (JUMP BRIDGED ONLINE)" if track.layout.has_elevation() and _has_flyover_jump() else "  (JUMP OFF ONLINE)"
 	track.checkpoint_reached.connect(_on_checkpoint_reached)
 	var two := is_two_player()
 	if two:
@@ -238,7 +238,8 @@ func _ready() -> void:
 		move_child(scenery, decals.get_index() + 1)
 		scenery.build(track, resolver, decals)
 	camera.target = car
-	racing_line = RacingLine.new(track.path, track.layout.road_width, driving_params, ai_params)
+	racing_line = RacingLine.new(track.path, track.layout.road_width, driving_params, ai_params,
+		track.half_widths if not track.layout.narrow_sections.is_empty() else PackedFloat32Array())
 
 	car.racer_id = RaceSession.PLAYER_ID
 	_car_looks.append(CarArt.look(resolver, AssetCatalog.CAR_PLAYER))
@@ -289,6 +290,8 @@ func _ready() -> void:
 	car_levels.resize(cars.size())
 	car_transitions.resize(cars.size())
 	if track.layout.has_jumps() and track.jumps_enabled:
+		if track.layout.jump_rules != null:
+			jump_rules = track.layout.jump_rules  # tuned for this circuit's jump
 		jumps = JumpWorld.new(track.layout, jump_rules, track.path, cars.size())
 	combat = CombatWorld.new(weapon_rules, cars.size(), track.path, track.layout.road_width * 0.5)
 	if track.layout.has_elevation() or track.layout.has_jumps():
@@ -590,6 +593,13 @@ func _apply_loadouts() -> void:
 	elif combat_style == WeaponRules.Style.TACTICAL:
 		var q := RivalArmoury.QUICK_RACE_PLAYER
 		combat.set_loadout(RaceSession.PLAYER_ID, q[0], q[1], q[2], q[3])
+
+
+func _has_flyover_jump() -> bool:
+	for k in track.layout.jumps.size():
+		if track.layout.is_flyover(k, track.path.length):
+			return true
+	return false
 
 
 ## M6: every car starts at full condition without armour, except the player's
@@ -961,6 +971,8 @@ func _apply_car_collision(id: int, present: bool) -> void:
 	var c := cars[id]
 	var want := Track.car_collision(car_levels[id], car_transitions[id] == 1, c.airborne) \
 		if present and not damage.is_retired(id) else Vector2i.ZERO
+	if jumps != null and jumps.is_down_in_flyover(id):
+		want = Vector2i.ZERO  # down in a flyover's ravine, under the road crossing it
 	if c.collision_layer != want.x or c.collision_mask != want.y:
 		c.collision_layer = want.x
 		c.collision_mask = want.y
@@ -1013,6 +1025,7 @@ func _update_jumps(step: float) -> void:
 				session.set_progress(id, progress[id].distance)
 				jumps.place(id, fposmod(progress[id].distance, track.path.length))
 				jumps.jump_of[id] = -1
+				_apply_car_collision(id, true)
 				if session.state == RaceSession.State.RACING and not combat.is_wrecked(id) and not damage.is_retired(id):
 					c.active = true
 		if jumps.is_down(id):
@@ -1048,6 +1061,8 @@ func _present_levels() -> void:
 		var z := Track.UPPER_Z_OFFSET * draw_level_of(i)
 		if cars[i].airborne:
 			z = maxi(z, Track.UPPER_Z_OFFSET)  # flying: drawn over the cars on the road
+		elif jumps != null and jumps.is_down_in_flyover(i):
+			z = 0  # down in a flyover's ravine
 		if cars[i].z_index != z:
 			cars[i].z_index = z
 

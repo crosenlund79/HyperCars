@@ -311,6 +311,8 @@ func _outside_road(p: Dictionary) -> bool:
 		return false
 	var proj := path.project(p.pos, p.get("hint", -1))
 	p["hint"] = proj.index
+	if layout != null and not layout.narrow_sections.is_empty():
+		return absf(proj.lateral) > layout.half_width_at(proj.distance, path.length)  # narrow sections
 	return absf(proj.lateral) > road_half_width
 
 
