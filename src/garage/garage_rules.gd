@@ -30,6 +30,19 @@ const W := WeaponRules.Weapon
 @export var start_front_missiles := 5
 @export var start_mines := 5
 
+## M6 repairs and armour (VERIFIED from the manual: repairs and armour are
+## bought in the shop between races; armour came in grades). PROVISIONAL numbers.
+## Price of one point of condition (a full repair from 0 % costs 100 points).
+@export var repair_price_per_point := 3
+## Emergency patch-up: a car below this condition (%) is always patched up to
+## it for free before a garage race, so a player can always race (no dead end).
+@export var min_start_condition := 30.0
+## Armour grades: names, damage reduction and the price of each grade on top
+## of the previous one (grade 0 = no armour).
+@export var armour_names: PackedStringArray = PackedStringArray(["NONE", "LIGHT", "HEAVY"])
+@export var armour_reduction: PackedFloat32Array = PackedFloat32Array([0.0, 0.2, 0.35])
+@export var armour_price: PackedInt32Array = PackedInt32Array([0, 250, 400])
+
 
 func price(w: int) -> int:
 	match w:
@@ -49,6 +62,15 @@ func sell_price(w: int) -> int:
 ## Prize for a 1-based finishing position (0 = not classified).
 func prize_for(position: int) -> int:
 	return prize_money[position - 1] if position >= 1 and position <= prize_money.size() else 0
+
+
+## Price of repairing `points` of condition (whole points; at least 1 per point started).
+func repair_price(points: float) -> int:
+	return int(ceil(maxf(points, 0.0) - 0.0001)) * repair_price_per_point if points > 0.0 else 0
+
+
+func max_armour() -> int:
+	return armour_reduction.size() - 1
 
 
 ## Shop value of a loadout (used to keep rival loadouts equal in value).

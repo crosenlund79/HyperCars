@@ -1,13 +1,15 @@
 extends SceneTree
 ## Test helper, run in a fresh Godot process by the determinism tests:
 ##   godot --headless --path <project> --fixed-fps 60 -s res://tests/support/sim_probe.gd -- \
-##         mode=race|spectate speed=1 presentation=1 ticks=900 weapons=0|1 style=0|1 achievements=0|1 theme=1..3 layout=<dev layout id> pause=<tick>
+##         mode=race|spectate speed=1 presentation=1 ticks=900 weapons=0|1 style=0|1 achievements=0|1 theme=1..3 layout=<dev layout id> pause=<tick> damage=0|1
+## damage=0 switches M6 vehicle damage off (the race must then be identical to
+## the pre-M6 fingerprints); with damage on, the cars' condition is hashed too.
 ## Prints "PROBE <md5>" of every car's and driver's exact state after `ticks`.
 ## A fresh process matters: Godot's physics broadphase keeps history between
 ## scenes in one process, which changes the order multi-car contacts resolve.
 
 var main: Node2D
-var opts := {"mode": "spectate", "speed": "1", "presentation": "1", "ticks": "900", "weapons": "0", "lighting": "0", "style": "0", "achievements": "0", "theme": "1"}
+var opts := {"mode": "spectate", "speed": "1", "presentation": "1", "ticks": "900", "weapons": "0", "lighting": "0", "style": "0", "achievements": "0", "theme": "1", "damage": "1"}
 var tick := 0
 const PROBE_STORE := "user://probe_achievements.cfg"
 
@@ -25,6 +27,8 @@ func _initialize() -> void:
 		main.achievements = AchievementStore.new(PROBE_STORE)
 	if "track_variant" in main:
 		main.track_variant = int(opts.theme)
+	if "damage_enabled" in main:
+		main.damage_enabled = opts.damage == "1"
 	if opts.has("layout") and DevLayouts.LAYOUTS.has(opts.layout):
 		main.layout_override = load(DevLayouts.LAYOUTS[opts.layout])
 	root.add_child(main)
@@ -81,6 +85,10 @@ func _on_tick() -> void:
 			s.append_array([r.progress, r.tracker.laps_completed, r.tracker.next_checkpoint])
 		if opts.weapons == "1" and main.get("combat") != null:
 			s.append(main.combat.state_snapshot())
+		if opts.damage == "1" and main.get("damage") != null:
+			s.append(main.damage.state_snapshot())
+			for r in main.session.racers:
+				s.append(r.dnf)
 		print("PROBE ", var_to_bytes(s).hex_encode().md5_text())
 		if opts.achievements == "1":
 			DirAccess.remove_absolute(ProjectSettings.globalize_path(PROBE_STORE))

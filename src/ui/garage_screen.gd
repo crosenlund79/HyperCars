@@ -3,6 +3,7 @@ extends CanvasLayer
 ## The garage between garage races (M3.5): buy and sell rounds of the five
 ## weapons, mount one weapon type in each slot, then race (or go back to the
 ## grid panel). Shows money, prices, owned rounds and the last race's prize.
+## M6: the car row shows its condition, repair prices and armour.
 ## All rules live in PlayerGarage; this screen only calls it and redraws.
 
 signal race_requested
@@ -22,6 +23,13 @@ var _last: Label
 var _summary: Label
 var _race_button: Button
 var _cards: Dictionary = {}
+var _cond_bar: ColorRect
+var _cond_label: Label
+var _repair_all: Button
+var _repair_some: Button
+var _armour_label: Label
+var _armour_button: Button
+var _car_note: Label
 var _sfx: AudioStreamPlayer
 
 
@@ -61,18 +69,27 @@ func setup(p_garage: PlayerGarage, resolver: AssetResolver) -> void:
 	_root.add_child(row)
 	for w in WeaponRules.ALL_WEAPONS:
 		row.add_child(_card(w))
+	_root.add_child(_car_row())  # (the footer below holds its hint line)
 
 	var footer := PanelContainer.new()
-	footer.position = Vector2(26, 560)
+	footer.position = Vector2(26, 576)
 	footer.custom_minimum_size = Vector2(1228, 0)
 	_root.add_child(footer)
 	var fbox := HBoxContainer.new()
 	fbox.add_theme_constant_override("separation", 24)
 	footer.add_child(fbox)
+	var texts := VBoxContainer.new()
+	texts.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	texts.alignment = BoxContainer.ALIGNMENT_CENTER
+	texts.add_theme_constant_override("separation", 0)
+	fbox.add_child(texts)
 	_summary = HyperTheme.label("", 21, HyperTheme.CREAM, 600)
-	_summary.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_summary.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	fbox.add_child(_summary)
+	texts.add_child(_summary)
+	_car_note = HyperTheme.label("", 16, Color("f0b48a"), 600)
+	_car_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_car_note.custom_minimum_size = Vector2(900, 0)
+	texts.add_child(_car_note)
 	_race_button = Button.new()
 	_race_button.text = "RACE!"
 	_race_button.custom_minimum_size = Vector2(220, 56)
@@ -87,7 +104,7 @@ func setup(p_garage: PlayerGarage, resolver: AssetResolver) -> void:
 	strip.position = Vector2(0, 680)
 	strip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_root.add_child(strip)
-	var hint := HyperTheme.label("Arrows: move    Enter / Space: choose    Esc: grid panel    Prices are per round; selling pays half",
+	var hint := HyperTheme.label("Arrows: move    Enter / Space: choose    Esc: grid panel    Weapons: price per round, selling pays half    Repairs: $%d per 1 %%" % garage.rules.repair_price_per_point,
 		17, Color(HyperTheme.CREAM, 0.88), 600)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -123,7 +140,9 @@ func refresh() -> void:
 	if garage.races_settled == 0:
 		_last.text = "Starting money. Top five finishers win prize money."
 	else:
-		_last.text = "Last race: %s   prize $%d" % [_ordinal(garage.last_position), garage.last_prize]
+		_last.text = "Last race: %s   prize $%d   car %d%% -> %d%%" % ["DNF" if garage.last_position <= 0 else _ordinal(garage.last_position),
+			garage.last_prize, roundi(garage.last_condition_before + garage.last_patch), roundi(garage.condition)]
+	_refresh_car()
 	var front := garage.equipped[PlayerGarage.FRONT]
 	var rear := garage.equipped[PlayerGarage.REAR]
 	_summary.text = "FRONT: %s x%d      REAR: %s x%d" % [WeaponRules.weapon_name(front), garage.count(front) if front != W.NONE else 0,
@@ -142,9 +161,84 @@ func refresh() -> void:
 		c.panel.self_modulate = Color(1.15, 1.05, 0.8) if mounted else Color.WHITE
 
 
+## M6 car row: condition bar, repair buttons, armour grade and upgrade.
+func _car_row() -> Control:
+	var panel := PanelContainer.new()
+	panel.position = Vector2(26, 510)
+	panel.custom_minimum_size = Vector2(1228, 0)
+	var box := HBoxContainer.new()
+	box.add_theme_constant_override("separation", 14)
+	panel.add_child(box)
+	box.add_child(HyperTheme.label("CAR", 22, HyperTheme.GOLD, 700))
+	var track := ColorRect.new()
+	track.color = Color(0, 0, 0, 0.4)
+	track.custom_minimum_size = Vector2(170, 16)
+	track.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_cond_bar = ColorRect.new()
+	_cond_bar.size = Vector2(170, 16)
+	track.add_child(_cond_bar)
+	box.add_child(track)
+	_cond_label = HyperTheme.label("", 20, HyperTheme.CREAM, 700)
+	_cond_label.custom_minimum_size = Vector2(62, 0)
+	box.add_child(_cond_label)
+	_repair_all = _small_button("REPAIR ALL")
+	_repair_all.pressed.connect(func() -> void:
+		var ok := garage.repair_affordable() > 0.0
+		_play("ui/shop_buy" if ok else "ui/ui_back")
+		refresh())
+	box.add_child(_repair_all)
+	_repair_some = _small_button("+10 %")
+	_repair_some.pressed.connect(func() -> void:
+		var ok := garage.repair(10.0)
+		_play("ui/shop_buy" if ok else "ui/ui_back")
+		refresh())
+	box.add_child(_repair_some)
+	_armour_label = HyperTheme.label("", 19, HyperTheme.CREAM, 600)
+	_armour_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_armour_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	box.add_child(_armour_label)
+	_armour_button = _small_button("UPGRADE")
+	_armour_button.pressed.connect(func() -> void:
+		var ok := garage.buy_armour()
+		_play("ui/shop_buy" if ok else "ui/ui_back")
+		refresh())
+	box.add_child(_armour_button)
+	return panel
+
+
+func _refresh_car() -> void:
+	var c := garage.condition
+	_cond_bar.size.x = 170.0 * clampf(c / 100.0, 0.0, 1.0)
+	_cond_bar.color = Hud.condition_color(c / 100.0)
+	_cond_label.text = "%d%%" % roundi(c)
+	var missing := garage.damage_points()
+	_repair_all.text = "REPAIRED" if missing <= 0.0 else "REPAIR ALL $%d" % garage.full_repair_cost()
+	_repair_all.disabled = not garage.can_repair(missing)
+	if missing > 0.0 and _repair_all.disabled and garage.money >= garage.rules.repair_price_per_point:
+		_repair_all.disabled = false  # partial: as much as the money pays for
+		_repair_all.text = "REPAIR $%d" % (int(garage.money / garage.rules.repair_price_per_point) * garage.rules.repair_price_per_point)
+	_repair_some.text = "+10 %% $%d" % garage.rules.repair_price(minf(10.0, missing)) if missing > 0.0 else "+10 %"
+	_repair_some.disabled = not garage.can_repair(minf(10.0, missing))
+	var red := garage.armour_reduction()
+	_armour_label.text = "ARMOUR: %s%s" % [garage.armour_name(), "" if red <= 0.0 else "  (-%d%% damage)" % roundi(red * 100.0)]
+	if garage.armour < garage.rules.max_armour():
+		var next := garage.armour + 1
+		_armour_button.text = "%s -%d%%  $%d" % [garage.armour_name(next), roundi(garage.rules.armour_reduction[next] * 100.0), garage.next_armour_price()]
+	else:
+		_armour_button.text = "BEST FITTED"
+	_armour_button.disabled = not garage.can_buy_armour()
+	if c < garage.rules.min_start_condition:
+		_car_note.text = "Below %d%%: the team patches the car up to %d%% for free before the race - repair more to stand a hit or two." \
+			% [roundi(garage.rules.min_start_condition), roundi(garage.rules.min_start_condition)]
+	elif c <= 50.0:
+		_car_note.text = "Damage carries over to the next race. At 0 % the car is out (DNF): no prize money."
+	else:
+		_car_note.text = ""
+
+
 func _card(w: int) -> Control:
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(232, 340)
+	panel.custom_minimum_size = Vector2(232, 280)
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 6)
 	panel.add_child(box)

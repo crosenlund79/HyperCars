@@ -13,7 +13,7 @@ enum Role { HOST, CLIENT }
 enum Msg { WELCOME, HELLO, SETUP, READY, START, SNAP, INPUT, RESULTS, EVENTS, BYE, REJECT, JOINED }
 
 ## Wire protocol version and game build: both must match before a session starts.
-const PROTOCOL := 2
+const PROTOCOL := 3  # 3: M6 condition / DNF in snapshots
 const GAME_BUILD := "hypercars-m5.2"
 
 
@@ -202,7 +202,7 @@ func _local_car() -> Car:
 ## Whether the local car is simulated here this tick (racing, not wrecked).
 func _predicting() -> bool:
 	return predict and race.session.state != RaceSession.State.MODE_SELECT \
-		and not race.combat.is_wrecked(race.local_player_id)
+		and not race.combat.is_wrecked(race.local_player_id) and not race.session.racers[race.local_player_id].dnf
 
 
 ## The state reached after the previous input tick, kept for reconciliation.
@@ -381,9 +381,11 @@ func _interpolate_cars() -> void:
 			continue  # our own car is predicted, not interpolated
 		var sa := RaceSnapshot.car_state(a, c)
 		var sb := RaceSnapshot.car_state(b, c)
+		var car: Car = race.cars[c]
+		if race.session.racers[c].dnf:
+			car.visible = sb.present  # a retired car leaves the road when the host takes it off
 		if not sb.present:
 			continue
-		var car: Car = race.cars[c]
 		var pos: Vector2 = sa.position.lerp(sb.position, t)
 		var heading := lerp_angle(sa.heading, sb.heading, t)
 		car.global_position = pos

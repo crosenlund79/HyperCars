@@ -21,6 +21,13 @@ var equipped: Array[int] = [W.NONE, W.NONE]
 var races_settled := 0
 var last_position := 0
 var last_prize := 0
+## M6: the car's condition (0 .. 100 %), carried from race to race, and its
+## armour grade (0 = none). Condition before the last race and after it.
+var condition := 100.0
+var armour := 0
+var last_condition_before := 100.0
+## Free emergency patch-up given at the start of the last race (points).
+var last_patch := 0.0
 var _race_pending := false
 
 
@@ -81,9 +88,85 @@ func race_loadout() -> Array:
 		equipped[REAR], count(equipped[REAR]) if equipped[REAR] != W.NONE else 0]
 
 
-## A garage race has started: the shop is closed until it is settled.
+# ----------------------------------------------------- condition (M6)
+
+## Points of condition missing.
+func damage_points() -> float:
+	return maxf(0.0, 100.0 - condition)
+
+
+## Price of a full repair.
+func full_repair_cost() -> int:
+	return rules.repair_price(damage_points())
+
+
+## Repairs `points` of condition (whole points, capped at full); false when
+## there is nothing to repair or it is unaffordable.
+func can_repair(points: float = 1.0) -> bool:
+	return not _race_pending and damage_points() > 0.0 and points > 0.0 \
+		and money >= rules.repair_price(minf(points, damage_points()))
+
+
+func repair(points: float) -> bool:
+	points = minf(points, damage_points())
+	if not can_repair(points):
+		return false
+	money -= rules.repair_price(points)
+	condition = minf(100.0, condition + ceil(points - 0.0001))
+	return true
+
+
+## Repairs everything, or as much as the money pays for. Returns points repaired.
+func repair_affordable() -> float:
+	if _race_pending or damage_points() <= 0.0:
+		return 0.0
+	var points := minf(ceil(damage_points() - 0.0001), floor(money / float(maxi(1, rules.repair_price_per_point))))
+	if points <= 0.0:
+		return 0.0
+	var before := condition
+	repair(points)
+	return condition - before
+
+
+## Condition the car starts the next race with: its own, or the free
+## emergency patch-up when it is below the minimum.
+func race_condition() -> float:
+	return maxf(condition, rules.min_start_condition)
+
+
+## Damage reduction of the fitted armour.
+func armour_reduction() -> float:
+	return rules.armour_reduction[clampi(armour, 0, rules.max_armour())]
+
+
+func armour_name(grade: int = armour) -> String:
+	return rules.armour_names[clampi(grade, 0, rules.armour_names.size() - 1)]
+
+
+## Price of the next armour grade (0 when the best is fitted).
+func next_armour_price() -> int:
+	return rules.armour_price[armour + 1] if armour < rules.max_armour() else 0
+
+
+func can_buy_armour() -> bool:
+	return not _race_pending and armour < rules.max_armour() and money >= next_armour_price()
+
+
+func buy_armour() -> bool:
+	if not can_buy_armour():
+		return false
+	money -= next_armour_price()
+	armour += 1
+	return true
+
+
+## A garage race has started: the shop is closed until it is settled. A car
+## below the minimum condition gets the free emergency patch-up now.
 func begin_race() -> void:
 	_race_pending = true
+	last_condition_before = condition
+	last_patch = maxf(0.0, rules.min_start_condition - condition)
+	condition = race_condition()
 
 
 func race_pending() -> bool:
@@ -93,10 +176,13 @@ func race_pending() -> bool:
 ## Pays the prize for the finishing position and keeps the rounds left in the
 ## equipped weapons. Applies once per begun race; returns the prize, or -1 if
 ## there was no race to settle (repeat calls change nothing).
-func settle_race(position: int, front_left: int, rear_left: int) -> int:
+## condition_left: the car's condition at the end (%; -1 keeps it unchanged).
+func settle_race(position: int, front_left: int, rear_left: int, condition_left: float = -1.0) -> int:
 	if not _race_pending:
 		return -1
 	_race_pending = false
+	if condition_left >= 0.0:
+		condition = clampf(condition_left, 0.0, 100.0)
 	for slot in 2:
 		var w := equipped[slot]
 		if w != W.NONE:
@@ -109,9 +195,11 @@ func settle_race(position: int, front_left: int, rear_left: int) -> int:
 	return last_prize
 
 
-## A begun race that never finished (left before the flag): nothing is paid
-## and no rounds are used up.
+## A begun race that never finished (left before the flag): nothing is paid,
+## no rounds are used up and the car is as it was (no patch-up either).
 func abandon_race() -> void:
+	if _race_pending:
+		condition = last_condition_before
 	_race_pending = false
 
 

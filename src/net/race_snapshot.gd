@@ -2,24 +2,26 @@ class_name RaceSnapshot
 extends RefCounted
 ## Authoritative race state the host sends to the client (M5.1): every car's
 ## pose, motion and presence, each racer's laps / progress / finish, the race
-## clock and state, and (with weapons) the combat state. Plain arrays only, so
+## clock and state, and (with weapons) the combat state. M6: each car's
+## condition and each racer's DNF. Plain arrays only, so
 ## var_to_bytes encodes them compactly and safely. Pure functions: capture on
 ## the host, apply on the client.
 
-const CAR_FIELDS := 6     # x, y, heading, vx, vy, present
-const RACER_FIELDS := 6   # laps, next checkpoint, progress, finish position, finish time, lap start
+const CAR_FIELDS := 7     # x, y, heading, vx, vy, present, condition
+const RACER_FIELDS := 7   # laps, next checkpoint, progress, finish position, finish time, lap start, dnf
 
 
 static func capture(race: Node, tick: int) -> Array:
 	var cars := PackedFloat32Array()
+	var damage: DamageWorld = race.damage
 	for c: Car in race.cars:
 		cars.append_array([c.global_position.x, c.global_position.y, c.model.heading,
-			c.model.velocity.x, c.model.velocity.y, 1.0 if c.visible else 0.0])
+			c.model.velocity.x, c.model.velocity.y, 1.0 if c.visible else 0.0, damage.condition[c.racer_id]])
 	var session: RaceSession = race.session
 	var racers := PackedFloat32Array()
 	for r in session.racers:
 		racers.append_array([r.tracker.laps_completed, r.tracker.next_checkpoint, r.progress,
-			r.finish_position, r.finish_time, r.lap_start])
+			r.finish_position, r.finish_time, r.lap_start, 1.0 if r.dnf else 0.0])
 	var snap := [tick, session.state, session.elapsed, cars, racers, PackedInt32Array(session.finish_order)]
 	var combat: CombatWorld = race.combat
 	if combat.enabled:
@@ -100,6 +102,18 @@ static func apply_race(race: Node, snap: Array) -> void:
 		r.finish_position = int(racers[k + 3])
 		r.finish_time = racers[k + 4]
 		r.lap_start = racers[k + 5]
+		r.dnf = racers[k + 6] > 0.5
+	var damage: DamageWorld = race.damage
+	var cars: PackedFloat32Array = snap[3]
+	for c in damage.car_count():
+		var k := c * CAR_FIELDS + 6
+		if k >= cars.size():
+			break
+		var cond := clampf(cars[k], 0.0, damage.rules.max_condition)
+		if cond < damage.condition[c] - 0.01:
+			damage.since_hit[c] = 0.0  # hit flash on this computer too
+		damage.condition[c] = cond
+		damage.retired[c] = 1 if cond <= 0.0 else 0
 	var order: Array[int] = []
 	for id in snap[5]:
 		order.append(id)

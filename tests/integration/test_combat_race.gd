@@ -35,8 +35,8 @@ func _tap(action: String) -> void:
 
 
 func test_weapons_off_matches_m23_exactly() -> void:
-	assert_eq(ProbeRunner.run(["mode=race", "ticks=1800", "weapons=0"]), M23_RACE_HASH)
-	assert_eq(ProbeRunner.run(["mode=spectate", "ticks=1800", "weapons=0"]), M23_SPECTATE_HASH)
+	assert_eq(ProbeRunner.run(["mode=race", "ticks=1800", "weapons=0", "damage=0"]), M23_RACE_HASH)
+	assert_eq(ProbeRunner.run(["mode=spectate", "ticks=1800", "weapons=0", "damage=0"]), M23_SPECTATE_HASH)
 
 
 func test_weapons_on_is_identical_at_normal_and_fast_speed() -> void:

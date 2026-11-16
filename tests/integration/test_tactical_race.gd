@@ -35,8 +35,8 @@ func _tap(action: String) -> void:
 
 
 func test_classic_reproduces_m3_combat_exactly() -> void:
-	assert_eq(ProbeRunner.run(["mode=race", "ticks=1800", "weapons=1"]), M3_CLASSIC_RACE_HASH)
-	assert_eq(ProbeRunner.run(["mode=spectate", "ticks=1800", "weapons=1"]), M3_CLASSIC_SPECTATE_HASH)
+	assert_eq(ProbeRunner.run(["mode=race", "ticks=1800", "weapons=1", "damage=0"]), M3_CLASSIC_RACE_HASH)
+	assert_eq(ProbeRunner.run(["mode=spectate", "ticks=1800", "weapons=1", "damage=0"]), M3_CLASSIC_SPECTATE_HASH)
 
 
 func test_tactical_is_identical_at_normal_and_fast_speed() -> void:

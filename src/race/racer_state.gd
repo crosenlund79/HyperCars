@@ -15,6 +15,11 @@ var finish_time := -1.0
 ## 1-based finishing position, 0 while still racing.
 var finish_position := 0
 var lap_start := 0.0
+## M6: out of the race at zero condition (did not finish). Classified after
+## every car still running, once the race is over.
+var dnf := false
+## Race clock when the car retired (-1 while running).
+var retire_time := -1.0
 
 
 func _init(p_id: int, p_name: String, p_is_player: bool, checkpoint_count: int, lap_count: int) -> void:
@@ -26,3 +31,13 @@ func _init(p_id: int, p_name: String, p_is_player: bool, checkpoint_count: int, 
 
 func is_finished() -> bool:
 	return finish_position > 0
+
+
+## The time this car's race ended: finish time, retirement time, or -1.
+func end_time() -> float:
+	return retire_time if dnf else finish_time
+
+
+## Finished, or out of the race (DNF): this car's race is over.
+func is_done() -> bool:
+	return finish_position > 0 or dnf

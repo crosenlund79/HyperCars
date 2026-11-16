@@ -120,6 +120,17 @@ var wheel_layout: WheelLayout = preload("res://src/presentation/default_wheel_la
 ## Chevron over the locally controlled car(s) (presentation only).
 var player_marker: PlayerMarker
 var jump_view: JumpView = null
+## M6: vehicle condition, damage and DNF (host-authoritative; a network client
+## shows the host's values). damage_enabled = false is for checks only.
+var damage: DamageWorld
+var damage_rules: DamageRules = preload("res://src/damage/default_damage_rules.tres")
+var damage_enabled := true
+var damage_view: DamageView = null
+## Barrier / car contacts reported by the cars during their physics step,
+## applied (in report order) at the start of the next race tick.
+var _impacts: Array = []
+## Humans whose DNF banner has been shown this race (presentation).
+var _seen_dnf: Array[int] = []
 ## Lighting pilot (presentation experiment; L toggles). Off by default.
 var lighting: LightingPilot
 ## Garage race (M3.5): the player's money and weapons for this game session;
@@ -272,6 +283,9 @@ func _ready() -> void:
 			inputs.append(HumanDriverInput.new(RaceSession.PLAYER_2_ID, PlayerControls.ensure_player_actions(2, player_devices[1])))
 	for c in cars:
 		progress.append(RaceProgress.new(track.path))
+		c.wall_hit.connect(func(_n: Vector2, speed: float) -> void: _queue_impact(c.racer_id, -1, speed))
+		c.car_hit.connect(func(other: Car, speed: float) -> void: _queue_impact(c.racer_id, other.racer_id, speed))
+	damage = DamageWorld.new(damage_rules, cars.size())
 	car_levels.resize(cars.size())
 	car_transitions.resize(cars.size())
 	if track.layout.has_jumps() and track.jumps_enabled:
@@ -308,6 +322,10 @@ func _ready() -> void:
 		for k in cars.size():  # four shared wheels under each body (not for flattened custom cars)
 			if _car_looks[k].wheels:
 				CarWheels.new().setup(cars[k], wheel, wheel_layout, _car_looks[k].body_logical)
+		damage_view = DamageView.new()
+		damage_view.name = "DamageView"
+		add_child(damage_view)
+		damage_view.setup(damage, cars, resolver, race_audio)
 		if jumps != null:
 			jump_view = JumpView.new()
 			jump_view.name = "JumpView"
@@ -458,6 +476,8 @@ func set_sim_speed(multiplier: int) -> void:
 		effects.set_enabled(sim_speed == 1)
 	if jump_view != null:
 		jump_view.enabled = sim_speed == 1
+	if damage_view != null:
+		damage_view.enabled = sim_speed == 1
 	if race_audio != null:
 		race_audio.fast = sim_speed > 1
 	if combat_view != null:
@@ -519,6 +539,7 @@ func reset_race() -> void:
 	combat.enabled = weapons_enabled
 	combat.style = combat_style
 	_apply_loadouts()
+	_reset_damage()
 	_restart_timer = -1.0
 	_stuck_time = 0.0
 	_best_progress = -INF
@@ -571,6 +592,16 @@ func _apply_loadouts() -> void:
 		combat.set_loadout(RaceSession.PLAYER_ID, q[0], q[1], q[2], q[3])
 
 
+## M6: every car starts at full condition without armour, except the player's
+## car in a garage race, which carries its condition and armour.
+func _reset_damage() -> void:
+	damage.reset()
+	_impacts.clear()
+	if garage != null and not session.spectator:
+		damage.set_start(RaceSession.PLAYER_ID, garage.race_condition() / 100.0 * damage_rules.max_condition,
+			garage.armour_reduction())
+
+
 ## Two-player safety net: once anyone has finished, unfinished humans that make
 ## no progress at all for human_stuck_timeout seconds stop holding up the
 ## results (an active, moving player is never cut short).
@@ -580,7 +611,7 @@ func _human_safety(step: float) -> void:
 	var furthest := -INF
 	for id in session.human_ids:
 		var r := session.racers[id]
-		if session.is_participating(id) and not r.is_finished():
+		if session.is_participating(id) and not r.is_done():
 			furthest = maxf(furthest, r.progress + r.tracker.laps_completed * 100000.0)
 	if furthest > _human_best + 1.0:
 		_human_best = furthest
@@ -676,6 +707,7 @@ func _client_physics(step: float) -> void:
 		elif allow_exit and _menu_pressed(PlayerControls.BACK):
 			exit_requested.emit()
 	net.client_tick(step)
+	damage.step(step)  # presentation timers only: condition comes from the host
 	_update_camera_target(step)
 
 
@@ -699,8 +731,10 @@ func _settle_garage() -> void:
 	if garage == null or session.spectator or _garage_settled or session.state != RaceSession.State.FINISHED:
 		return
 	_garage_settled = true
-	garage.settle_race(session.racers[RaceSession.PLAYER_ID].finish_position,
-		combat.ammo[RaceSession.PLAYER_ID][CombatWorld.FRONT], combat.ammo[RaceSession.PLAYER_ID][CombatWorld.REAR])
+	var me := session.racers[RaceSession.PLAYER_ID]
+	garage.settle_race(0 if me.dnf else me.finish_position,
+		combat.ammo[RaceSession.PLAYER_ID][CombatWorld.FRONT], combat.ammo[RaceSession.PLAYER_ID][CombatWorld.REAR],
+		damage.fraction(RaceSession.PLAYER_ID) * 100.0)
 
 
 ## Opens the garage between races (garage races only).
@@ -802,6 +836,7 @@ func _physics_process(_delta: float) -> void:
 					return
 	if session.spectator and _spectator_input():
 		return
+	_apply_impacts(step)
 	_update_progress()
 	_update_levels()
 	_update_jumps(Car.FIXED_STEP)
@@ -885,7 +920,7 @@ func _spectator_tick(step: float) -> void:
 	if session.state == RaceSession.State.RACING:
 		var furthest := -INF
 		for r in session.participants():
-			if not r.is_finished():
+			if not r.is_done():
 				furthest = maxf(furthest, r.progress + r.tracker.laps_completed * 100000.0)
 		if furthest > _best_progress + 1.0:
 			_best_progress = furthest
@@ -924,7 +959,8 @@ func _show_car(id: int, on: bool) -> void:
 ## re-registers the body and changes contact order.
 func _apply_car_collision(id: int, present: bool) -> void:
 	var c := cars[id]
-	var want := Track.car_collision(car_levels[id], car_transitions[id] == 1, c.airborne) if present else Vector2i.ZERO
+	var want := Track.car_collision(car_levels[id], car_transitions[id] == 1, c.airborne) \
+		if present and not damage.is_retired(id) else Vector2i.ZERO
 	if c.collision_layer != want.x or c.collision_mask != want.y:
 		c.collision_layer = want.x
 		c.collision_mask = want.y
@@ -968,6 +1004,8 @@ func _update_jumps(step: float) -> void:
 				c.model.velocity = Vector2.ZERO
 				_apply_car_collision(id, true)
 				inputs[id].on_destroyed()
+				if _takes_damage(id) and damage.damage(id, damage_rules.jump_fall_damage):
+					_retire(id)
 			"recovered":
 				var back := jumps.recovery_distance(jumps.jump_of[id])
 				c.place(Transform2D(track.path.tangent_at(back).angle(), track.path.point_at(back)))
@@ -975,7 +1013,7 @@ func _update_jumps(step: float) -> void:
 				session.set_progress(id, progress[id].distance)
 				jumps.place(id, fposmod(progress[id].distance, track.path.length))
 				jumps.jump_of[id] = -1
-				if session.state == RaceSession.State.RACING and not combat.is_wrecked(id):
+				if session.state == RaceSession.State.RACING and not combat.is_wrecked(id) and not damage.is_retired(id):
 					c.active = true
 		if jumps.is_down(id):
 			c.active = false  # stays down in the gap (also after a weapon respawn)
@@ -1101,6 +1139,7 @@ func _process(_delta: float) -> void:
 		lighting.set_enabled(not lighting.enabled)
 	_check_race_menu()
 	# the finish banner first, so results shown in the same frame wait for it
+	_present_retirements()
 	_present_finishers()
 	_present_levels()
 	_refresh_hud()
@@ -1120,6 +1159,8 @@ func _present_finishers() -> void:
 		return
 	for k in range(_seen_finishers, count):
 		var id: int = session.finish_order[k]
+		if session.racers[id].dnf:
+			continue  # classified at the end, not a finish
 		var human := session.human_ids.has(id) and not session.spectator
 		var celebrate := human or (session.spectator and k == 0)
 		if celebrate:
@@ -1136,6 +1177,20 @@ func _present_finishers() -> void:
 	_seen_finishers = count
 
 
+## M6: a human out of the race gets a red banner (the results wait for it,
+## as for FINISH!). Also on a network client, from the host's DNF.
+func _present_retirements() -> void:
+	if session.state == RaceSession.State.MODE_SELECT:
+		_seen_dnf.clear()
+		return
+	if session.spectator:
+		return
+	for id in session.human_ids:
+		if session.racers[id].dnf and not _seen_dnf.has(id):
+			_seen_dnf.append(id)
+			hud.flash_banner("%s OUT!" % session.racers[id].display_name if is_two_player() else "OUT - DNF!", HyperTheme.RED)
+
+
 func _refresh_hud() -> void:
 	if network_lost:
 		return
@@ -1148,6 +1203,7 @@ func _refresh_hud() -> void:
 			leader.tracker.current_lap() if leader != null else 1, session.racers[0].tracker.lap_count,
 			session.elapsed, "x%d" % sim_speed, following, weapons_enabled)
 		hud.update_combat(false, 0, 0, 0, 0, 0.0)
+		_refresh_condition(hud, director.target_id, director.target_id > 0, false)
 		return
 	if player_views != null:
 		var standings := session.standings()
@@ -1160,12 +1216,13 @@ func _refresh_hud() -> void:
 		return
 	var me := local_player_id
 	var p := session.racers[me]
-	var time := p.finish_time if p.is_finished() else session.elapsed
+	var time := p.end_time() if p.is_done() else session.elapsed
 	hud.update_race(p.tracker.current_lap(), p.tracker.lap_count, time,
 		session.position_of(me), session.racer_count())
 	hud.update_combat(weapons_enabled, combat.weapon_of(me, CombatWorld.FRONT), combat.ammo[me][CombatWorld.FRONT],
 		combat.weapon_of(me, CombatWorld.REAR), combat.ammo[me][CombatWorld.REAR], combat.wreck_left[me],
 		_cooldown_fraction(CombatWorld.FRONT, me), _cooldown_fraction(CombatWorld.REAR, me))
+	_refresh_condition(hud, me)
 	if session.state == RaceSession.State.FINISHED:
 		if net != null:
 			hud.show_results(session.standings(), "Fire: next race" if net.is_host() else "Waiting for the host to continue")
@@ -1178,17 +1235,74 @@ func _refresh_hud() -> void:
 ## One human's HUD: their own position, lap, time, weapons and cooldowns.
 func _refresh_player_hud(view_hud: Hud, id: int) -> void:
 	var r := session.racers[id]
-	view_hud.update_race(r.tracker.current_lap(), r.tracker.lap_count, r.finish_time if r.is_finished() else session.elapsed,
+	view_hud.update_race(r.tracker.current_lap(), r.tracker.lap_count, r.end_time() if r.is_done() else session.elapsed,
 		session.position_of(id), session.racer_count())
 	view_hud.update_combat(weapons_enabled, combat.weapon_of(id, CombatWorld.FRONT), combat.ammo[id][CombatWorld.FRONT],
 		combat.weapon_of(id, CombatWorld.REAR), combat.ammo[id][CombatWorld.REAR], combat.wreck_left[id],
 		_cooldown_fraction(CombatWorld.FRONT, id), _cooldown_fraction(CombatWorld.REAR, id))
+	_refresh_condition(view_hud, id)
+
+
+## M6: a HUD's condition row for racer id (own_car: the DNF notice is shown).
+func _refresh_condition(view_hud: Hud, id: int, show: bool = true, own_car: bool = true) -> void:
+	if id < 0 or id >= cars.size():
+		view_hud.update_condition(1.0, 999.0, false, false, false)
+		return
+	view_hud.update_condition(damage.fraction(id), damage.since_hit[id], damage.is_critical(id),
+		session.racers[id].dnf, show, own_car)
 
 
 ## 0 = ready, 1 = just fired (a human's slot, for the HUD bar).
 func _cooldown_fraction(slot: int, id: int = RaceSession.PLAYER_ID) -> float:
 	var length := combat.slot_cooldown_length(slot)
 	return clampf(combat.slot_wait(id, slot) / maxf(0.001, length), 0.0, 1.0)
+
+
+# ------------------------------------------------------------- damage (M6)
+
+## A car reported a contact during its physics step (other = -1: a barrier).
+## Only the simulating computer counts damage, and only during a race.
+func _queue_impact(id: int, other: int, speed: float) -> void:
+	if not damage_enabled or (net != null and net.is_client()) or session.state == RaceSession.State.MODE_SELECT:
+		return
+	_impacts.append([id, other, speed])
+
+
+## Whether a car can be damaged now: racing in this race, not finished, not out.
+func _takes_damage(id: int) -> bool:
+	return damage_enabled and session.state != RaceSession.State.MODE_SELECT and grid_order.has(id) \
+		and session.is_participating(id) and not session.racers[id].is_done()
+
+
+## Last tick's contacts, in the order the cars reported them, then the
+## retired cars' timers (a retired wreck leaves the road after a while).
+func _apply_impacts(step: float) -> void:
+	damage.step(step)
+	for imp in _impacts:
+		var id: int = imp[0]
+		var other: int = imp[1]
+		if other < 0:
+			if _takes_damage(id) and damage.wall_impact(id, imp[2]):
+				_retire(id)
+		else:
+			for out in damage.car_impact(id, other, imp[2], _takes_damage(id), _takes_damage(other)):
+				_retire(out)
+	_impacts.clear()
+	for id in grid_order:
+		if damage.is_retired(id) and cars[id].visible and damage.retired_age[id] >= damage_rules.retired_show_time:
+			cars[id].visible = false
+
+
+## Zero condition: the car is out of the race (DNF). It stops where it is, no
+## longer collides or takes part in combat, and leaves the road shortly after.
+func _retire(id: int) -> void:
+	var c := cars[id]
+	c.active = false
+	c.model.velocity = Vector2.ZERO
+	c.airborne = false
+	_apply_car_collision(id, true)
+	inputs[id].on_destroyed()
+	session.retire(id)
 
 
 func _update_progress() -> void:
@@ -1226,18 +1340,25 @@ func _combat_tick(step: float) -> void:
 		for id in grid_order:
 			if not inputs[id].is_human():
 				_request_weapons(id, inputs[id].weapons(self, step, states), states)
+	var first_event := combat.events.size()
 	var result := combat.step(step, states)
+	for k in range(first_event, combat.events.size()):  # M6: a destruction also wears the car down
+		var e: Dictionary = combat.events[k]
+		if e.kind == "destroyed" and _takes_damage(e.car) and damage.weapon_hit(e.car, e.type):
+			_retire(e.car)
 	for id in result.destroyed:
 		cars[id].active = false
 		cars[id].model.velocity = Vector2.ZERO
 		inputs[id].on_destroyed()
 	for id in result.respawned:
 		cars[id].model.velocity = Vector2.ZERO
-		if session.state != RaceSession.State.MODE_SELECT:
+		if session.state != RaceSession.State.MODE_SELECT and not damage.is_retired(id):
 			cars[id].active = true
 
 
 func _request_weapons(id: int, cmd: Dictionary, states: Array) -> void:
+	if damage.is_retired(id):
+		return
 	if cmd.front:
 		combat.request(id, CombatWorld.FRONT, states)
 	if cmd.rear:
@@ -1248,7 +1369,7 @@ func _combat_states() -> Array:
 	var states: Array = []
 	for i in cars.size():
 		states.append({"position": cars[i].global_position, "heading": cars[i].model.heading,
-			"present": grid_order.has(i)})
+			"present": grid_order.has(i) and not damage.is_retired(i)})
 		if combat.layout != null:  # J4: road level for elevation-aware weapons
 			states[i]["level"] = car_levels[i]
 			states[i]["band"] = car_transitions[i] == 1

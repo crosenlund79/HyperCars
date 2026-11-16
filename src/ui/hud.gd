@@ -31,6 +31,14 @@ var _rear_label: Label
 var _front_bar: ColorRect
 var _rear_bar: ColorRect
 var _wreck_label: Label
+## M6 condition row (bar + percentage), damage flash, critical warning and the
+## big "OUT - DNF" notice.
+var _cond_row: HBoxContainer
+var _cond_track: ColorRect
+var _cond_bar: ColorRect
+var _cond_label: Label
+var _out_label: Label
+var _cond_shown := 1.0
 var _weapon_textures: Dictionary = {}
 var _tower: VBoxContainer
 var _tower_box: VBoxContainer
@@ -118,6 +126,26 @@ func setup(resolver: AssetResolver) -> void:
 	_combat_box.add_child(_weapon_slot("F", _front_icon, _front_label, _front_bar))
 	_combat_box.add_child(_weapon_slot("R", _rear_icon, _rear_label, _rear_bar))
 	_combat_box.visible = false
+	_cond_row = HBoxContainer.new()
+	_cond_row.add_theme_constant_override("separation", 6)
+	_cond_row.add_child(HyperTheme.label("CAR", 13, HyperTheme.CREAM_DIM, 700))
+	_cond_track = ColorRect.new()
+	_cond_track.color = Color(0, 0, 0, 0.35)
+	_cond_track.custom_minimum_size = Vector2(120, 9)
+	_cond_track.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_cond_bar = ColorRect.new()
+	_cond_bar.size = Vector2(120, 9)
+	_cond_track.add_child(_cond_bar)
+	_cond_row.add_child(_cond_track)
+	_cond_label = HyperTheme.label("100%", 16, HyperTheme.CREAM, 700)
+	_cond_row.add_child(_cond_label)
+	box.add_child(_cond_row)
+	_out_label = HyperTheme.label("", 40, HyperTheme.RED, 700)
+	_out_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_out_label.size = Vector2(1280, 60)
+	_out_label.position = Vector2(0, 410)
+	_out_label.visible = false
+	add_child(_out_label)
 	_wreck_label = HyperTheme.label("", 44, HyperTheme.RED, 700)
 	_wreck_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_wreck_label.size = Vector2(1280, 60)
@@ -257,6 +285,40 @@ func update_combat(enabled: bool, front: int, front_ammo: int, rear: int, rear_a
 	_wreck_label.text = "DESTROYED  %.1f" % wreck_left
 
 
+## M6: the car's condition (0..1). since_hit: seconds since it last took
+## damage (the bar flashes); critical: low condition (pulsing red with a
+## warning); retired: out of the race (DNF notice). show = false hides the row.
+func update_condition(fraction: float, since_hit: float = 999.0, critical: bool = false, retired: bool = false,
+		show: bool = true, own_car: bool = true) -> void:
+	_cond_row.visible = show
+	_out_label.visible = show and own_car and retired and not _results_up
+	if not show:
+		return
+	fraction = clampf(fraction, 0.0, 1.0)
+	_cond_bar.size.x = 120.0 * fraction
+	var col := condition_color(fraction)
+	var t := Time.get_ticks_msec() / 1000.0
+	if since_hit < 0.35:
+		col = col.lerp(Color.WHITE, 1.0 - since_hit / 0.35)  # hit flash
+	elif critical:
+		col = col.lerp(Color(1, 0.85, 0.75), 0.5 + 0.5 * sin(t * 10.0))
+	_cond_bar.color = col
+	_cond_label.text = "OUT" if retired else ("%d%%%s" % [ceili(fraction * 100.0 - 0.001), "  CRITICAL" if critical else ""])
+	_cond_label.add_theme_color_override("font_color", HyperTheme.RED if retired or critical else HyperTheme.CREAM)
+	_out_label.text = "OUT OF THE RACE  -  DNF"
+	_cond_shown = fraction
+
+
+## Bar colour for a condition (0..1): green when healthy, amber, red when critical.
+static func condition_color(fraction: float) -> Color:
+	var green := Color("6fae4f")
+	var amber := Color("e2b23c")
+	var red := Color("c8452b")
+	if fraction >= 0.5:
+		return amber.lerp(green, (fraction - 0.5) * 2.0)
+	return red.lerp(amber, clampf((fraction - 0.25) / 0.25, 0.0, 1.0))
+
+
 ## Icon per weapon type (also used by the garage).
 static func weapon_icons(resolver: AssetResolver) -> Dictionary:
 	return {
@@ -391,9 +453,11 @@ func update_tower(standings: Array[RacerState]) -> void:
 		parts[0].set_meta("racer_id", r.id)
 		parts[1].text = str(i + 1)
 		parts[2].texture = _car_textures.get(r.id)
-		parts[3].text = r.display_name
+		parts[3].text = r.display_name + ("  DNF" if r.dnf else "")
 		var followed: bool = _follow_controls.visible and r.id == _followed
 		var col := HyperTheme.GOLD if r.is_player or followed else (HyperTheme.CREAM_DIM if r.is_finished() else HyperTheme.CREAM)
+		if r.dnf and not followed:
+			col = Color(HyperTheme.RED, 0.9)
 		var box: StyleBox = _highlight if followed else _no_highlight
 		if _human_colors.has(r.id):
 			col = _human_colors[r.id]
@@ -457,6 +521,7 @@ func set_results_up(on: bool) -> void:
 	_tower_box.visible = _tower_enabled and not on
 	if on:
 		_wreck_label.visible = false
+		_out_label.visible = false
 
 
 func results_up() -> bool:
@@ -489,6 +554,8 @@ func configure_player_view(width: float, title: String, index: int = 0, right_ed
 	_message.visible = false
 	_banner.visible = false
 	_wreck_label.size.x = width
+	_out_label.size.x = width
+	_out_label.add_theme_font_size_override("font_size", 30)
 	_mode_label.text = title
 	_mode_label.add_theme_color_override("font_color", HyperTheme.player_color(index))
 	_row_font = 14
@@ -521,7 +588,7 @@ func set_info_visible(on: bool) -> void:
 func show_results(standings: Array[RacerState], footer: String = "Fire to race again (reversed grid)") -> void:
 	var key := footer
 	for r in standings:
-		key += "|%d:%d:%.3f" % [r.id, r.finish_position, r.finish_time]
+		key += "|%d:%d:%.3f:%s" % [r.id, r.finish_position, r.finish_time, r.dnf]
 	if key == _results_key and _message.visible:
 		return
 	# Already on screen (another car finished, a footer or the exact network
@@ -568,14 +635,16 @@ func show_results(standings: Array[RacerState], footer: String = "Fire to race a
 		names.append(name_label)
 		grid.add_child(name_label)
 		var time := "running"
-		if r.is_finished():
+		if r.dnf:
+			time = "DNF"
+		elif r.is_finished():
 			if r.finish_time < 0.0:
 				time = "classified"
 			elif i == 0 or winner_time < 0.0:
 				time = format_time(r.finish_time)
 			else:
 				time = "+%.2f" % (r.finish_time - winner_time)
-		var t := HyperTheme.label(time, 20, HyperTheme.CREAM if r.is_finished() else HyperTheme.CREAM_DIM, 500)
+		var t := HyperTheme.label(time, 20, HyperTheme.RED if r.dnf else (HyperTheme.CREAM if r.is_finished() else HyperTheme.CREAM_DIM), 500 if not r.dnf else 700)
 		t.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		t.custom_minimum_size = Vector2(110, 0)
 		grid.add_child(t)
@@ -594,7 +663,9 @@ static func results_text(standings: Array[RacerState], footer: String = "Fire to
 	for i in standings.size():
 		var r := standings[i]
 		var time := "running"
-		if r.is_finished():
+		if r.dnf:
+			time = "DNF"
+		elif r.is_finished():
 			time = format_time(r.finish_time) if r.finish_time >= 0.0 else "classified"
 		var mark := "  <" if r.is_player else ""
 		lines.append("%d.  %s   %s%s" % [i + 1, r.display_name, time, mark])

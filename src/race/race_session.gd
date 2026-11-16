@@ -83,10 +83,10 @@ func set_sitting_out(ids: Array[int]) -> void:
 		sitting_out = ids.duplicate()
 
 
-## True when every participating human has finished.
+## True when every participating human has finished (or is out: DNF).
 func humans_finished() -> bool:
 	for id in human_ids:
-		if is_participating(id) and not racers[id].is_finished():
+		if is_participating(id) and not racers[id].is_done():
 			return false
 	return true
 
@@ -110,9 +110,10 @@ func racer_count() -> int:
 	return participants().size()
 
 
+## Every participating car has finished or is out (DNF).
 func all_finished() -> bool:
 	for r in participants():
-		if not r.is_finished():
+		if not r.is_done():
 			return false
 	return true
 
@@ -160,7 +161,38 @@ func checkpoint_reached(index: int, racer_id: int = PLAYER_ID) -> LapTracker.Res
 		r.finish_time = elapsed
 		if (not spectator and human_ids.has(racer_id) and humans_finished()) or (spectator and all_finished()):
 			state = State.FINISHED
+		_classify_retired()
 	return result
+
+
+## M6: a car at zero condition is out of the race (DNF). When it was the last
+## human still racing (or, spectating, the last car) the race is over for the
+## humans, exactly as when they finish. Returns false when nothing changed.
+func retire(racer_id: int) -> bool:
+	if state == State.MODE_SELECT or not is_participating(racer_id):
+		return false
+	var r := racers[racer_id]
+	if r.is_done():
+		return false
+	r.dnf = true
+	r.retire_time = elapsed
+	if state == State.RACING and ((not spectator and human_ids.has(racer_id) and humans_finished()) or (spectator and all_finished())):
+		state = State.FINISHED
+	_classify_retired()
+	return true
+
+
+## Once every car has finished or retired, the retired cars are classified
+## after the finishers (in standings order: who got further ranks higher),
+## without a finish time.
+func _classify_retired() -> void:
+	if not all_finished():
+		return
+	for r in standings():
+		if r.dnf and r.finish_position == 0:
+			finish_order.append(r.id)
+			r.finish_position = finish_order.size()
+	state = State.FINISHED
 
 
 ## Ends a race that cannot complete normally (spectator safety net): unfinished
@@ -185,6 +217,8 @@ func standings() -> Array[RacerState]:
 			return a.is_finished()
 		if a.is_finished():
 			return a.finish_position < b.finish_position
+		if a.dnf != b.dnf:  # cars still running ahead of retired ones
+			return b.dnf
 		if a.tracker.laps_completed != b.tracker.laps_completed:
 			return a.tracker.laps_completed > b.tracker.laps_completed
 		if a.progress != b.progress:
