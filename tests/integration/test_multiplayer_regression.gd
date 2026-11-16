@@ -21,10 +21,10 @@ const FINGERPRINTS := {
 
 ## Recorded at M6 (damage on; the hash also covers every car's condition and DNF).
 const M6_FINGERPRINTS := {
-	"mode=race ticks=3600 weapons=0": "237218ce4b9ae7fca059cef5fe1d075a",
-	"mode=race ticks=3600 weapons=1 style=1": "0a4e7ac87191d59ba7bd6dacda05e65f",
-	"mode=spectate ticks=4800 weapons=1": "d315ed4f96f64c26c3d75e198dc29f25",
-	"mode=spectate ticks=4800 weapons=1 style=1": "db6a1b50a4c51735f7f1d189287eab36",
+	"mode=race ticks=3600 weapons=0": "6b574664e7f9d59d9328e0e175526fb7",
+	"mode=race ticks=3600 weapons=1 style=1": "0f3fecf7139c3ac5ca1e8c95b2b0ad51",
+	"mode=spectate ticks=4800 weapons=1": "c4fae0ca26f56e647c504cc4d00e6292",
+	"mode=spectate ticks=4800 weapons=1 style=1": "c8f7fe36390d437f20b4b1883d6d0472",
 }
 
 
@@ -33,9 +33,9 @@ const M6_FINGERPRINTS := {
 ## turn cars); with lock=0 contact=0 the M6 values above still hold.
 const CURRENT_FINGERPRINTS := {
 	"mode=race ticks=3600 weapons=0": "e3d5e2e36335c3cf173d2353fe43b5e7",
-	"mode=race ticks=3600 weapons=1 style=1": "8f4cbe537c96cb29a321e454a5205721",
-	"mode=spectate ticks=4800 weapons=1": "e288604f1339f3cc77ebbcccb890dec7",
-	"mode=spectate ticks=4800 weapons=1 style=1": "1649ae82fae04096e2db71959f3a2bf6",
+	"mode=race ticks=3600 weapons=1 style=1": "335a8293777efbb507272b654fdd807b",
+	"mode=spectate ticks=4800 weapons=1": "f8f130a0feef918c9befd871df1264d8",
+	"mode=spectate ticks=4800 weapons=1 style=1": "010b09a86e20fa81a311654ed3c9fb5a",
 }
 
 

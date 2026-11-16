@@ -117,13 +117,18 @@ func test_armed_ten_car_race_lets_opponents_finish() -> void:
 	_main.set_weapons_enabled(true)
 	_main.set_sim_speed(8)
 	await _tap(PlayerControls.FIRE)
+	# M6: a rival can retire (DNF) in an armed race; nobody may get stuck
 	await wait_until(func() -> bool:
 		for r in _main.session.racers:
-			if not r.is_player and not r.is_finished():
+			if not r.is_player and not r.is_done():
 				return false
 		return true, 150.0)
 	var finished := 0
+	var retired := 0
 	for r in _main.session.racers:
 		if not r.is_player and r.is_finished():
 			finished += 1
-	assert_eq(finished, 9, "all opponents finish an armed race")
+		elif not r.is_player and r.dnf:
+			retired += 1
+	assert_eq(finished + retired, 9, "every opponent finishes or retires in an armed race")
+	assert_gt(finished, 5, "most finish")

@@ -98,5 +98,8 @@ sets in `tests/integration/test_multiplayer_regression.gd` keep their meaning
 M3 gates in `test_combat_race.gd` / `test_tactical_race.gd`; old values are in git
 history. Biomes change handling, so `test_track_themes.gd` now checks that each
 biome differs from Green Valley and is deterministic, instead of identical races.
+J6 (same day): rivals ignore retired cars (and cars down in a jump's gap) as traffic
+and targets; races in which a car retires change, so the two damage-on sets were
+re-recorded again (the damage-off set and the No Guns all-on value are unchanged).
 Day / Night, the menus, the championship screens, rewards and the popup are
 presentation or flow only and do not change a race.

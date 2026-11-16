@@ -244,7 +244,7 @@ func test_flat_circuit_has_no_jumps() -> void:
 	assert_false(_main.track.layout.has_jumps())
 
 
-func test_network_races_drive_the_figure_eight_without_the_jump() -> void:
+func test_network_races_have_the_figure_eight_jump() -> void:
 	var link := NetLink.new()
 	add_child_autofree(link)
 	link.host(24733)
@@ -255,7 +255,7 @@ func test_network_races_drive_the_figure_eight_without_the_jump() -> void:
 	_main.net = NetRace.new(link, NetRace.Role.HOST)
 	add_child_autofree(_main)
 	await wait_physics_frames(2)
-	assert_null(_main.jumps, "no jump simulation until J5")
-	assert_false(_main.track.has_node("Jump0"), "no ramp or gap drawn")
-	assert_string_contains(_main.hud_track_name, "JUMP OFF")
+	assert_not_null(_main.jumps, "J5: the host simulates the jump")
+	assert_true(_main.track.has_node("Jump0"), "ramp and gap drawn")
+	assert_false(_main.hud_track_name.contains("ONLINE"))
 	link.close()
