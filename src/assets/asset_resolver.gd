@@ -109,6 +109,34 @@ func get_audio(logical_name: String, loop: bool = false) -> AudioStream:
 	return result
 
 
+## Voice recordings (VoiceCatalog): the user's override in custom/audio/voice/
+## (OGG, WAV or MP3), else the packaged recording res://assets/audio/voice/<name>.mp3.
+## Null (never an error) when neither exists, so a missing line is just skipped.
+const VOICE_FALLBACK_ROOT := "res://assets/audio"
+const VOICE_EXTENSIONS: Array[String] = ["ogg", "wav", "mp3"]
+
+
+func get_voice(logical_name: String) -> AudioStream:
+	if _audio_cache.has(logical_name):
+		return _audio_cache[logical_name]
+	var stream: AudioStream = null
+	for extension in VOICE_EXTENSIONS:
+		var path := audio_override_path(logical_name, extension)
+		if FileAccess.file_exists(path):
+			stream = _stream_from_bytes(FileAccess.get_file_as_bytes(path), extension)
+			if stream != null:
+				break
+			push_warning("AssetResolver: invalid voice override '%s'; using the packaged recording." % path)
+	if stream == null:
+		for extension in VOICE_EXTENSIONS:
+			var packaged := VOICE_FALLBACK_ROOT.path_join(logical_name + "." + extension)
+			if ResourceLoader.exists(packaged):
+				stream = load(packaged) as AudioStream
+				break
+	_audio_cache[logical_name] = stream
+	return stream
+
+
 func audio_override_path(logical_name: String, extension: String) -> String:
 	return override_root.path_join(AUDIO_DIR).path_join(logical_name + "." + extension)
 
@@ -139,18 +167,28 @@ func _load_audio_override(logical_name: String) -> AudioStream:
 		var path := audio_override_path(logical_name, extension)
 		if not FileAccess.file_exists(path):
 			continue
-		var bytes := FileAccess.get_file_as_bytes(path)
-		var stream: AudioStream = null
-		if extension == "ogg" and bytes.size() > 4 and bytes.slice(0, 4).get_string_from_ascii() == "OggS":
-			stream = AudioStreamOggVorbis.load_from_buffer(bytes)
-		elif extension == "wav" and bytes.size() > 12 and bytes.slice(0, 4).get_string_from_ascii() == "RIFF" \
-				and bytes.slice(8, 12).get_string_from_ascii() == "WAVE":
-			stream = AudioStreamWAV.load_from_buffer(bytes)
-		if stream == null or stream.get_length() <= 0.0:
+		var stream := _stream_from_bytes(FileAccess.get_file_as_bytes(path), extension)
+		if stream == null:
 			push_warning("AssetResolver: invalid audio override '%s'; using template." % path)
 			continue
 		return stream
 	return null
+
+
+## A runtime-loaded stream from file bytes (null when they are not that format or empty).
+static func _stream_from_bytes(bytes: PackedByteArray, extension: String) -> AudioStream:
+	var stream: AudioStream = null
+	if extension == "ogg" and bytes.size() > 4 and bytes.slice(0, 4).get_string_from_ascii() == "OggS":
+		stream = AudioStreamOggVorbis.load_from_buffer(bytes)
+	elif extension == "wav" and bytes.size() > 12 and bytes.slice(0, 4).get_string_from_ascii() == "RIFF" \
+			and bytes.slice(8, 12).get_string_from_ascii() == "WAVE":
+		stream = AudioStreamWAV.load_from_buffer(bytes)
+	elif extension == "mp3" and bytes.size() > 4 and (bytes.slice(0, 3).get_string_from_ascii() == "ID3" \
+			or (bytes[0] == 0xFF and (bytes[1] & 0xE0) == 0xE0)):
+		stream = AudioStreamMP3.load_from_buffer(bytes)
+	if stream == null or stream.get_length() <= 0.0:
+		return null
+	return stream
 
 
 func _load_audio_fallback(logical_name: String) -> AudioStream:

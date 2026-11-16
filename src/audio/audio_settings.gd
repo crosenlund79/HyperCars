@@ -1,12 +1,12 @@
 class_name AudioSettings
 extends RefCounted
-## Volume and mute preferences for the Master, Music, Engine and Effects buses,
+## Volume and mute preferences for the Master, Music, Engine, Effects and Voice buses,
 ## saved to a small config file (user://settings.cfg by default).
 ## Presentation only: nothing here touches the simulation.
 
-const BUSES: Array[String] = ["Master", "Music", "Engine", "Effects"]
+const BUSES: Array[String] = ["Master", "Music", "Engine", "Effects", "Voice"]
 const DEFAULT_PATH := "user://settings.cfg"
-const DEFAULT_VOLUME := {"Master": 0.8, "Music": 0.6, "Engine": 0.7, "Effects": 0.8}
+const DEFAULT_VOLUME := {"Master": 0.8, "Music": 0.6, "Engine": 0.7, "Effects": 0.8, "Voice": 0.9}
 
 var path: String
 ## Linear volume 0..1 per bus.
@@ -21,7 +21,7 @@ func _init(p_path: String = DEFAULT_PATH) -> void:
 		muted[bus] = false
 
 
-## Creates the Music, Engine and Effects buses (routed to Master) if missing.
+## Creates the Music, Engine, Effects and Voice buses (routed to Master) if missing.
 static func ensure_buses() -> void:
 	for bus in BUSES:
 		if AudioServer.get_bus_index(bus) == -1:

@@ -126,6 +126,10 @@ var damage: DamageWorld
 var damage_rules: DamageRules = preload("res://src/damage/default_damage_rules.tres")
 var damage_enabled := true
 var damage_view: DamageView = null
+## Commentary and rival taunts (presentation; off with presentation_enabled).
+var voice: VoiceDirector = null
+var voice_enabled := true
+var voice_params: VoiceParams = preload("res://src/audio/default_voice_params.tres")
 ## Barrier / car contacts reported by the cars during their physics step,
 ## applied (in report order) at the start of the next race tick.
 var _impacts: Array = []
@@ -325,6 +329,11 @@ func _ready() -> void:
 		for k in cars.size():  # four shared wheels under each body (not for flattened custom cars)
 			if _car_looks[k].wheels:
 				CarWheels.new().setup(cars[k], wheel, wheel_layout, _car_looks[k].body_logical)
+		if voice_enabled:
+			voice = VoiceDirector.new()
+			voice.name = "VoiceDirector"
+			add_child(voice)
+			voice.setup(self, resolver, voice_params)
 		damage_view = DamageView.new()
 		damage_view.name = "DamageView"
 		add_child(damage_view)

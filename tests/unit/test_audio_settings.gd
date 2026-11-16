@@ -16,7 +16,7 @@ func after_each() -> void:
 
 func test_defaults_cover_all_four_buses() -> void:
 	var s := AudioSettings.new(_path)
-	assert_eq(AudioSettings.BUSES, ["Master", "Music", "Engine", "Effects"] as Array[String])
+	assert_eq(AudioSettings.BUSES, ["Master", "Music", "Engine", "Effects", "Voice"] as Array[String])
 	for bus in AudioSettings.BUSES:
 		assert_between(s.volume[bus], 0.0, 1.0)
 		assert_false(s.muted[bus])

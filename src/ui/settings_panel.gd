@@ -1,6 +1,6 @@
 class_name SettingsPanel
 extends PanelContainer
-## Audio settings: Master, Music, Engine and Effects volume with mute toggles.
+## Audio settings: Master, Music, Engine, Effects and Voice volume with mute toggles.
 ## Changes apply immediately and are saved.
 
 signal closed
