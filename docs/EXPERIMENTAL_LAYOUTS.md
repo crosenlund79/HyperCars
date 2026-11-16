@@ -33,9 +33,16 @@ and the ground barriers (layer 1); bridge cars use layer 8 and the bridge barrie
 everywhere else. Checkpoint gates are never on the bridge. A network client's own
 (predicted) car uses the barriers of the level shown by the host's snapshots.
 
-Not yet level-aware (later stages, J4): weapons. Missiles, mines and explosions use
-flat 2D distance, so with weapons on they can hit a car on the other level at the
-crossing. Test the prototype with No Guns for clean level behaviour.
+Weapons (J4) respect the road levels: a missile, mine blast or super missile only
+touches cars on its own level (anything within 80 px of a bridge end belongs to both
+levels, like the cars there). Front / rear / homing missiles start on the shooter's branch
+and level and follow the road they fly along (projected near their previous point, never
+onto the other road at the crossing), so a missile leaving the bridge comes down where the
+bridge ends; a super missile orbits on its owner's level; a mine keeps the level where it
+was dropped; homing missiles only lock onto cars on their level. Nothing changes on flat
+circuits (the rules only run when the layout has elevation zones). AI weapon decisions are
+unchanged, so a rival may still fire at a car on the other level — the shot passes over /
+under it.
 
 Bridge ends (fix after J2): within 80 px (along the road) of either end of the bridge a car
 belongs to **both** levels — it collides with cars and barriers of either — so two cars on
@@ -75,4 +82,17 @@ off both roads.
 Known limitations: the bridge's height is suggested by the shadow only (no ramp art,
 no scaling of cars); a network client takes levels from the host's snapshots, so a car
 reaching a bridge end can draw on the wrong side of the deck for a moment; weapons are
-drawn by level but still hit across levels (J4).
+drawn by level and, since J4, only hit their own level.
+
+Armed prototype fingerprints (J4; fresh processes, layout `exp_figure8_01`; No Guns
+values above are unchanged by J4):
+
+| probe | before J4 | after J4 |
+|---|---|---|
+| `mode=race ticks=3600 weapons=1` | `7afec9e8…` | `7afec9e8568d374b277acccaf5ca0ef2` (same) |
+| `mode=race ticks=3600 weapons=1 style=1` | `1f2c4b11…` | `7d32d98bcddceb9b5d5dda2a7ab5a651` |
+| `mode=spectate ticks=4800 weapons=1` | `0dc4bff4…` | `312d8159b1ddfc4b91ca2b97f6fb62a6` |
+| `mode=spectate ticks=4800 weapons=1 style=1` | `47f19227…` | `47f1922765508a44dfd40932f3928a4d` (same) |
+
+Changed where a weapon met a car on the other level (no hit any more) or a missile at the
+crossing is now checked against its own road for leaving it.

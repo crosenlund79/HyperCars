@@ -266,6 +266,8 @@ func _ready() -> void:
 	car_levels.resize(cars.size())
 	car_transitions.resize(cars.size())
 	combat = CombatWorld.new(weapon_rules, cars.size(), track.path, track.layout.road_width * 0.5)
+	if track.layout.has_elevation():
+		combat.layout = track.layout
 	history = RaceHistory.new(rival_ids)
 	hud.setup_history(resolver, history, car_textures, full_names)
 	car_textures[RaceSession.PLAYER_ID] = CarArt.icon(resolver, AssetCatalog.CAR_PLAYER)
@@ -1186,4 +1188,8 @@ func _combat_states() -> Array:
 	for i in cars.size():
 		states.append({"position": cars[i].global_position, "heading": cars[i].model.heading,
 			"present": grid_order.has(i)})
+		if combat.layout != null:  # J4: road level for elevation-aware weapons
+			states[i]["level"] = car_levels[i]
+			states[i]["band"] = car_transitions[i] == 1
+			states[i]["index"] = progress[i].index
 	return states

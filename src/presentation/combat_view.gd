@@ -103,6 +103,8 @@ func _levels_of(items: Array, refs: Array, levels: Array[int]) -> Array[int]:
 			if is_same(refs[k], item):
 				level = levels[k]
 				break
+		if item.has("level"):  # J4: the host's own level (bridge ends: drawn above the deck)
+			level = 1 if item.level == 1 or item.get("band", false) else 0
 		out.append(level if level >= 0 else _car_level(item.owner))
 	return out
 

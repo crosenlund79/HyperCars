@@ -18,6 +18,11 @@ var rules: WeaponRules
 var enabled := false
 var style: WeaponRules.Style = WeaponRules.Style.CLASSIC
 var path: ClosedPath
+## J4: the track layout when it has road levels (elevation zones); null on a
+## flat circuit, where none of the level rules apply. Cars then carry `level`
+## (0 ground, 1 bridge), `band` (near a bridge end: on both levels) and
+## `index` (their position along the centreline) in their state.
+var layout: TrackLayout = null
 var road_half_width := 75.0
 ## Per car: ammo [front, rear], cooldown, wreck and grace timers, counters.
 var ammo: Array = []
@@ -148,16 +153,25 @@ func request(id: int, slot: int, cars: Array) -> bool:
 	match weapon:
 		W.FRONT_MISSILE, W.HOMING_MISSILE:
 			var p := {"type": weapon, "owner": id, "pos": c.position + fwd * 36.0, "dir": fwd, "age": 0.0, "target": -1}
+			_launch_level(p, c)
 			if weapon == W.HOMING_MISSILE:
 				p.target = nearest_car(id, cars)
 			projectiles.append(p)
 		W.REAR_MISSILE:
-			projectiles.append({"type": weapon, "owner": id, "pos": c.position - fwd * 36.0, "dir": -fwd, "age": 0.0, "target": -1})
+			var p := {"type": weapon, "owner": id, "pos": c.position - fwd * 36.0, "dir": -fwd, "age": 0.0, "target": -1}
+			_launch_level(p, c)
+			projectiles.append(p)
 		W.SUPER_MISSILE:
-			projectiles.append({"type": weapon, "owner": id, "pos": c.position + fwd * rules.super_orbit_radius,
-				"dir": fwd, "age": 0.0, "target": -1, "angle": c.heading})
+			var p := {"type": weapon, "owner": id, "pos": c.position + fwd * rules.super_orbit_radius,
+				"dir": fwd, "age": 0.0, "target": -1, "angle": c.heading}
+			_launch_level(p, c)
+			projectiles.append(p)
 		W.MINE:
-			mines.append({"owner": id, "pos": c.position - fwd * 34.0, "age": 0.0})
+			var m := {"owner": id, "pos": c.position - fwd * 34.0, "age": 0.0}
+			if layout != null:  # a mine stays on the road level where it was dropped
+				m.level = c.get("level", 0)
+				m.band = c.get("band", false)
+			mines.append(m)
 	events.append({"kind": "fire", "type": weapon, "pos": c.position, "car": id, "owner": id})
 	return true
 
@@ -169,6 +183,8 @@ func nearest_car(id: int, cars: Array) -> int:
 	for j in cars.size():
 		if j == id or is_wrecked(j) or not cars[j].present:
 			continue
+		if layout != null and not _meets(cars[id], cars[j]):
+			continue  # never locks onto a car on the other road level
 		var d: float = cars[id].position.distance_to(cars[j].position)
 		if d < best_d:
 			best_d = d
@@ -203,6 +219,9 @@ func step(dt: float, cars: Array) -> Dictionary:
 		match p.type:
 			W.SUPER_MISSILE:
 				var owner_car: Dictionary = cars[p.owner]
+				if layout != null:  # orbits on its owner's road level
+					p.level = owner_car.get("level", 0)
+					p.band = owner_car.get("band", false)
 				p.angle += deg_to_rad(rules.super_orbit_speed_degrees) * dt
 				p.pos = owner_car.position + Vector2.from_angle(p.angle) * rules.super_orbit_radius
 				if p.age >= rules.super_duration or is_wrecked(p.owner):
@@ -214,7 +233,8 @@ func step(dt: float, cars: Array) -> Dictionary:
 						# destroyed again (_destroy ignores it), so the orbit passing over it
 						# is not a new hit: no repeated explosion event every tick
 						if j != p.owner and cars[j].present and not is_wrecked(j) and grace_left[j] <= 0.0 \
-								and p.pos.distance_to(cars[j].position) < rules.super_hit_radius:
+								and p.pos.distance_to(cars[j].position) < rules.super_hit_radius \
+								and (layout == null or _meets(p, cars[j])):
 							_hit(j, p, destroyed)
 			_:
 				if p.type == W.HOMING_MISSILE and p.target >= 0 and not is_wrecked(p.target):
@@ -223,11 +243,13 @@ func step(dt: float, cars: Array) -> Dictionary:
 						deg_to_rad(rules.homing_turn_rate_degrees) * dt)
 					p.dir = p.dir.rotated(turn)
 				p.pos += p.dir * rules.missile_speed * dt
+				if layout != null:
+					_follow_level(p)
 				if p.age >= rules.missile_lifetime:
 					keep = false
 					events.append({"kind": "explode", "type": p.type, "pos": p.pos, "car": -1, "owner": p.owner})
 				else:
-					var hit := _car_at(p.pos, rules.hit_radius, cars, p.owner if p.age < 0.25 else -1)
+					var hit := _car_at(p.pos, rules.hit_radius, cars, p.owner if p.age < 0.25 else -1, p)
 					if hit >= 0:
 						keep = false
 						_hit(hit, p, destroyed)
@@ -243,7 +265,8 @@ func step(dt: float, cars: Array) -> Dictionary:
 		if m.age >= rules.mine_fuse:
 			events.append({"kind": "mine_blast", "type": W.MINE, "pos": m.pos, "car": -1, "owner": m.owner})
 			for j in cars.size():
-				if cars[j].present and m.pos.distance_to(cars[j].position) <= rules.mine_blast_radius:
+				if cars[j].present and m.pos.distance_to(cars[j].position) <= rules.mine_blast_radius \
+						and (layout == null or _meets(m, cars[j])):
 					_destroy(j, m.owner, m.pos, W.MINE, destroyed)
 		else:
 			live_mines.append(m)
@@ -265,12 +288,14 @@ func _destroy(car: int, owner: int, pos: Vector2, type: int, destroyed: Array[in
 	events.append({"kind": "destroyed", "type": type, "pos": pos, "car": car, "owner": owner})
 
 
-func _car_at(pos: Vector2, radius: float, cars: Array, ignore: int) -> int:
+func _car_at(pos: Vector2, radius: float, cars: Array, ignore: int, item: Dictionary = {}) -> int:
 	var best := -1
 	var best_d := radius
 	for j in cars.size():
 		if j == ignore or not cars[j].present:
 			continue
+		if layout != null and not _meets(item, cars[j]):
+			continue  # passes over / under a car on the other road level
 		var d: float = pos.distance_to(cars[j].position)
 		if d < best_d:
 			best_d = d
@@ -284,6 +309,38 @@ func _outside_road(p: Dictionary) -> bool:
 	var proj := path.project(p.pos, p.get("hint", -1))
 	p["hint"] = proj.index
 	return absf(proj.lateral) > road_half_width
+
+
+## J4: can two things at these road levels touch? Things near a bridge end
+## (band) belong to both levels; otherwise the levels must match.
+static func levels_meet(level_a: int, band_a: bool, level_b: int, band_b: bool) -> bool:
+	return band_a or band_b or level_a == level_b
+
+
+func _meets(a: Dictionary, b: Dictionary) -> bool:
+	return levels_meet(a.get("level", 0), a.get("band", false), b.get("level", 0), b.get("band", false))
+
+
+## A new projectile starts on its shooter's branch and level; a super missile
+## follows its owner (updated each tick).
+func _launch_level(p: Dictionary, shooter: Dictionary) -> void:
+	if layout == null:
+		return
+	p.level = shooter.get("level", 0)
+	p.band = shooter.get("band", false)
+	if p.type != W.SUPER_MISSILE:
+		p.hint = shooter.get("index", -1)
+		_follow_level(p)
+
+
+## A flying missile's level from where it is along its own branch of the road
+## (projection near its previous point, so it never jumps to the other road at
+## the crossing): it leaves the bridge where the bridge ends.
+func _follow_level(p: Dictionary) -> void:
+	var proj := path.project(p.pos, p.get("hint", -1))
+	p.hint = proj.index
+	p.level = layout.level_at(proj.distance, path.length)
+	p.band = layout.in_transition(proj.distance, path.length)
 
 
 ## Exact combat state for determinism checks.

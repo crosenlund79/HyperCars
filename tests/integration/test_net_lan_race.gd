@@ -112,3 +112,13 @@ func test_experimental_crossing_layout_agrees_with_prediction() -> void:
 		return
 	assert_eq(r[1].results[0], r[0].results[0], "client shows the host's result")
 	assert_eq(r[0].results[0].order.size(), 10)
+
+
+func test_experimental_crossing_armed_race_agrees() -> void:
+	# J4: elevation-aware combat stays host-authoritative; the client shows the
+	# host's result and the same destructions
+	var r := await _run(24743, ["laps=1", "layout=exp_figure8_01", "weapons=1", "style=1", "latency=30"])
+	assert_true(r[0].has("results") and r[1].has("results"), str(r))
+	if not r[0].has("results") or not r[1].has("results"):
+		return
+	assert_eq(r[1].results[0], r[0].results[0], "same result, same destructions")

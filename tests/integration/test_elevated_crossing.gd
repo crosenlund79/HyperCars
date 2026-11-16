@@ -323,3 +323,37 @@ func test_cars_at_bridge_ends_are_drawn_whole_above_the_deck() -> void:
 		await wait_process_frames(2)
 		assert_gt(_main.cars[3].z_index, Track.BRIDGE_DECK_Z, "whole car above the deck at s=%.0f" % s)
 		assert_lt(_main.cars[4].z_index, Track.BRIDGE_SHADOW_Z, "the car below stays under it")
+
+
+# --- J4: elevation-aware combat in full races ---
+
+func test_armed_ai_races_finish_without_cross_level_kills_at_the_crossing() -> void:
+	for style in [WeaponRules.Style.CLASSIC, WeaponRules.Style.TACTICAL]:
+		await _make()
+		_main.set_weapons_enabled(true)
+		_main.set_combat_style(style)
+		_main.set_menu_choice(2)  # the nine rivals, their own weapon decisions
+		_main.set_sim_speed(8)
+		_main.start_race()
+		var crossing: Vector2 = _crossing().point
+		var across := 0
+		var kills := 0
+		var cursor := 0
+		var t := 0
+		while _main.session.state != RaceSession.State.FINISHED and t < 60 * 60 * 6:
+			await wait_physics_frames(1)
+			t += 1
+			while cursor < _main.combat.events.size():
+				var e: Dictionary = _main.combat.events[cursor]
+				cursor += 1
+				if e.kind != "destroyed" or e.owner == e.car:
+					continue
+				kills += 1
+				if _main.car_levels[e.owner] != _main.car_levels[e.car] and _main.car_transitions[e.owner] == 0 \
+						and _main.car_transitions[e.car] == 0 and _main.cars[e.car].global_position.distance_to(crossing) < 160.0:
+					across += 1
+		assert_eq(_main.session.state, RaceSession.State.FINISHED, "style %d race finishes" % style)
+		assert_gt(kills, 5, "weapons still destroy cars on their own level")
+		assert_eq(across, 0, "nobody destroyed from the other level at the crossing")
+		_main.set_sim_speed(1)
+		_main.free()
