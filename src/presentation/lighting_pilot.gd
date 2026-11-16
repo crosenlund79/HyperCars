@@ -1,6 +1,6 @@
 class_name LightingPilot
 extends Node2D
-## LIGHTING PILOT (experiment, not a committed night mode). A dusk presentation:
+## Night racing (TIME: NIGHT; started as the lighting pilot). A night presentation:
 ## the world is tinted darker, ten trackside lamps light the road, each car
 ## carries one light (a soft headlight cone plus a small glow so the car stays
 ## readable), and weapon explosions flash briefly. Toggle with L.
@@ -29,11 +29,23 @@ var _combat: CombatWorld
 var _cursor := 0
 
 
-func setup(track: Track, cars: Array[Car], combat: CombatWorld, resolver: AssetResolver) -> void:
+var lamp_color := LAMP_COLOR
+var lamp_energy := 1.15
+var headlight_energy := 0.95
+
+
+## theme: the biome's night mood (ambient tint, lamps, headlights); null = the pilot's.
+func setup(track: Track, cars: Array[Car], combat: CombatWorld, resolver: AssetResolver, theme: TrackTheme = null) -> void:
 	_cars = cars
 	_combat = combat
+	var ambient := AMBIENT
+	if theme != null:
+		ambient = theme.night_ambient
+		lamp_color = theme.lamp_color
+		lamp_energy = theme.lamp_energy
+		headlight_energy = theme.headlight_energy
 	_ambient = CanvasModulate.new()
-	_ambient.color = AMBIENT
+	_ambient.color = ambient
 	add_child(_ambient)
 	var radial := _radial_texture(256)
 	_place_lamps(track, resolver, radial)
@@ -42,7 +54,7 @@ func setup(track: Track, cars: Array[Car], combat: CombatWorld, resolver: AssetR
 		var l := PointLight2D.new()
 		l.texture = car_tex
 		l.color = HEADLIGHT_COLOR
-		l.energy = 0.95
+		l.energy = headlight_energy
 		l.texture_scale = 1.0
 		l.offset = Vector2(car_tex.get_width() * 0.5 - 40.0, 0)
 		add_child(l)
@@ -142,8 +154,8 @@ func _place_lamps(track: Track, resolver: AssetResolver, tex: Texture2D) -> void
 		_lamp_sprites.append(spr)
 		var l := PointLight2D.new()
 		l.texture = tex
-		l.color = LAMP_COLOR
-		l.energy = 1.15
+		l.color = lamp_color
+		l.energy = lamp_energy
 		l.texture_scale = 2.2
 		l.position = pos - outside * 40.0
 		add_child(l)

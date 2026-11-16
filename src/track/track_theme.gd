@@ -1,8 +1,9 @@
 class_name TrackTheme
 extends Resource
-## One visual theme variant of the circuit (Variant 1, 2, 3 ...). Visual only:
-## the layout, collision, physics and race rules are identical for every
-## variant. Internal names stay generic ("variant_N"); only display_name is
+## One biome (theme variant) of a circuit (Variant 1, 2, 3 ...): artwork, a
+## few colour tints, weather, the night mood, and (2026-11) modest handling
+## differences for every car alike (grip, response, braking). The layout,
+## collision and race rules are identical for every variant. Internal names stay generic ("variant_N"); only display_name is
 ## thematic, so artwork can be replaced without renaming code or folders.
 ##
 ## Assets: a variant looks up "variant_N/<logical name>" first (when the asset
@@ -24,11 +25,40 @@ const PATH := "res://src/track/themes/variant_%d.tres"
 @export var scenery_sway: Array[bool] = []
 ## Colour of the dust a car throws up when it runs off the road.
 @export var dust_color := Color(0.75, 0.66, 0.5, 0.7)
+## Handling for every car, human and AI alike (multipliers on DrivingParams;
+## 1 = the approved baseline). Modest by design.
+@export var grip_scale := 1.0
+@export var acceleration_scale := 1.0
+@export var turn_scale := 1.0
+@export var brake_scale := 1.0
+## Look: tints over the ground and road artwork (white = unchanged), weather
+## ("", "rain" or "snow"), and the night mood (ambient tint, lamp colour and
+## strength, headlight strength).
+@export var ground_tint := Color.WHITE
+@export var road_tint := Color.WHITE
+@export var weather := ""
+@export var night_ambient := Color(0.42, 0.44, 0.58)
+@export var lamp_color := Color(1.0, 0.86, 0.6)
+@export var lamp_energy := 1.15
+@export var headlight_energy := 0.95
 
 
 ## The asset this variant uses for a shared logical name.
 func asset(logical: String) -> String:
 	return AssetCatalog.themed(logical, variant)
+
+
+## The driving parameters on this biome (the same object when nothing changes).
+func driving(base: DrivingParams) -> DrivingParams:
+	if grip_scale == 1.0 and acceleration_scale == 1.0 and turn_scale == 1.0 and brake_scale == 1.0:
+		return base
+	var p := base.duplicate() as DrivingParams
+	p.grip = base.grip * grip_scale
+	p.acceleration = base.acceleration * acceleration_scale
+	p.turn_rate_degrees = base.turn_rate_degrees * turn_scale
+	p.brake_deceleration = base.brake_deceleration * brake_scale
+	p.release_deceleration = base.release_deceleration * brake_scale
+	return p
 
 
 static func load_variant(n: int) -> TrackTheme:

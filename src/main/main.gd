@@ -166,6 +166,9 @@ var achievement_tracker: AchievementTracker
 var _race_open := false
 ## Start with the lighting pilot on (e.g. for comparison runs).
 @export var lighting_on_start := false
+## TIME: NIGHT (race setup / championship): night lighting from the start.
+## Presentation only: no physics change (the biome sets the handling).
+var night := false
 ## M4 two-player races: number of humans (1 or 2), set before the scene starts.
 ## With 2, Player 2 is racer 10, the field stays 10 cars (2 humans + 8 rivals,
 ## one rival sitting out per race in a fixed rotation), and the garage and
@@ -211,6 +214,7 @@ func _ready() -> void:
 	PlayerControls.ensure_actions()
 	resolver = AssetResolver.new()
 	track_theme = TrackTheme.load_variant(track_variant)
+	driving_params = track_theme.driving(driving_params)  # the biome's handling, for every car alike
 	if layout_override == null and use_command_line_layout:
 		layout_override = DevLayouts.load_selected()
 	if layout_override != null:
@@ -363,10 +367,15 @@ func _ready() -> void:
 		lighting = LightingPilot.new()
 		lighting.name = "LightingPilot"
 		add_child(lighting)
-		lighting.setup(track, cars, combat, resolver)
+		lighting.setup(track, cars, combat, resolver, track_theme)
 		if track.layout.has_elevation():
 			lighting.level_of = draw_level_of
-		lighting.set_enabled(lighting_on_start)
+		lighting.set_enabled(lighting_on_start or night)
+		if track_theme.weather != "":
+			var weather := WeatherView.new()
+			weather.name = "Weather"
+			add_child(weather)
+			weather.setup(track_theme.weather, night)
 	if achievements != null:
 		achievement_tracker = AchievementTracker.new()
 		achievement_tracker.name = "AchievementTracker"

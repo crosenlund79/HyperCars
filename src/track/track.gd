@@ -59,6 +59,10 @@ func build(resolver: AssetResolver, p_theme: TrackTheme = null) -> void:
 		right_edge = TrackLayout.offset_line_by(centerline, half_widths, 1.0)
 	_build_ground(resolver.get_texture(theme.asset(AssetCatalog.GRASS)))
 	_build_road(resolver.get_texture(theme.asset(AssetCatalog.TARMAC)), left_edge, right_edge)
+	for node_name in ["Ground", "Road", "BridgeDeck"]:  # biome tints (white = unchanged)
+		var poly := get_node_or_null(node_name) as Polygon2D
+		if poly != null:
+			poly.color = theme.ground_tint if node_name == "Ground" else theme.road_tint
 	_build_start_line(resolver.get_texture(theme.asset(AssetCatalog.START_LINE)))
 	_build_walls(resolver.get_texture(theme.asset(AssetCatalog.WALL)), half, left_edge, right_edge)
 	if layout.has_elevation():
