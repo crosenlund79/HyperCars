@@ -15,6 +15,14 @@ enum Msg { WELCOME, HELLO, SETUP, READY, START, SNAP, INPUT, RESULTS, EVENTS, BY
 ## Wire protocol version and game build: both must match before a session starts.
 const PROTOCOL := 2
 const GAME_BUILD := "hypercars-m5.2"
+
+
+## Build string exchanged in WELCOME / HELLO: the game build, plus the
+## developer layout when one is selected (J0), so both computers must run the
+## same circuit.
+static func build_id() -> String:
+	var dev := DevLayouts.selected_id()
+	return GAME_BUILD if dev.is_empty() else GAME_BUILD + "+" + dev
 const SNAP_INTERVAL := 2
 ## Client renders this many ticks behind the newest snapshot (smoothness vs delay).
 const INTERP_DELAY := 4.0

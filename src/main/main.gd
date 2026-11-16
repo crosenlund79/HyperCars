@@ -59,6 +59,10 @@ const LAP_OPTIONS: Array[int] = [3, 7, 20, 50]
 @export_range(1, 3) var track_variant := 1
 var track_theme: TrackTheme
 var hud_track_name := ""
+## J0: an experimental track layout for this race scene (tests, probes); when
+## null, the developer command line (DevLayouts, "--layout=<id>") may pick one;
+## otherwise the scene's normal circuit is used.
+var layout_override: TrackLayout = null
 
 var resolver: AssetResolver
 var session: RaceSession
@@ -164,8 +168,14 @@ func _ready() -> void:
 	PlayerControls.ensure_actions()
 	resolver = AssetResolver.new()
 	track_theme = TrackTheme.load_variant(track_variant)
+	if layout_override == null:
+		layout_override = DevLayouts.load_selected()
+	if layout_override != null:
+		track.layout = layout_override
 	track.build(resolver, track_theme)
 	hud_track_name = track_theme.display_name
+	if layout_override != null:
+		hud_track_name += "  (EXPERIMENTAL LAYOUT)"
 	track.checkpoint_reached.connect(_on_checkpoint_reached)
 	var two := is_two_player()
 	if two:

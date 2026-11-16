@@ -235,7 +235,7 @@ func _on_lan_peer_joined(peer_id: int) -> void:
 		_refuse(peer_id, "busy")
 		return
 	_pending_peer = peer_id
-	link.send([NetRace.Msg.WELCOME, NetRace.PROTOCOL, NetRace.GAME_BUILD, {"track_variant": title.track_variant}], true, peer_id)
+	link.send([NetRace.Msg.WELCOME, NetRace.PROTOCOL, NetRace.build_id(), {"track_variant": title.track_variant}], true, peer_id)
 	title.lan_panel.show_status("Player connected - checking versions...")
 	get_tree().create_timer(HELLO_TIMEOUT, true, false, true).timeout.connect(_hello_timeout.bind(peer_id))
 
@@ -260,7 +260,7 @@ func _on_lan_message(from: int, msg: Array) -> void:
 	if link.is_host:
 		if msg[0] != NetRace.Msg.HELLO or from != _pending_peer or race != null:
 			return
-		if not NetRace.valid(msg, [TYPE_INT, TYPE_STRING]) or msg[1] != NetRace.PROTOCOL or msg[2] != NetRace.GAME_BUILD:
+		if not NetRace.valid(msg, [TYPE_INT, TYPE_STRING]) or msg[1] != NetRace.PROTOCOL or msg[2] != NetRace.build_id():
 			_pending_peer = 0
 			_refuse(from, "version")
 			title.lan_panel.show_status("A player with a different version of HyperCars tried to join. Still waiting...")
@@ -273,13 +273,13 @@ func _on_lan_message(from: int, msg: Array) -> void:
 	match msg[0]:
 		NetRace.Msg.WELCOME:
 			if not NetRace.valid(msg, [TYPE_INT, TYPE_STRING, TYPE_DICTIONARY]) or msg[1] != NetRace.PROTOCOL \
-					or msg[2] != NetRace.GAME_BUILD:
+					or msg[2] != NetRace.build_id():
 				close_lan()
 				title.lan_panel.set_busy(false)
 				title.lan_panel.show_status("The host runs a different version of HyperCars (both computers need the same build).", true)
 				return
 			if race == null and not _starting:
-				link.send([NetRace.Msg.HELLO, NetRace.PROTOCOL, NetRace.GAME_BUILD], true)
+				link.send([NetRace.Msg.HELLO, NetRace.PROTOCOL, NetRace.build_id()], true)
 				var track: int = clampi(int(msg[3].get("track_variant", 1)), 1, TrackTheme.VARIANT_COUNT)
 				start_race(0, false, [], NetRace.new(link, NetRace.Role.CLIENT), track)
 		NetRace.Msg.REJECT:

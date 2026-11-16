@@ -122,3 +122,18 @@ func test_title_cycles_and_remembers_the_track() -> void:
 	assert_eq(again.track_variant, 2, "saved")
 	title.stop_audio()
 	again.stop_audio()
+
+
+func test_experimental_layout_builds_with_any_theme_and_is_not_in_the_menu() -> void:
+	for variant in [1, 2, 3]:
+		var m: Node2D = MAIN_SCENE.instantiate()
+		m.presentation_enabled = false
+		m.track_variant = variant
+		m.layout_override = load("res://src/track/layouts/exp_figure8_01.tres")
+		add_child_autofree(m)
+		await wait_physics_frames(1)
+		assert_eq(m.track.layout, m.layout_override)
+		assert_almost_eq(m.track.path.length, 7358.0, 2.0)
+		assert_string_contains(m.hud_track_name, "EXPERIMENTAL")
+		assert_eq(m.track.theme.variant, variant, "visual theme independent of the layout")
+	assert_false(FileAccess.get_file_as_string("res://src/ui/title_screen.gd").contains("DevLayouts"), "not in the TRACK menu")

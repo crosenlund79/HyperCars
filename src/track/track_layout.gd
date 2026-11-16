@@ -27,6 +27,18 @@ extends Resource
 @export var grid_column_offset := 37.0
 ## Extra distance the second column starts behind the first (px).
 @export var grid_stagger := 40.0
+## Optional (J0, experimental): elevated stretches of road (level 1, a bridge),
+## each an arc-length interval Vector2(start, end) in px along the sampled
+## centreline from the start/finish line, in driving direction. Where the
+## centreline crosses itself one branch must be elevated. Empty (every normal
+## circuit) = a flat circuit, unchanged behaviour.
+@export var elevation_zones: PackedVector2Array = PackedVector2Array()
+
+## Room beyond the road edge (px) that crossings, zone ends, checkpoint gates
+## and the grid keep from the other road (barrier + a car length + margin).
+const CROSSING_CLEARANCE := 120.0
+## Gates keep at least this far (px along the road) from a zone end.
+const GATE_ZONE_MARGIN := 120.0
 
 
 ## Grid slot (0 = pole) as {distance_behind_line, lateral}; lateral > 0 = right.
@@ -56,7 +68,138 @@ func validate() -> PackedStringArray:
 		var room := control_points[i].distance_to(control_points[j])
 		if _tangent_length(i) + _tangent_length(j) > room:
 			errors.append("corners %d and %d overlap (no room for a straight)" % [i, j])
+	if errors.is_empty():
+		errors.append_array(validate_elevation())
 	return errors
+
+
+func has_elevation() -> bool:
+	return not elevation_zones.is_empty()
+
+
+## Road level at arc distance s (any value; wrapped onto the lap):
+## 1 inside an elevation zone, otherwise 0.
+func level_at(s: float, lap_length: float) -> int:
+	if elevation_zones.is_empty():
+		return 0
+	var w := fposmod(s, lap_length)
+	for z in elevation_zones:
+		if w >= z.x and w < z.y:
+			return 1
+	return 0
+
+
+## Where the centreline crosses itself: [{point, s_a, s_b, angle}] with
+## s_a < s_b the arc distances of the two branches and angle (radians, 0..PI/2)
+## between them. Touching neighbouring segments do not count.
+static func find_crossings(c: PackedVector2Array) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var path := ClosedPath.new(c)
+	var n := c.size()
+	for i in n:
+		var a0 := c[i]
+		var a1 := c[(i + 1) % n]
+		for j in range(i + 2, n):
+			if i == 0 and j == n - 1:
+				continue
+			var hit = Geometry2D.segment_intersects_segment(a0, a1, c[j], c[(j + 1) % n])
+			if hit == null:
+				continue
+			var dup := false
+			for o in out:
+				if o.point.distance_to(hit) < 5.0:
+					dup = true
+			if dup:
+				continue
+			var sa: float = path.cumulative[i] + a0.distance_to(hit)
+			var sb: float = path.cumulative[j] + c[j].distance_to(hit)
+			var ang := absf((a1 - a0).angle_to(c[(j + 1) % n] - c[j]))
+			if ang > PI * 0.5:
+				ang = PI - ang
+			out.append({"point": hit, "s_a": sa, "s_b": sb, "angle": ang})
+	return out
+
+
+## Half the stretch of a branch (px) that lies over / under the other road at
+## a crossing of the given angle, plus clearance.
+func crossing_reach(angle: float) -> float:
+	return (road_width * 0.5 + CROSSING_CLEARANCE) / maxf(sin(angle), 0.2)
+
+
+## Problems with crossings and elevation zones (empty when valid). A flat
+## circuit with no crossing has none.
+func validate_elevation() -> PackedStringArray:
+	var errors := PackedStringArray()
+	var c := sample_centerline()
+	var path := ClosedPath.new(c)
+	var crossings := find_crossings(c)
+	if crossings.is_empty() and elevation_zones.is_empty():
+		return errors
+	if crossings.is_empty():
+		errors.append("elevation zones but no crossing")
+	for k in elevation_zones.size():
+		var z := elevation_zones[k]
+		if z.x < 0.0 or z.y > path.length or z.x >= z.y:
+			errors.append("zone %d must lie within the lap (0..%.0f) with start < end" % [k, path.length])
+		for m in range(k + 1, elevation_zones.size()):
+			var o := elevation_zones[m]
+			if z.x < o.y and o.x < z.y:
+				errors.append("zones %d and %d overlap" % [k, m])
+	var away := road_width * 0.5 + CROSSING_CLEARANCE
+	for x in crossings:
+		var reach := crossing_reach(x.angle)
+		var up_a := level_at(x.s_a, path.length) == 1
+		var up_b := level_at(x.s_b, path.length) == 1
+		if up_a == up_b:
+			errors.append("crossing at %s needs exactly one elevated branch" % x.point)
+			continue
+		var s_up: float = x.s_a if up_a else x.s_b
+		if level_at(s_up - reach, path.length) != 1 or level_at(s_up + reach, path.length) != 1:
+			errors.append("zone must cover %.0f px either side of the crossing at %s" % [reach, x.point])
+		for s_branch in [x.s_a, x.s_b]:
+			if minf(s_branch, path.length - s_branch) < away + grid_extent():
+				errors.append("crossing at %s is too close to the start line / grid" % x.point)
+	# Zone ends (where cars change level) must be clear of the other road.
+	for z in elevation_zones:
+		for s_end in [z.x, z.y]:
+			var p := path.point_at(s_end)
+			for i in c.size():
+				var gap := absf(wrapf(path.cumulative[i] - s_end, -path.length * 0.5, path.length * 0.5))
+				if gap > road_width * 3.0 and c[i].distance_to(p) < away + road_width * 0.5:
+					errors.append("zone end at %.0f px is too close to another part of the road" % s_end)
+					break
+	# The grid and the start line stay on level 0.
+	for s_grid in [0.0, path.length - grid_extent()]:
+		if level_at(s_grid, path.length) != 0:
+			errors.append("start line and grid must be on the ground level")
+	for z in elevation_zones:
+		if z.y > path.length - grid_extent():
+			errors.append("a zone reaches into the starting grid")
+	# Checkpoint gates: off the bridge, clear of crossings and zone ends.
+	var gates := checkpoint_sample_indices(c.size(), c)
+	for g in gates.size():
+		var sg := path.cumulative[gates[g]]
+		if not _gate_allowed(sg, c[gates[g]], path, crossings):
+			errors.append("checkpoint %d could not be placed clear of the crossing" % g)
+	return errors
+
+
+## How far behind the start line the starting grid reaches (px).
+func grid_extent() -> float:
+	return grid_first_offset + 4 * grid_row_spacing + grid_stagger + 40.0
+
+
+func _gate_allowed(s: float, at: Vector2, path: ClosedPath, crossings: Array[Dictionary]) -> bool:
+	if level_at(s, path.length) != 0:
+		return false
+	for z in elevation_zones:
+		for s_end in [z.x, z.y]:
+			if absf(wrapf(s - s_end, -path.length * 0.5, path.length * 0.5)) < GATE_ZONE_MARGIN:
+				return false
+	for x in crossings:
+		if at.distance_to(x.point) < road_width + CROSSING_CLEARANCE:
+			return false
+	return true
 
 
 ## Closed centreline sampled at most sample_spacing apart. Index 0 is the
@@ -138,8 +281,21 @@ static func offset_line(centerline: PackedVector2Array, distance: float) -> Pack
 
 
 ## Sample indices of the checkpoints, evenly spaced, index 0 = start/finish.
-func checkpoint_sample_indices(sample_count: int) -> PackedInt32Array:
+## With elevation zones (and the centreline given), a gate that would sit on
+## the bridge, at a crossing or by a zone end moves forward to the first
+## clear sample.
+func checkpoint_sample_indices(sample_count: int, centerline: PackedVector2Array = PackedVector2Array()) -> PackedInt32Array:
 	var out := PackedInt32Array()
 	for c in checkpoint_count:
 		out.append(int(round(float(c) * sample_count / checkpoint_count)) % sample_count)
+	if elevation_zones.is_empty() or centerline.size() != sample_count:
+		return out
+	var path := ClosedPath.new(centerline)
+	var crossings := find_crossings(centerline)
+	for g in range(1, out.size()):
+		var i := out[g]
+		var limit := out[g + 1] if g + 1 < out.size() else sample_count
+		while i < limit - 1 and not _gate_allowed(path.cumulative[i], centerline[i], path, crossings):
+			i += 1
+		out[g] = i
 	return out

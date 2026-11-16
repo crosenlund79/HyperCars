@@ -27,7 +27,7 @@ func build(resolver: AssetResolver, p_theme: TrackTheme = null) -> void:
 		child.free()
 	centerline = layout.sample_centerline()
 	path = ClosedPath.new(centerline)
-	checkpoint_samples = layout.checkpoint_sample_indices(centerline.size())
+	checkpoint_samples = layout.checkpoint_sample_indices(centerline.size(), centerline)
 	var half := layout.road_width * 0.5
 	var left_edge := TrackLayout.offset_line(centerline, -half)
 	var right_edge := TrackLayout.offset_line(centerline, half)
