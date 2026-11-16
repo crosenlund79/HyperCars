@@ -13,6 +13,7 @@ var _main: Node2D
 
 func _make(garage: PlayerGarage = null) -> void:
 	_main = MAIN_SCENE.instantiate()
+	_main.weapons_lock_enabled = false  # fires at once (the start lock: test_weapons_hot.gd)
 	_main.presentation_enabled = false
 	_main.garage = garage
 	add_child_autofree(_main)

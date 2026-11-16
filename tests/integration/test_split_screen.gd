@@ -13,6 +13,7 @@ var _main: Node2D
 
 func _make(presentation := false) -> void:
 	_main = MAIN_SCENE.instantiate()
+	_main.weapons_lock_enabled = false  # fires at once (the start lock: test_weapons_hot.gd)
 	_main.presentation_enabled = presentation
 	_main.human_count = 2
 	_main.player_devices = [3, 4] as Array[int]
@@ -107,6 +108,7 @@ func test_lighting_off_by_default_in_split_screen() -> void:
 
 func test_single_player_has_no_split_views() -> void:
 	var m: Node2D = MAIN_SCENE.instantiate()
+	m.weapons_lock_enabled = false
 	m.presentation_enabled = false
 	add_child_autofree(m)
 	await wait_physics_frames(2)

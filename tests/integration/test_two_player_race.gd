@@ -15,6 +15,7 @@ var _main: Node2D
 
 func before_each() -> void:
 	_main = MAIN_SCENE.instantiate()
+	_main.weapons_lock_enabled = false  # fires at once (the start lock: test_weapons_hot.gd)
 	_main.presentation_enabled = false
 	_main.human_count = 2
 	_main.player_devices = [PAD1, PAD2] as Array[int]

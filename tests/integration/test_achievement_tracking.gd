@@ -16,6 +16,7 @@ var _store: AchievementStore
 func before_each() -> void:
 	_store = AchievementStore.new(PATH)
 	_main = MAIN_SCENE.instantiate()
+	_main.weapons_lock_enabled = false  # fires at once (the start lock: test_weapons_hot.gd)
 	_main.presentation_enabled = false
 	_main.achievements = _store
 	add_child_autofree(_main)

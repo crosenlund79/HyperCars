@@ -14,6 +14,7 @@ var _main: Node2D
 
 func before_each() -> void:
 	_main = MAIN_SCENE.instantiate()
+	_main.weapons_lock_enabled = false  # fires at once (the start lock: test_weapons_hot.gd)
 	_main.presentation_enabled = false
 	add_child_autofree(_main)
 	await wait_physics_frames(2)

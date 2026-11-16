@@ -24,6 +24,7 @@ func after_each() -> void:
 
 func _make() -> void:
 	_main = MAIN_SCENE.instantiate()
+	_main.weapons_lock_enabled = false  # fires at once (the start lock: test_weapons_hot.gd)
 	_main.presentation_enabled = false
 	_main.layout_override = load(FIGURE8)
 	add_child_autofree(_main)
@@ -142,6 +143,7 @@ func test_all_rivals_complete_their_laps_without_bridge_gate_triggers() -> void:
 
 func test_flat_circuit_never_changes_levels() -> void:
 	_main = MAIN_SCENE.instantiate()
+	_main.weapons_lock_enabled = false  # fires at once (the start lock: test_weapons_hot.gd)
 	_main.presentation_enabled = false
 	add_child_autofree(_main)
 	await wait_physics_frames(2)
@@ -166,6 +168,7 @@ func test_prototype_race_is_deterministic() -> void:
 
 func _make_presented(variant := 1) -> void:
 	_main = MAIN_SCENE.instantiate()
+	_main.weapons_lock_enabled = false  # fires at once (the start lock: test_weapons_hot.gd)
 	_main.presentation_enabled = true
 	_main.track_variant = variant
 	_main.layout_override = load(FIGURE8)
@@ -206,6 +209,7 @@ func test_bridge_is_its_own_layer_with_railings_and_shadow() -> void:
 
 func test_flat_circuit_visuals_are_unchanged() -> void:
 	_main = MAIN_SCENE.instantiate()
+	_main.weapons_lock_enabled = false  # fires at once (the start lock: test_weapons_hot.gd)
 	_main.presentation_enabled = true
 	add_child_autofree(_main)
 	await wait_physics_frames(2)
@@ -269,6 +273,7 @@ func test_tyre_marks_on_the_bridge_draw_on_the_deck() -> void:
 
 func test_scenery_and_lamps_stay_off_both_roads() -> void:
 	_main = MAIN_SCENE.instantiate()
+	_main.weapons_lock_enabled = false  # fires at once (the start lock: test_weapons_hot.gd)
 	_main.presentation_enabled = true
 	_main.lighting_on_start = true
 	_main.layout_override = load(FIGURE8)
@@ -349,6 +354,8 @@ func test_armed_ai_races_finish_without_cross_level_kills_at_the_crossing() -> v
 				if e.kind != "destroyed" or e.owner == e.car:
 					continue
 				kills += 1
+				if e.type == WeaponRules.Weapon.MINE:
+					continue  # a mine keeps the level it was dropped on (its owner may have moved on): test_combat_levels
 				if _main.car_levels[e.owner] != _main.car_levels[e.car] and _main.car_transitions[e.owner] == 0 \
 						and _main.car_transitions[e.car] == 0 and _main.cars[e.car].global_position.distance_to(crossing) < 160.0:
 					across += 1
