@@ -11,6 +11,17 @@ const CAR_LAYER := 2
 ## use their own collision layers, so the two levels never touch.
 const WALL_UPPER_LAYER := 4
 const CAR_UPPER_LAYER := 8
+## J2 draw order on elevated layouts: everything on the bridge level draws
+## UPPER_Z_OFFSET above its ground-level counterpart (cars 0 -> 6, mines 1 -> 7,
+## missiles 3 -> 9); the bridge's shadow and deck sit in between.
+const UPPER_Z_OFFSET := 6
+const BRIDGE_SHADOW_Z := 4
+const BRIDGE_DECK_Z := 5
+## Shadow of the deck at full height (px, light from the top left), and the
+## share of each zone at either end over which the bridge rises / falls.
+const BRIDGE_SHADOW_OFFSET := Vector2(18, 26)
+const BRIDGE_RAMP_SHARE := 0.3
+const BRIDGE_SHADOW_COLOR := Color(0.05, 0.04, 0.08, 0.36)
 const CHECKPOINT_DEPTH := 30.0
 const GROUND_MARGIN := 900.0
 
@@ -39,6 +50,8 @@ func build(resolver: AssetResolver, p_theme: TrackTheme = null) -> void:
 	_build_road(resolver.get_texture(theme.asset(AssetCatalog.TARMAC)), left_edge, right_edge)
 	_build_start_line(resolver.get_texture(theme.asset(AssetCatalog.START_LINE)))
 	_build_walls(resolver.get_texture(theme.asset(AssetCatalog.WALL)), half, left_edge, right_edge)
+	if layout.has_elevation():
+		_build_bridge_shadow(half + AssetCatalog.SPECS[theme.asset(AssetCatalog.WALL)].display_size.y)
 	_build_checkpoints()
 
 
@@ -79,11 +92,22 @@ func _build_road(texture: Texture2D, left_edge: PackedVector2Array, right_edge: 
 	verts.append_array(right_edge)
 	var poly := _textured_polygon("Road", texture, verts, AssetCatalog.SPECS[theme.asset(AssetCatalog.TARMAC)].tile_world_size)
 	var quads: Array = []
+	var deck_quads: Array = []
 	for i in n:
 		var j := (i + 1) % n
-		quads.append(PackedInt32Array([i, j, n + j, n + i]))
+		var quad := PackedInt32Array([i, j, n + j, n + i])
+		if layout.has_elevation() and level_of_sample(i) == 1:
+			deck_quads.append(quad)
+		else:
+			quads.append(quad)
 	poly.polygons = quads
 	add_child(poly)
+	if not deck_quads.is_empty():
+		# J2: the elevated road is its own surface above the ground level
+		var deck := _textured_polygon("BridgeDeck", texture, verts, AssetCatalog.SPECS[theme.asset(AssetCatalog.TARMAC)].tile_world_size)
+		deck.polygons = deck_quads
+		deck.z_index = BRIDGE_DECK_Z
+		add_child(deck)
 
 
 func _textured_polygon(node_name: String, texture: Texture2D, verts: PackedVector2Array, tile_world: float) -> Polygon2D:
@@ -123,16 +147,20 @@ func _build_walls(texture: Texture2D, half: float, left_edge: PackedVector2Array
 			body.add_child(cs)
 	# Visual barriers sit just outside the collision faces so the car meets their inner edge.
 	for side in [-1.0, 1.0]:
-		var line := Line2D.new()
-		line.name = "Barrier%s" % ("Left" if side < 0 else "Right")
-		line.points = TrackLayout.offset_line(centerline, side * (half + wall_width * 0.5))
-		line.closed = true
-		line.width = wall_width
-		line.texture = texture
-		line.texture_mode = Line2D.LINE_TEXTURE_TILE
-		line.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
-		line.joint_mode = Line2D.LINE_JOINT_ROUND
-		add_child(line)
+		var points := TrackLayout.offset_line(centerline, side * (half + wall_width * 0.5))
+		var line_name := "Barrier%s" % ("Left" if side < 0 else "Right")
+		if not layout.has_elevation():
+			add_child(_barrier_line(line_name, points, true, wall_width, texture))
+			continue
+		# J2: one open line per run of road on one level; bridge railings above the deck
+		for run in _level_runs():
+			var pts := PackedVector2Array()
+			for k in range(run.from, run.to + 1):  # one shared point joins the runs
+				pts.append(points[k % points.size()])
+			var line := _barrier_line("%s%s%d" % [line_name, "Upper" if run.level == 1 else "", run.from], pts, false, wall_width, texture)
+			if run.level == 1:
+				line.z_index = BRIDGE_DECK_Z
+			add_child(line)
 
 
 ## Elevated layouts: each barrier segment belongs to the level of its stretch
@@ -173,6 +201,76 @@ static func car_collision(level: int) -> Vector2i:
 	if level == 0:
 		return Vector2i(CAR_LAYER, WALL_LAYER | CAR_LAYER)
 	return Vector2i(CAR_UPPER_LAYER, WALL_UPPER_LAYER | CAR_UPPER_LAYER)
+
+
+func _barrier_line(line_name: String, points: PackedVector2Array, closed: bool, width: float, texture: Texture2D) -> Line2D:
+	var line := Line2D.new()
+	line.name = line_name
+	line.points = points
+	line.closed = closed
+	line.width = width
+	line.texture = texture
+	line.texture_mode = Line2D.LINE_TEXTURE_TILE
+	line.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
+	line.joint_mode = Line2D.LINE_JOINT_ROUND
+	return line
+
+
+## Consecutive centreline sample runs on one level: [{level, from, to}] with
+## unwrapped sample indices (use index % size); `to` is the first sample of the
+## next run, so neighbouring runs share one point and join seamlessly.
+func _level_runs() -> Array:
+	var n := centerline.size()
+	var start := -1
+	for i in n:
+		if level_of_sample(i) != level_of_sample((i - 1 + n) % n):
+			start = i
+			break
+	if start < 0:
+		return [{"level": level_of_sample(0), "from": 0, "to": n}]
+	var runs: Array = []
+	var from := start
+	for k in range(1, n + 1):
+		var i := start + k
+		if k == n or level_of_sample(i % n) != level_of_sample(from % n):
+			runs.append({"level": level_of_sample(from % n), "from": from, "to": i})
+			from = i
+	return runs
+
+
+## How high the road is at arc distance s (0 ground .. 1 full bridge height):
+## the bridge rises over the first and falls over the last part of its zone.
+func bridge_height(s: float) -> float:
+	var w := fposmod(s, path.length)
+	for z in layout.elevation_zones:
+		if w >= z.x and w < z.y:
+			var ramp := (z.y - z.x) * BRIDGE_RAMP_SHARE
+			return smoothstep(0.0, 1.0, minf(w - z.x, z.y - w) / ramp)
+	return 0.0
+
+
+## Soft shadow of the deck and its railings on the ground below, offset by the
+## bridge's height (none where it meets the ground). Procedural, no artwork.
+func _build_bridge_shadow(half_outer: float) -> void:
+	var tans := TrackLayout.tangents(centerline)
+	for run in _level_runs():
+		if run.level != 1:
+			continue
+		var left := PackedVector2Array()
+		var right := PackedVector2Array()
+		for k in range(run.from, run.to + 1):
+			var i := k % centerline.size()
+			var lift := BRIDGE_SHADOW_OFFSET * bridge_height(path.cumulative[i])
+			var r := Vector2(-tans[i].y, tans[i].x)
+			left.append(centerline[i] - r * half_outer + lift)
+			right.append(centerline[i] + r * half_outer + lift)
+		right.reverse()
+		var shadow := Polygon2D.new()
+		shadow.name = "BridgeShadow%d" % run.from
+		shadow.polygon = left + right
+		shadow.color = BRIDGE_SHADOW_COLOR
+		shadow.z_index = BRIDGE_SHADOW_Z
+		add_child(shadow)
 
 
 func _build_start_line(texture: Texture2D) -> void:

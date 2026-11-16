@@ -19,6 +19,8 @@ var _ambient: CanvasModulate
 var _lamps: Array[PointLight2D] = []
 var _lamp_sprites: Array[Sprite2D] = []
 var _car_lights: Array[PointLight2D] = []
+## J2 (elevated layouts): road level of a racer; a car's light only lights its own level.
+var level_of: Callable
 var _flashes: Array[PointLight2D] = []
 var _flash_age := PackedFloat32Array()
 var _next_flash := 0
@@ -82,6 +84,10 @@ func _process(delta: float) -> void:
 		l.enabled = c.visible
 		l.global_position = c.global_position
 		l.global_rotation = c.global_rotation
+		if level_of.is_valid():
+			var upper: bool = level_of.call(c.racer_id) == 1
+			l.range_z_min = Track.BRIDGE_DECK_Z if upper else RenderingServer.CANVAS_ITEM_Z_MIN
+			l.range_z_max = RenderingServer.CANVAS_ITEM_Z_MAX if upper else Track.BRIDGE_SHADOW_Z - 1
 	if _combat != null:
 		if _cursor > _combat.events.size():
 			_cursor = 0
@@ -124,6 +130,8 @@ func _place_lamps(track: Track, resolver: AssetResolver, tex: Texture2D) -> void
 		var turn := signf(tans[i].cross(tans[(i + 6) % n]))
 		var outside := -right * (turn if turn != 0.0 else 1.0)
 		var pos := c[i] + outside * (half + 34.0)
+		if track.layout.has_elevation() and not _clear_of_roads(pos, c, half + 20.0):
+			continue  # J2: never on the other road of a crossing layout
 		var spr := Sprite2D.new()
 		spr.texture = lamp_tex
 		spr.scale = AssetCatalog.scale_for(lamp_tex, AssetCatalog.SPECS[AssetCatalog.LAMP_POST].display_size)
@@ -140,6 +148,13 @@ func _place_lamps(track: Track, resolver: AssetResolver, tex: Texture2D) -> void
 		l.position = pos - outside * 40.0
 		add_child(l)
 		_lamps.append(l)
+
+
+static func _clear_of_roads(pos: Vector2, c: PackedVector2Array, min_distance: float) -> bool:
+	for p in c:
+		if p.distance_to(pos) < min_distance:
+			return false
+	return true
 
 
 static func _radial_texture(size: int) -> GradientTexture2D:

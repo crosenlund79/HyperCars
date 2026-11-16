@@ -30,6 +30,14 @@ var _mines: Array[Sprite2D] = []
 var _trails: Array[CPUParticles2D] = []
 ## Mine halos are drawn on this node, under the mine sprites.
 var _halos: Node2D
+## J2 (elevated layouts): road level of a racer (Callable(int) -> int); halos
+## of mines on the bridge; levels of live projectiles / mines, kept by identity.
+var level_of: Callable
+var _halos_upper: Node2D = null
+var _proj_refs: Array = []
+var _proj_levels: Array[int] = []
+var _mine_refs: Array = []
+var _mine_levels: Array[int] = []
 var _smoke: Array[CPUParticles2D] = []
 var _cursor := 0
 var _time := 0.0
@@ -45,7 +53,7 @@ func setup(combat: CombatWorld, cars: Array[Car], resolver: AssetResolver, audio
 	_halos = Node2D.new()
 	_halos.name = "MineHalos"
 	_halos.z_index = -2
-	_halos.draw.connect(_draw_halos)
+	_halos.draw.connect(_draw_halos.bind(0))
 	add_child(_halos)
 	for c in cars:
 		var p := CPUParticles2D.new()
@@ -68,6 +76,35 @@ func setup(combat: CombatWorld, cars: Array[Car], resolver: AssetResolver, audio
 		p.scale_amount_max = 1.6
 		add_child(p)
 		_smoke.append(p)
+
+
+## Elevated layouts: bridge-level weapons and wreck smoke draw above the deck.
+func setup_levels(p_level_of: Callable) -> void:
+	level_of = p_level_of
+	_halos_upper = Node2D.new()
+	_halos_upper.name = "MineHalosUpper"
+	_halos_upper.z_index = -2 + Track.UPPER_Z_OFFSET
+	_halos_upper.draw.connect(_draw_halos.bind(1))
+	add_child(_halos_upper)
+	move_child(_halos_upper, 1)
+
+
+func _car_level(id: int) -> int:
+	return level_of.call(id) if level_of.is_valid() and id >= 0 and id < _cars.size() else 0
+
+
+## Level of each live projectile / mine: kept from when it was first seen (the
+## same dictionary while it lives), else its owner's current level.
+func _levels_of(items: Array, refs: Array, levels: Array[int]) -> Array[int]:
+	var out: Array[int] = []
+	for item in items:
+		var level := -1
+		for k in refs.size():
+			if is_same(refs[k], item):
+				level = levels[k]
+				break
+		out.append(level if level >= 0 else _car_level(item.owner))
+	return out
 
 
 func set_enabled(on: bool) -> void:
@@ -96,6 +133,8 @@ func _process(delta: float) -> void:
 			if _combat.enabled and _combat.grace_left[i] > 0.0 else Color.WHITE)
 		_smoke[i].global_position = _cars[i].global_position
 		_smoke[i].emitting = wrecked
+		if level_of.is_valid():
+			_smoke[i].z_index = Track.UPPER_Z_OFFSET * _car_level(i)
 
 
 func _sync_missiles() -> void:
@@ -104,10 +143,18 @@ func _sync_missiles() -> void:
 		var s := Sprite2D.new()
 		add_child(s)
 		_missiles.append(s)
+	var levels: Array[int] = []
+	if level_of.is_valid():
+		levels = _levels_of(_combat.projectiles, _proj_refs, _proj_levels)
+		_proj_refs = _combat.projectiles.duplicate()
+		_proj_levels = levels
 	for i in _missiles.size():
 		var on := i < _combat.projectiles.size()
 		_missiles[i].visible = on
 		_trails[i].emitting = on
+		if on and not levels.is_empty():
+			_missiles[i].z_index = Track.UPPER_Z_OFFSET * levels[i]
+			_trails[i].z_index = -1 + _missiles[i].z_index
 		if on:
 			var p: Dictionary = _combat.projectiles[i]
 			var logical: String = TEXTURES.get(p.type, AssetCatalog.MISSILE)
@@ -162,24 +209,37 @@ func _sync_mines() -> void:
 		s.z_index = -2
 		add_child(s)
 		_mines.append(s)
+	var levels: Array[int] = []
+	if level_of.is_valid():
+		levels = _levels_of(_combat.mines, _mine_refs, _mine_levels)
+		_mine_refs = _combat.mines.duplicate()
+		_mine_levels = levels
 	for i in _mines.size():
 		var on := i < _combat.mines.size()
 		_mines[i].visible = on
+		if on and not levels.is_empty():
+			_mines[i].z_index = -2 + Track.UPPER_Z_OFFSET * levels[i]
 		if on:
 			var m: Dictionary = _combat.mines[i]
 			_mines[i].position = m.pos
 			var fast_blink: bool = m.age > _combat.rules.mine_fuse - 1.0
 			_mines[i].frame = int(m.age * (8.0 if fast_blink else 3.0)) % 2
 	_halos.queue_redraw()
+	if _halos_upper != null:
+		_halos_upper.queue_redraw()
 
 
 ## Red halo under each mine, pulsing in step with its blink (faster before it blows).
-func _draw_halos() -> void:
-	for m in _combat.mines:
+func _draw_halos(level: int) -> void:
+	var canvas := _halos if level == 0 else _halos_upper
+	for k in _combat.mines.size():
+		var m: Dictionary = _combat.mines[k]
+		if (_mine_levels[k] if k < _mine_levels.size() else 0) != level:
+			continue
 		var fast_blink: bool = m.age > _combat.rules.mine_fuse - 1.0
 		var pulse := 0.5 + 0.5 * sin(m.age * TAU * (4.0 if fast_blink else 1.5))
-		_halos.draw_circle(m.pos, MINE_HALO_RADIUS, Color(MINE_HALO_COLOR, lerpf(0.12, 0.3, pulse)))
-		_halos.draw_arc(m.pos, MINE_HALO_RADIUS, 0.0, TAU, 28, Color(MINE_HALO_COLOR, lerpf(0.45, 0.85, pulse)), 2.0, true)
+		canvas.draw_circle(m.pos, MINE_HALO_RADIUS, Color(MINE_HALO_COLOR, lerpf(0.12, 0.3, pulse)))
+		canvas.draw_arc(m.pos, MINE_HALO_RADIUS, 0.0, TAU, 28, Color(MINE_HALO_COLOR, lerpf(0.45, 0.85, pulse)), 2.0, true)
 
 
 func _show_event(e: Dictionary) -> void:

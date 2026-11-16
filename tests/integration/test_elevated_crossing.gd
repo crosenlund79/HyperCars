@@ -160,3 +160,123 @@ func test_prototype_race_is_deterministic() -> void:
 	var a := ProbeRunner.run(args)
 	assert_ne(a, "")
 	assert_eq(ProbeRunner.run(args), a, "same result in a fresh process")
+
+
+# --- J2: bridge visuals and draw order (presentation only) ---
+
+func _make_presented(variant := 1) -> void:
+	_main = MAIN_SCENE.instantiate()
+	_main.presentation_enabled = true
+	_main.track_variant = variant
+	_main.layout_override = load(FIGURE8)
+	add_child_autofree(_main)
+	await wait_physics_frames(2)
+
+
+func _min_distance_to_road(p: Vector2) -> float:
+	var best := INF
+	for q in _main.track.centerline:
+		best = minf(best, q.distance_to(p))
+	return best
+
+
+func test_bridge_is_its_own_layer_with_railings_and_shadow() -> void:
+	for variant in [1, 2, 3]:
+		await _make_presented(variant)
+		var t: Track = _main.track
+		var deck: Polygon2D = t.get_node("BridgeDeck")
+		var road: Polygon2D = t.get_node("Road")
+		assert_eq(deck.z_index, Track.BRIDGE_DECK_Z)
+		var zone_samples := 0
+		for i in t.centerline.size():
+			zone_samples += t.level_of_sample(i)
+		assert_eq(deck.polygons.size(), zone_samples, "deck = the elevated stretch")
+		assert_eq(road.polygons.size() + deck.polygons.size(), t.centerline.size(), "every stretch drawn once")
+		var shadows := t.find_children("BridgeShadow*", "Polygon2D", false, false)
+		assert_eq(shadows.size(), 1)
+		assert_eq(shadows[0].z_index, Track.BRIDGE_SHADOW_Z)
+		var rails := t.find_children("Barrier*Upper*", "Line2D", false, false)
+		assert_eq(rails.size(), 2, "a railing on each side of the bridge")
+		for r in rails:
+			assert_eq(r.z_index, Track.BRIDGE_DECK_Z)
+		assert_almost_eq(t.bridge_height(t.layout.elevation_zones[0].x + 1.0), 0.0, 0.01, "meets the ground at its ends")
+		assert_almost_eq(t.bridge_height(TrackLayout.find_crossings(t.centerline)[0].s_a), 1.0, 0.001, "full height over the crossing")
+		_main.free()
+
+
+func test_flat_circuit_visuals_are_unchanged() -> void:
+	_main = MAIN_SCENE.instantiate()
+	_main.presentation_enabled = true
+	add_child_autofree(_main)
+	await wait_physics_frames(2)
+	var t: Track = _main.track
+	assert_false(t.has_node("BridgeDeck"))
+	assert_eq(t.find_children("BridgeShadow*", "", false, false).size(), 0)
+	for side in ["BarrierLeft", "BarrierRight"]:
+		assert_true((t.get_node(side) as Line2D).closed, side + " still one closed line")
+	assert_eq(t.get_node("Road").polygons.size(), t.centerline.size())
+	assert_false(_main.effects._marks_upper != null)
+	assert_false(_main.combat_view.level_of.is_valid())
+
+
+func test_cars_and_weapons_draw_on_their_level() -> void:
+	await _make_presented()
+	_main.set_weapons_enabled(true)
+	_main.start_race()
+	await wait_physics_frames(2)
+	var x := _crossing()
+	_place(3, x.s_a - 100.0, 0.0)  # on the bridge
+	_place(4, x.s_b - 100.0, 0.0)  # below it
+	await wait_physics_frames(2)
+	await wait_process_frames(2)
+	assert_eq(_main.cars[3].z_index, Track.UPPER_Z_OFFSET, "bridge car above the deck")
+	assert_eq(_main.cars[4].z_index, 0, "lower car under the deck")
+	assert_gt(_main.cars[3].z_index, Track.BRIDGE_DECK_Z)
+	assert_lt(_main.cars[4].z_index, Track.BRIDGE_SHADOW_Z)
+	assert_gt(_main.player_marker.z_index, Track.UPPER_Z_OFFSET + 3, "your marker on top of both levels")
+	var view: CombatView = _main.combat_view
+	_main.combat.mines.clear()  # only the two test mines
+	_main.combat.cooldown.fill(0.0)  # the AI may have fired (and hit) on the grid
+	_main.combat.wreck_left.fill(0.0)
+	_main.combat.grace_left.fill(0.0)
+	assert_true(_main.combat.request(3, CombatWorld.REAR, _main._combat_states()), "mine dropped on the bridge")
+	assert_true(_main.combat.request(4, CombatWorld.REAR, _main._combat_states()), "mine dropped below")
+	await wait_process_frames(2)
+	var by_owner := {}
+	for k in _main.combat.mines.size():
+		by_owner[_main.combat.mines[k].owner] = view._mines[k].z_index
+	assert_eq(by_owner[3], -2 + Track.UPPER_Z_OFFSET)
+	assert_eq(by_owner[4], -2)
+	_main.cars[4].global_position += Vector2(5000, 5000)  # owner leaves: a mine keeps its level
+	await wait_process_frames(2)
+	assert_eq(view._mine_levels, [1, 0] as Array[int])
+
+
+func test_tyre_marks_on_the_bridge_draw_on_the_deck() -> void:
+	await _make_presented()
+	var fx: RaceEffects = _main.effects
+	assert_not_null(fx._marks_upper)
+	assert_eq(fx._marks_upper.z_index, Track.BRIDGE_DECK_Z)
+	var slot: int = fx._mark_next
+	fx._stamp(Vector2(10, 10), 0.0, 0.8, 1)
+	assert_eq(fx._mark_upper[slot], 1, "slot belongs to the deck layer")
+	assert_eq(fx._mm(slot), fx._marks_upper.multimesh)
+	var next: int = fx._mark_next
+	fx._stamp(Vector2(20, 10), 0.0, 0.8, 0)
+	assert_eq(fx._mark_upper[next], 0, "a ground mark stays on the ground layer")
+	assert_eq(fx._mm(next), fx._marks.multimesh)
+
+
+func test_scenery_and_lamps_stay_off_both_roads() -> void:
+	_main = MAIN_SCENE.instantiate()
+	_main.presentation_enabled = true
+	_main.lighting_on_start = true
+	_main.layout_override = load(FIGURE8)
+	add_child_autofree(_main)
+	await wait_physics_frames(2)
+	var half: float = _main.track.layout.road_width * 0.5
+	for spr in _main.scenery.get_children():
+		if spr is Sprite2D:
+			assert_gt(_min_distance_to_road(spr.position), half, "prop %s off the roads" % spr.texture.resource_path.get_file())
+	for lamp in _main.lighting._lamp_sprites:
+		assert_gt(_min_distance_to_road(lamp.position), half + 19.0, "lamp off the roads")

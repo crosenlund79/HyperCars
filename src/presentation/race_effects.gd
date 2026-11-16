@@ -14,6 +14,12 @@ const MARK_SPACING := 9.0
 var enabled := true
 var _cars: Array[Car] = []
 var _marks: MultiMeshInstance2D
+## J2 (elevated layouts): marks left on the bridge draw on the deck, in their
+## own layer; each mark slot belongs to one of the two layers.
+var _marks_upper: MultiMeshInstance2D = null
+var _mark_upper := PackedByteArray()
+## Road level of a racer (Callable(int) -> int); unset = everything on the ground.
+var level_of: Callable
 var _mark_age := PackedFloat32Array()
 var _mark_strength := PackedFloat32Array()
 var _mark_next := 0
@@ -28,21 +34,9 @@ var _confetti_colors := [Color("b23a22"), Color("e2b23c"), Color("3f9c96"), Colo
 func setup(cars: Array[Car], resolver: AssetResolver, mark_layer: Node2D, dust_color: Color = Color(0.75, 0.66, 0.5, 0.7)) -> void:
 	_cars = cars
 	_resolver = resolver
-	_marks = MultiMeshInstance2D.new()
-	var mm := MultiMesh.new()
-	mm.transform_format = MultiMesh.TRANSFORM_2D
-	mm.use_colors = true
-	var quad := QuadMesh.new()
-	quad.size = AssetCatalog.SPECS[AssetCatalog.TIRE_MARK].display_size
-	mm.mesh = quad
-	mm.instance_count = MAX_MARKS
-	mm.visible_instance_count = MAX_MARKS
-	for i in MAX_MARKS:
-		mm.set_instance_transform_2d(i, Transform2D(0.0, Vector2(-1e6, -1e6)))
-		mm.set_instance_color(i, Color(1, 1, 1, 0))
-	_marks.multimesh = mm
-	_marks.texture = resolver.get_texture(AssetCatalog.TIRE_MARK)
+	_marks = _new_marks(resolver)
 	mark_layer.add_child(_marks)
+	_mark_upper.resize(MAX_MARKS)
 	_mark_age.resize(MAX_MARKS)
 	_mark_age.fill(MARK_LIFETIME)
 	_mark_strength.resize(MAX_MARKS)
@@ -55,10 +49,48 @@ func setup(cars: Array[Car], resolver: AssetResolver, mark_layer: Node2D, dust_c
 		c.car_hit.connect(func(_other: Car, speed: float) -> void: _on_hit(Vector2.ZERO, speed, c))
 
 
+func _new_marks(resolver: AssetResolver) -> MultiMeshInstance2D:
+	var marks := MultiMeshInstance2D.new()
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_2D
+	mm.use_colors = true
+	var quad := QuadMesh.new()
+	quad.size = AssetCatalog.SPECS[AssetCatalog.TIRE_MARK].display_size
+	mm.mesh = quad
+	mm.instance_count = MAX_MARKS
+	mm.visible_instance_count = MAX_MARKS
+	for i in MAX_MARKS:
+		mm.set_instance_transform_2d(i, Transform2D(0.0, Vector2(-1e6, -1e6)))
+		mm.set_instance_color(i, Color(1, 1, 1, 0))
+	marks.multimesh = mm
+	marks.texture = resolver.get_texture(AssetCatalog.TIRE_MARK)
+	return marks
+
+
+## Elevated layouts: a second mark layer on the bridge deck, and road levels
+## for draw order (smoke, dust, sparks follow their car's level).
+func setup_levels(p_level_of: Callable, mark_layer: Node2D) -> void:
+	level_of = p_level_of
+	_marks_upper = _new_marks(_resolver)
+	_marks_upper.name = "MarksUpper"
+	_marks_upper.z_index = Track.BRIDGE_DECK_Z
+	mark_layer.add_child(_marks_upper)
+
+
+func _level(c: Car) -> int:
+	return level_of.call(c.racer_id) if level_of.is_valid() else 0
+
+
+func _mm(slot: int) -> MultiMesh:
+	return _marks_upper.multimesh if _mark_upper[slot] == 1 else _marks.multimesh
+
+
 func set_enabled(on: bool) -> void:
 	enabled = on
 	visible = on
 	_marks.visible = on
+	if _marks_upper != null:
+		_marks_upper.visible = on
 	if not on:
 		for p in _smoke + _dust:
 			p.emitting = false
@@ -68,6 +100,8 @@ func clear_marks() -> void:
 	_mark_age.fill(MARK_LIFETIME)
 	for i in MAX_MARKS:
 		_marks.multimesh.set_instance_color(i, Color(1, 1, 1, 0))
+		if _marks_upper != null:
+			_marks_upper.multimesh.set_instance_color(i, Color(1, 1, 1, 0))
 	for i in _cars.size():
 		_last_mark_pos[i] = _cars[i].global_position
 
@@ -92,13 +126,16 @@ func _process(delta: float) -> void:
 			and c.model.braking_deceleration() >= c.model.params.brake_deceleration
 		var sliding := on_track and c.active and (slide > SLIDE_THRESHOLD or braking)
 		var rear := c.global_position - Vector2.from_angle(c.global_rotation) * 22.0
+		var level := _level(c)
+		_smoke[i].z_index = Track.UPPER_Z_OFFSET * level
+		_dust[i].z_index = _smoke[i].z_index
 		_smoke[i].global_position = rear
 		_smoke[i].emitting = sliding and slide > SLIDE_THRESHOLD * 1.4
 		_dust[i].global_position = rear
 		_dust[i].emitting = on_track and c.active and c.model.is_accelerating(c.fire) and speed < 140.0 and speed > 5.0
 		if sliding and rear.distance_to(_last_mark_pos[i]) >= MARK_SPACING:
 			var strength := clampf((slide - SLIDE_THRESHOLD) / 200.0 + (0.5 if braking else 0.25), 0.2, 0.9)
-			_stamp(rear, c.global_rotation, strength)
+			_stamp(rear, c.global_rotation, strength, level)
 			_last_mark_pos[i] = rear
 		elif not sliding:
 			_last_mark_pos[i] = rear
@@ -106,12 +143,15 @@ func _process(delta: float) -> void:
 		if _mark_age[m] < MARK_LIFETIME:
 			_mark_age[m] += delta
 			var a := _mark_strength[m] * clampf(1.0 - _mark_age[m] / MARK_LIFETIME, 0.0, 1.0)
-			_marks.multimesh.set_instance_color(m, Color(1, 1, 1, a))
+			_mm(m).set_instance_color(m, Color(1, 1, 1, a))
 
 
-func _stamp(pos: Vector2, rot: float, strength: float) -> void:
-	_marks.multimesh.set_instance_transform_2d(_mark_next, Transform2D(rot + PI * 0.5, pos))
-	_marks.multimesh.set_instance_color(_mark_next, Color(1, 1, 1, strength))
+func _stamp(pos: Vector2, rot: float, strength: float, level: int = 0) -> void:
+	if _marks_upper != null:
+		_mm(_mark_next).set_instance_color(_mark_next, Color(1, 1, 1, 0))  # leave the slot's old layer
+		_mark_upper[_mark_next] = 1 if level == 1 else 0
+	_mm(_mark_next).set_instance_transform_2d(_mark_next, Transform2D(rot + PI * 0.5, pos))
+	_mm(_mark_next).set_instance_color(_mark_next, Color(1, 1, 1, strength))
 	_mark_age[_mark_next] = 0.0
 	_mark_strength[_mark_next] = strength
 	_mark_next = (_mark_next + 1) % MAX_MARKS
@@ -122,6 +162,7 @@ func _on_hit(_normal: Vector2, speed: float, c: Car) -> void:
 		return
 	var burst := _emitter(_resolver.get_texture(AssetCatalog.SPARK), Color(1, 0.95, 0.8), int(clampf(speed / 25.0, 4, 16)), 0.35)
 	burst.global_position = c.global_position + Vector2.from_angle(c.global_rotation) * 26.0
+	burst.z_index = Track.UPPER_Z_OFFSET * _level(c)
 	burst.one_shot = true
 	burst.explosiveness = 1.0
 	burst.initial_velocity_min = 60.0

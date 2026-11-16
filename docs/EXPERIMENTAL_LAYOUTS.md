@@ -41,3 +41,30 @@ crossing. Test the prototype with No Guns for clean level behaviour.
 Prototype fingerprints (fresh processes, `tests/support/sim_probe.gd`, layout
 `exp_figure8_01`): `mode=spectate ticks=4800 weapons=0` → `7fb45fa02e9fcbfae31a1181a6fca7fa`,
 `mode=race ticks=3600 weapons=0` → `a1d5d5c90f374570917f821a5b23e72b`.
+
+## Bridge visuals (J2)
+
+The elevated stretch is its own road surface ("BridgeDeck", the theme's tarmac) with
+railings from the theme's barrier strip, above a soft procedural shadow that tapers
+to nothing where the bridge meets the ground (`Track.bridge_height`). No new artwork;
+custom tarmac / barrier overrides apply to the bridge too. Draw order (z):
+
+| | ground level | bridge level |
+|---|---|---|
+| cars + wheels | 0 | 6 |
+| mines + halos | 1 | 7 |
+| missile trails | 2 | 8 |
+| missiles | 3 | 9 |
+| bridge shadow | 4 | |
+| deck, railings, deck tyre marks | 5 | |
+| your car marker | 10 (always on top) | |
+
+Smoke, dust and sparks follow their car's level; tyre marks made on the bridge go on a
+deck-level layer; a mine or missile keeps the level of the car that launched it. With
+lighting on, each car's lights only light its own level. Scenery and lamp posts stay
+off both roads.
+
+Known limitations: the bridge's height is suggested by the shadow only (no ramp art,
+no scaling of cars); a network client takes levels from the host's snapshots, so a car
+reaching a bridge end can draw on the wrong side of the deck for a moment; weapons are
+drawn by level but still hit across levels (J4).

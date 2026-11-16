@@ -16,7 +16,7 @@ var _cars: Array[Car] = []
 
 func setup(cars: Array[Car]) -> void:
 	_cars = cars
-	z_index = 6
+	z_index = 10  # above both road levels (J2), so you find your car under a bridge too
 
 
 func set_marked(colors: Dictionary) -> void:

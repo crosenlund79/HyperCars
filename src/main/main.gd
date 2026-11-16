@@ -274,6 +274,9 @@ func _ready() -> void:
 		add_child(combat_view)
 		combat_view.setup(combat, cars, resolver, race_audio)
 		combat_view.human_ids = session.human_ids
+		if track.layout.has_elevation():  # J2: bridge-level effects draw above the deck
+			effects.setup_levels(level_of, decals)
+			combat_view.setup_levels(level_of)
 		var wheel := resolver.get_texture(AssetCatalog.WHEEL)
 		for k in cars.size():  # four shared wheels under each body (not for flattened custom cars)
 			if _car_looks[k].wheels:
@@ -286,6 +289,8 @@ func _ready() -> void:
 		lighting.name = "LightingPilot"
 		add_child(lighting)
 		lighting.setup(track, cars, combat, resolver)
+		if track.layout.has_elevation():
+			lighting.level_of = level_of
 		lighting.set_enabled(lighting_on_start)
 	if achievements != null:
 		achievement_tracker = AchievementTracker.new()
@@ -909,6 +914,17 @@ func level_of(id: int) -> int:
 	return car_levels[id]
 
 
+## J2: cars on the bridge draw above the deck, cars below it underneath
+## (presentation only; flat circuits: nothing).
+func _present_levels() -> void:
+	if not track.layout.has_elevation():
+		return
+	for i in cars.size():
+		var z := Track.UPPER_Z_OFFSET * level_of(i)
+		if cars[i].z_index != z:
+			cars[i].z_index = z
+
+
 ## Spectator camera: every race starts on the car in the last grid slot.
 func _follow_last_starter() -> void:
 	spectator_start_grid = grid_order.duplicate()
@@ -956,6 +972,7 @@ func _process(_delta: float) -> void:
 		lighting.set_enabled(not lighting.enabled)
 	# the finish banner first, so results shown in the same frame wait for it
 	_present_finishers()
+	_present_levels()
 	_refresh_hud()
 	if _listener != null:
 		var mid := Vector2.ZERO
