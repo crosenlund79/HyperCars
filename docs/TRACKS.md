@@ -52,12 +52,11 @@ after 2 s is set back past the gap. A flying car meets nothing on the main strai
 - The narrow esses saw no passes in the measured races: cars hold position there
   and race again on the straights; it never blocked (no stoppages or pile-ups).
 
-### Network races (until J5)
+### Network races (J5)
 
-Jumping is not synchronised over the network yet. In LAN / online races the Leap is
-built as a plain bridge: the deck spans the gap, nobody takes off or falls, and the
-grid panel says "(JUMP BRIDGED ONLINE)". Everything else (levels, bridge, combat by
-level, damage) works as in local races.
+LAN and online races have the real Leap (and Raven's Leap): takeoff, flight, landing,
+falls into the gap with their damage, and the set-back past the gap, all decided by
+the host. See `docs/NETWORK_PLAY.md` for how the client predicts its own jumps.
 
 ### Fingerprints (fresh processes, `layout=kestrel_ridge`, damage on; x1 = x8)
 

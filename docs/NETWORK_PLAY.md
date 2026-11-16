@@ -49,3 +49,29 @@ Port forwarding cannot work if the internet provider shares one public address b
 - **One computer, two copies:** host in one window, join `127.0.0.1` in the other (in the editor: Debug → Customize Run Instances → 2).
 - **Two computers, same network:** join the host's local address (no forwarding needed).
 - **Over the internet:** only after port forwarding; if it fails, test the forwarding with a friend first on LAN, then from outside.
+
+## Jumps in network races (J5)
+
+Kestrel Ridge, Ravenhook and the experimental figure-eight are raced with their real
+jumps on both computers (protocol 5; older builds cannot join). The host decides every
+takeoff, landing and fall, the fall's damage and the set-back past the gap.
+
+- **What travels:** each snapshot carries the jump state (seconds in the air, takeoff
+  lift, which jump, seconds left down in the gap) only for cars that are flying or down
+  in a gap; cars on the road add nothing.
+- **Other cars** on the client fly at the moment the client shows them (interpolated
+  like their positions, about 4 ticks behind the newest snapshot).
+- **Your own car** jumps at once: the client runs the same jump model for it (takeoff
+  from its own speed, flight, landing). If the host's outcome differs from the
+  prediction (e.g. the host's car was slowed by a contact the client does not
+  simulate), the host's state replaces it. A one- or two-tick timing difference does
+  not count. A fall the client predicts waits in the gap until the host confirms it;
+  after a fall or a wreck the client continues from the host's newest state.
+- **Same race on both computers:** the client always races the host's circuit, biome
+  (and so the same handling), time of day, laps, weapons and combat style.
+
+Measured on one machine with simulated conditions (two processes over localhost):
+40-170 ms latency, 10-40 ms jitter, 1-5 % loss, armed and unarmed, forced falls, both
+control modes: identical finishing order, times, car condition, ammunition, DNFs,
+destructions, takeoffs and falls on both computers; 0-1 jump corrections per race.
+This is not a substitute for a real internet test between two computers.

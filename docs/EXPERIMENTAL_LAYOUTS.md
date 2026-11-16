@@ -143,9 +143,8 @@ separate shadow that moves away from it, and draws above ground cars; landing ki
 dust with a thud; a failed jump sinks and darkens the car in the gap with smoke, sparks
 and a crash. Wheels and custom car overrides scale with the body.
 
-**Network races:** jumping is **off** until J5 (no synchronised flight yet). In LAN /
-online races the figure-eight is driven without the jump on both computers — no ramp or
-gap is built, nobody takes off — and the grid panel says "(JUMP OFF ONLINE)".
+**Network races:** since J5 the jump works in LAN / online races too (host-authoritative;
+see `docs/NETWORK_PLAY.md`).
 
 Fingerprints: the eight original probes (Classic Circuit) are identical. Figure-eight
 probes change, since every car now flies over the gap (fresh processes, same twice):
