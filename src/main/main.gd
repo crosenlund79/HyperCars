@@ -293,7 +293,7 @@ func _ready() -> void:
 		add_child(lighting)
 		lighting.setup(track, cars, combat, resolver)
 		if track.layout.has_elevation():
-			lighting.level_of = level_of
+			lighting.level_of = draw_level_of
 		lighting.set_enabled(lighting_on_start)
 	if achievements != null:
 		achievement_tracker = AchievementTracker.new()
@@ -920,13 +920,23 @@ func level_of(id: int) -> int:
 	return car_levels[id]
 
 
+## The level a car is drawn on: the bridge level while on it and also near
+## either bridge end, so a car straddling the deck's edge is drawn whole above
+## it (never half under it).
+func draw_level_of(id: int) -> int:
+	if not track.layout.has_elevation():
+		return 0
+	var s: float = session.racers[id].progress if net != null and net.is_client() else progress[id].distance
+	return 1 if level_of(id) == 1 or track.in_transition(s) else 0
+
+
 ## J2: cars on the bridge draw above the deck, cars below it underneath
 ## (presentation only; flat circuits: nothing).
 func _present_levels() -> void:
 	if not track.layout.has_elevation():
 		return
 	for i in cars.size():
-		var z := Track.UPPER_Z_OFFSET * level_of(i)
+		var z := Track.UPPER_Z_OFFSET * draw_level_of(i)
 		if cars[i].z_index != z:
 			cars[i].z_index = z
 

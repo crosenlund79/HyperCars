@@ -307,3 +307,19 @@ func test_cars_on_the_same_road_never_pass_through_each_other_at_bridge_ends() -
 		assert_false(passed_through, "never through you at the %s of the bridge" % ("start" if at_start else "end"))
 		_main.free()
 
+
+## A car straddling either end of the bridge is drawn whole above the deck
+## (never half under it); a car on the lower road under the bridge stays below.
+func test_cars_at_bridge_ends_are_drawn_whole_above_the_deck() -> void:
+	await _make_presented()
+	_main.start_race()
+	await wait_physics_frames(2)
+	var zone: Vector2 = _main.track.layout.elevation_zones[0]
+	var x := _crossing()
+	for s in [zone.x - 30.0, zone.x + 10.0, zone.y - 10.0, zone.y + 30.0]:
+		_place(3, s, 0.0)
+		_place(4, x.s_b, 0.0)  # under the bridge
+		await wait_physics_frames(2)
+		await wait_process_frames(2)
+		assert_gt(_main.cars[3].z_index, Track.BRIDGE_DECK_Z, "whole car above the deck at s=%.0f" % s)
+		assert_lt(_main.cars[4].z_index, Track.BRIDGE_SHADOW_Z, "the car below stays under it")
