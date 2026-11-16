@@ -138,3 +138,27 @@ func test_client_races_on_the_hosts_layout() -> void:
 	assert_eq(DevLayouts.id_of(host_game.race.track.layout), "exp_figure8_01")
 	assert_eq(DevLayouts.id_of(client_game.race.track.layout), "exp_figure8_01", "the client follows the host's layout")
 	assert_almost_eq(client_game.race.track.path.length, host_game.race.track.path.length, 0.01)
+
+
+func test_race_menu_in_a_network_race_keeps_racing_and_leave_disconnects() -> void:
+	await _connect_both()
+	client_game.race.net.local_ready = true
+	client_game.race.net._send_ready()
+	await _real_wait(3000, func() -> bool: return host_game.race.net.client_ready)
+	var host_race: Node2D = host_game.race
+	var client_race: Node2D = client_game.race
+	host_race.start_race()
+	await _real_wait(3000, func() -> bool: return client_race.session.state == RaceSession.State.RACING)
+	await wait_physics_frames(30)
+	host_race.open_race_menu()
+	assert_true(host_race.menu_open)
+	assert_false(host_race.get_tree().paused, "a network race is never paused")
+	var t0: float = host_race.session.elapsed
+	await wait_physics_frames(30)
+	assert_gt(host_race.session.elapsed, t0, "the race goes on for the other player")
+	host_race.leave_race()  # LEAVE RACE
+	await _real_wait(8000, func() -> bool: return client_race.network_lost)
+	assert_true(client_race.network_lost, "the client is told cleanly")
+	await _real_wait(3000, func() -> bool: return host_game.race == null)
+	assert_null(host_game.race, "host back at the menu")
+	assert_false(host_game.link.is_open(), "connection closed")

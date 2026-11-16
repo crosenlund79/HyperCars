@@ -73,7 +73,7 @@ func test_fast_simulation_matches_normal_simulation_exactly() -> void:
 	assert_eq(fast, normal, "bit-identical cars and drivers after 900 ticks at x1 and x4")
 
 
-func test_back_leaves_spectating_and_resets_speed() -> void:
+func test_back_opens_the_race_menu_and_leave_resets_speed() -> void:
 	_main = await _new_main()
 	_main.set_menu_choice(2)
 	_main.start_race()
@@ -82,8 +82,12 @@ func test_back_leaves_spectating_and_resets_speed() -> void:
 	Input.action_release(PlayerControls.SIM_SPEED)
 	assert_eq(_main.sim_speed, _main.fast_multiplier)
 	Input.action_press(PlayerControls.BACK)
-	await wait_physics_frames(2)
+	await wait_process_frames(2)
 	Input.action_release(PlayerControls.BACK)
-	await wait_physics_frames(2)
-	assert_eq(_main.sim_speed, 1)
-	assert_eq(_main.session.state, RaceSession.State.MODE_SELECT)
+	assert_true(_main.menu_open, "Esc opens the race menu while spectating")
+	assert_true(_main.get_tree().paused, "spectating pauses")
+	watch_signals(_main)
+	_main.leave_race()
+	assert_signal_emitted(_main, "exit_requested")
+	assert_false(_main.get_tree().paused)
+	assert_eq(_main.sim_speed, 1, "normal speed again")

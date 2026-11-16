@@ -69,6 +69,11 @@ var use_command_line_layout := true
 var car_levels := PackedInt32Array()
 ## Cars near a bridge end (transition band): on both levels at once.
 var car_transitions := PackedByteArray()
+## The Esc race menu (Resume / Leave). While it is open this computer's
+## drivers give no commands; a race without network play is paused.
+var race_menu: RaceMenu
+var menu_open := false
+var _menu_paused := false
 
 var resolver: AssetResolver
 var session: RaceSession
@@ -194,6 +199,12 @@ func _ready() -> void:
 	if two:
 		session.set_humans([RaceSession.PLAYER_ID, RaceSession.PLAYER_2_ID] as Array[int])
 	hud.setup(resolver)
+	race_menu = RaceMenu.new()
+	race_menu.name = "RaceMenu"
+	add_child(race_menu)
+	race_menu.setup(HyperTheme.build(resolver))
+	race_menu.resume_requested.connect(resume_race)
+	race_menu.leave_requested.connect(leave_race)
 	hud.follow_requested.connect(follow_driver)
 	hud.follow_step_requested.connect(follow_step)
 	var decals := Node2D.new()
@@ -316,6 +327,9 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	if _menu_paused:  # never leave the game paused behind a freed race
+		get_tree().paused = false
+		_menu_paused = false
 	set_sim_speed(1)
 	_conclude_race()
 	if garage != null and garage.race_pending():
@@ -564,6 +578,8 @@ func set_player_control_mode(id: int, mode: CarModel.ControlMode) -> void:
 ## offers the way back to the menu. Nothing is saved (garage / achievements are
 ## off in network races).
 func on_network_lost(text: String) -> void:
+	if menu_open:
+		resume_race()
 	if network_lost:
 		return
 	network_lost = true
@@ -825,12 +841,6 @@ func race_seed(race_number: int, racer_id: int) -> int:
 
 
 func _spectator_input() -> bool:
-	if Input.is_action_just_pressed(PlayerControls.BACK):
-		set_sim_speed(1)
-		session.state = RaceSession.State.MODE_SELECT
-		grid_order = _spectator_grid
-		reset_race()
-		return true
 	if Input.is_action_just_pressed(PlayerControls.SIM_SPEED):
 		set_sim_speed(1 if sim_speed > 1 else fast_multiplier)
 	if Input.is_action_just_pressed(PlayerControls.HISTORY_VIEW):
@@ -941,6 +951,46 @@ func _present_levels() -> void:
 			cars[i].z_index = z
 
 
+## Esc (any player's Back) during a race opens the race menu.
+func _check_race_menu() -> void:
+	var racing := session.state == RaceSession.State.RACING or (session.spectator and session.state == RaceSession.State.FINISHED)
+	if menu_open or network_lost or not racing:
+		return
+	if _menu_pressed(PlayerControls.BACK):
+		open_race_menu()
+
+
+## Opens the Esc menu. Single-player, spectator and couch races pause; a
+## network race goes on for the other player (this computer's car brakes).
+func open_race_menu() -> void:
+	if menu_open:
+		return
+	menu_open = true
+	_menu_paused = net == null
+	if _menu_paused:
+		get_tree().paused = true
+	race_menu.open(net != null)
+
+
+## Back to the same race, exactly where it was.
+func resume_race() -> void:
+	if not menu_open:
+		return
+	menu_open = false
+	race_menu.close()
+	if _menu_paused:
+		get_tree().paused = false
+		_menu_paused = false
+
+
+## Leaves the race for the main menu (a network race disconnects; an unfinished
+## garage race pays nothing and uses no rounds: see _exit_tree).
+func leave_race() -> void:
+	resume_race()
+	set_sim_speed(1)
+	exit_requested.emit()
+
+
 ## Spectator camera: every race starts on the car in the last grid slot.
 func _follow_last_starter() -> void:
 	spectator_start_grid = grid_order.duplicate()
@@ -986,6 +1036,7 @@ func _process(_delta: float) -> void:
 		hud.set_net_quality("" if network_lost else net.quality_text(), net.connection_bad())
 	if lighting != null and Input.is_action_just_pressed(PlayerControls.TOGGLE_LIGHTING):
 		lighting.set_enabled(not lighting.enabled)
+	_check_race_menu()
 	# the finish banner first, so results shown in the same frame wait for it
 	_present_finishers()
 	_present_levels()

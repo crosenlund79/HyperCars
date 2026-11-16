@@ -322,6 +322,9 @@ func quality_text() -> String:
 
 
 func _local_command() -> Dictionary:
+	if race.menu_open:  # the Esc menu is open on this computer: brake, no weapons
+		var car := _local_car()
+		return {"steer": 0.0, "fire": car.model.control_mode == CarModel.ControlMode.FIRE_TO_BRAKE}
 	if input_source.is_valid():
 		var c: Dictionary = input_source.call()
 		if c.get("front", false):

@@ -1,7 +1,7 @@
 extends SceneTree
 ## Test helper, run in a fresh Godot process by the determinism tests:
 ##   godot --headless --path <project> --fixed-fps 60 -s res://tests/support/sim_probe.gd -- \
-##         mode=race|spectate speed=1 presentation=1 ticks=900 weapons=0|1 style=0|1 achievements=0|1 theme=1..3 layout=<dev layout id>
+##         mode=race|spectate speed=1 presentation=1 ticks=900 weapons=0|1 style=0|1 achievements=0|1 theme=1..3 layout=<dev layout id> pause=<tick>
 ## Prints "PROBE <md5>" of every car's and driver's exact state after `ticks`.
 ## A fresh process matters: Godot's physics broadphase keeps history between
 ## scenes in one process, which changes the order multi-car contacts resolve.
@@ -31,7 +31,27 @@ func _initialize() -> void:
 	physics_frame.connect(_on_tick)
 
 
+var _paused_left := 0
+
+
+func _paused_frame() -> void:
+	_paused_left -= 1
+	if _paused_left == 0:
+		process_frame.disconnect(_paused_frame)
+		main.resume_race()
+		_paused_left = -1  # paused once
+
+
 func _on_tick() -> void:
+	# pause=<tick>: open the race menu (paused) at that tick for 90 frames, then
+	# resume; paused frames do not count, so the race must end identical
+	if main.get("menu_open"):
+		return  # paused: no race tick
+	if opts.has("pause") and tick == int(opts.pause) and _paused_left == 0 and not main.menu_open:
+		main.open_race_menu()
+		_paused_left = 90
+		process_frame.connect(_paused_frame)  # physics frames stop while paused
+		return
 	tick += 1
 	if tick == 2:
 		if main.has_method("set_weapons_enabled"):
