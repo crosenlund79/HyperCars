@@ -6,10 +6,30 @@ Put your file at the **override path** inside `custom/` (project folder while de
 
 ## Graphics (PNG)
 
+### Cars: body + shared wheel (P2)
+
+Each car is drawn as **one body image** plus **four copies of one shared wheel image**; the front pair turns with the steering (about ±10°), the rear pair shifts a pixel or two sideways when cornering.
+
+- **Body** `custom/graphics/cars/body_<car>.png` (`body_player`, `body_player_2`, `body_ai_1` … `body_ai_9`): top-down, **nose pointing right (+X)**, the car centred in the image (the image centre is the car's pivot), transparent background, **no wheels painted in** (leave the wheel areas transparent or let the body edge cover the inner part of the wheels, as the templates do). Any resolution with the 16:9-ish 128 x 72 aspect; it is shown 64 x 36 world px.
+- **Wheel** `custom/graphics/cars/wheel.png`: one tyre seen from above, rolling direction along X, centred, transparent background, 24 x 14 aspect (shown 12 x 7 world px). Used for all ten cars; the body is drawn on top of it.
+- **Attachment points** (display px from the car centre, car facing +X): front axle x = +16.5, rear axle x = −16.5, wheels y = ±12. These fit the template bodies. For a differently shaped body, set its own points in `src/presentation/default_wheel_layout.tres` (`per_car`: `"cars/body_ai_3": Vector3(front_x, rear_x, half_track)`); the motion amounts (`max_steer_degrees`, `rear_shift_px`) are there too.
+- **Older flattened car images** `custom/graphics/cars/car_<car>.png` (wheels painted in) still work: when such a file exists and no `body_<car>.png` does, it is drawn as it is, without extra wheels (no doubled wheels, no animation). A `body_` file takes precedence. Standings / results / title icons show the flattened car image (or your body when only that exists).
+
 Any resolution is accepted as long as the **aspect ratio and orientation** match the template; the game scales it to the display size. Cars face right (+X). Transparent backgrounds unless noted.
 
 | Override path | Template size (px) | Display size (world px) | Notes |
 |---|---|---|---|
+| `custom/graphics/cars/body_ai_1.png` | 128 x 72 | 64 x 36 | Wheel-free body (P2): same size, orientation and pivot as the car image, transparent where the wheels go; the game adds four shared wheels. Takes precedence over the flattened car image. |
+| `custom/graphics/cars/body_ai_2.png` | 128 x 72 | 64 x 36 | Wheel-free body (P2): same size, orientation and pivot as the car image, transparent where the wheels go; the game adds four shared wheels. Takes precedence over the flattened car image. |
+| `custom/graphics/cars/body_ai_3.png` | 128 x 72 | 64 x 36 | Wheel-free body (P2): same size, orientation and pivot as the car image, transparent where the wheels go; the game adds four shared wheels. Takes precedence over the flattened car image. |
+| `custom/graphics/cars/body_ai_4.png` | 128 x 72 | 64 x 36 | Wheel-free body (P2): same size, orientation and pivot as the car image, transparent where the wheels go; the game adds four shared wheels. Takes precedence over the flattened car image. |
+| `custom/graphics/cars/body_ai_5.png` | 128 x 72 | 64 x 36 | Wheel-free body (P2): same size, orientation and pivot as the car image, transparent where the wheels go; the game adds four shared wheels. Takes precedence over the flattened car image. |
+| `custom/graphics/cars/body_ai_6.png` | 128 x 72 | 64 x 36 | Wheel-free body (P2): same size, orientation and pivot as the car image, transparent where the wheels go; the game adds four shared wheels. Takes precedence over the flattened car image. |
+| `custom/graphics/cars/body_ai_7.png` | 128 x 72 | 64 x 36 | Wheel-free body (P2): same size, orientation and pivot as the car image, transparent where the wheels go; the game adds four shared wheels. Takes precedence over the flattened car image. |
+| `custom/graphics/cars/body_ai_8.png` | 128 x 72 | 64 x 36 | Wheel-free body (P2): same size, orientation and pivot as the car image, transparent where the wheels go; the game adds four shared wheels. Takes precedence over the flattened car image. |
+| `custom/graphics/cars/body_ai_9.png` | 128 x 72 | 64 x 36 | Wheel-free body (P2): same size, orientation and pivot as the car image, transparent where the wheels go; the game adds four shared wheels. Takes precedence over the flattened car image. |
+| `custom/graphics/cars/body_player.png` | 128 x 72 | 64 x 36 | Wheel-free body (P2): same size, orientation and pivot as the car image, transparent where the wheels go; the game adds four shared wheels. Takes precedence over the flattened car image. |
+| `custom/graphics/cars/body_player_2.png` | 128 x 72 | 64 x 36 | Wheel-free body (P2): same size, orientation and pivot as the car image, transparent where the wheels go; the game adds four shared wheels. Takes precedence over the flattened car image. |
 | `custom/graphics/cars/car_ai_1.png` | 128 x 72 | 64 x 36 | Opponent car 1; same contract as the player car. |
 | `custom/graphics/cars/car_ai_2.png` | 128 x 72 | 64 x 36 | Opponent car 2; same contract as the player car. |
 | `custom/graphics/cars/car_ai_3.png` | 128 x 72 | 64 x 36 | Opponent car 3; same contract as the player car. |
@@ -21,6 +41,7 @@ Any resolution is accepted as long as the **aspect ratio and orientation** match
 | `custom/graphics/cars/car_ai_9.png` | 128 x 72 | 64 x 36 | Opponent car 9; same contract as the player car. |
 | `custom/graphics/cars/car_player.png` | 128 x 72 | 64 x 36 | Top-down, nose pointing right (+X), centred pivot, transparent background. |
 | `custom/graphics/cars/car_player_2.png` | 128 x 72 | 64 x 36 | Player 2 car (two-player races); same contract as the player car. Template is a blue recolour of it. |
+| `custom/graphics/cars/wheel.png` | 24 x 14 | 12 x 7 | Shared wheel (P2), top-down, rolling direction along X (car nose right), centred pivot, transparent background. One image for all ten cars; four instances per car at the positions in src/presentation/default_wheel_layout.tres. |
 | `custom/graphics/decals/grid_box.png` | 72 x 48 | 72 x 48 | Painted grid-slot bracket; open side faces the driving direction (+X). |
 | `custom/graphics/decals/road_wear.png` | 160 x 64 | 240 x 96 | Semi-transparent road wear decal, long axis along the driving direction. |
 | `custom/graphics/decals/tire_mark.png` | 32 x 12 | 10 x 26 | Pair of rear-tyre marks along +X (stamped repeatedly while sliding); seamless left-right. |

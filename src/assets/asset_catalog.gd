@@ -43,6 +43,8 @@ const SUPER_MISSILE := "weapons/super_missile"
 const GARAGE_BACKDROP := "ui/garage_backdrop"
 const ACHIEVEMENT_BADGE := "ui/achievement_badge"
 const ACHIEVEMENT_LOCKED := "ui/achievement_locked"
+## P2: one shared wheel image for every car, drawn four times per car.
+const WHEEL := "cars/wheel"
 
 ## display_size: world/screen pixels the texture is scaled to (sprites, strips).
 ## tile_world_size: world pixels covered by one repeat of a seamless tile.
@@ -69,6 +71,30 @@ const SPECS := {
 		"notes": "Opponent car 8; same contract as the player car."},
 	"cars/car_ai_9": {"template_size": Vector2i(128, 72), "display_size": Vector2(64, 36),
 		"notes": "Opponent car 9; same contract as the player car."},
+	"cars/body_player": {"template_size": Vector2i(128, 72), "display_size": Vector2(64, 36),
+		"notes": "Wheel-free body (P2): same size, orientation and pivot as the car image, transparent where the wheels go; the game adds four shared wheels. Takes precedence over the flattened car image."},
+	"cars/body_player_2": {"template_size": Vector2i(128, 72), "display_size": Vector2(64, 36),
+		"notes": "Wheel-free body (P2): same size, orientation and pivot as the car image, transparent where the wheels go; the game adds four shared wheels. Takes precedence over the flattened car image."},
+	"cars/body_ai_1": {"template_size": Vector2i(128, 72), "display_size": Vector2(64, 36),
+		"notes": "Wheel-free body (P2): same size, orientation and pivot as the car image, transparent where the wheels go; the game adds four shared wheels. Takes precedence over the flattened car image."},
+	"cars/body_ai_2": {"template_size": Vector2i(128, 72), "display_size": Vector2(64, 36),
+		"notes": "Wheel-free body (P2): same size, orientation and pivot as the car image, transparent where the wheels go; the game adds four shared wheels. Takes precedence over the flattened car image."},
+	"cars/body_ai_3": {"template_size": Vector2i(128, 72), "display_size": Vector2(64, 36),
+		"notes": "Wheel-free body (P2): same size, orientation and pivot as the car image, transparent where the wheels go; the game adds four shared wheels. Takes precedence over the flattened car image."},
+	"cars/body_ai_4": {"template_size": Vector2i(128, 72), "display_size": Vector2(64, 36),
+		"notes": "Wheel-free body (P2): same size, orientation and pivot as the car image, transparent where the wheels go; the game adds four shared wheels. Takes precedence over the flattened car image."},
+	"cars/body_ai_5": {"template_size": Vector2i(128, 72), "display_size": Vector2(64, 36),
+		"notes": "Wheel-free body (P2): same size, orientation and pivot as the car image, transparent where the wheels go; the game adds four shared wheels. Takes precedence over the flattened car image."},
+	"cars/body_ai_6": {"template_size": Vector2i(128, 72), "display_size": Vector2(64, 36),
+		"notes": "Wheel-free body (P2): same size, orientation and pivot as the car image, transparent where the wheels go; the game adds four shared wheels. Takes precedence over the flattened car image."},
+	"cars/body_ai_7": {"template_size": Vector2i(128, 72), "display_size": Vector2(64, 36),
+		"notes": "Wheel-free body (P2): same size, orientation and pivot as the car image, transparent where the wheels go; the game adds four shared wheels. Takes precedence over the flattened car image."},
+	"cars/body_ai_8": {"template_size": Vector2i(128, 72), "display_size": Vector2(64, 36),
+		"notes": "Wheel-free body (P2): same size, orientation and pivot as the car image, transparent where the wheels go; the game adds four shared wheels. Takes precedence over the flattened car image."},
+	"cars/body_ai_9": {"template_size": Vector2i(128, 72), "display_size": Vector2(64, 36),
+		"notes": "Wheel-free body (P2): same size, orientation and pivot as the car image, transparent where the wheels go; the game adds four shared wheels. Takes precedence over the flattened car image."},
+	WHEEL: {"template_size": Vector2i(24, 14), "display_size": Vector2(12, 7),
+		"notes": "Shared wheel (P2), top-down, rolling direction along X (car nose right), centred pivot, transparent background. One image for all ten cars; four instances per car at the positions in src/presentation/default_wheel_layout.tres."},
 	TARMAC: {"template_size": Vector2i(256, 256), "tile_world_size": 256.0,
 		"notes": "Seamless repeating road surface, opaque."},
 	GRASS: {"template_size": Vector2i(256, 256), "tile_world_size": 256.0,
@@ -194,6 +220,11 @@ static func themed(logical: String, variant: int) -> String:
 		if SPECS.has(key):
 			return key
 	return logical
+
+
+## Wheel-free body for a car image name ("cars/car_ai_3" -> "cars/body_ai_3").
+static func body_of(car_logical: String) -> String:
+	return car_logical.replace("cars/car_", "cars/body_")
 
 
 ## Logical name of opponent car n (1-based), cycling if more cars than templates.

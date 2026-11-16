@@ -16,6 +16,8 @@ func after_each() -> void:
 	Engine.physics_ticks_per_second = 60
 	Engine.time_scale = 1.0
 	Engine.max_physics_steps_per_frame = 8
+	for action in [PlayerControls.FIRE, PlayerControls.STEER_LEFT, PlayerControls.STEER_RIGHT]:
+		Input.action_release(action)
 
 
 func _make(humans := 1) -> void:
@@ -259,6 +261,8 @@ func test_network_race_marks_only_this_computers_car_in_gold() -> void:
 	assert_eq(mains[0].hud._human_colors[P2], HyperTheme.P2_BLUE, "the other human in blue")
 	assert_eq(mains[1].hud._human_colors[P1], HyperTheme.P2_BLUE)
 	assert_eq(mains[1].hud._own_ids, [P2] as Array[int])
+	for c in mains[1].cars:
+		assert_not_null(c.get_node_or_null("Wheels"), "client cars have wheels too")
 	host_link.close()
 	client_link.close()
 
@@ -293,3 +297,74 @@ func test_engines_limit_rival_voices_and_always_play_your_own() -> void:
 			rivals += 1
 	assert_lte(rivals, audio.engine_params.max_rival_voices, "only the nearest rivals are heard")
 	assert_lt(audio._engines[P1].pitch_scale, 1.5, "deep pitch range")
+
+
+# --- P2 Stage 2: shared animated wheels (presentation only) ---
+
+func test_every_car_gets_four_shared_wheels_under_its_body() -> void:
+	await _make_presented()
+	var wheel: Texture2D = _main.resolver.get_texture(AssetCatalog.WHEEL)
+	for c in _main.cars:
+		var w: CarWheels = c.get_node_or_null("Wheels")
+		assert_not_null(w, c.name)
+		assert_eq(w.get_index(), 0, "drawn before (under) the body sprite")
+		assert_lt(w.get_index(), c.sprite.get_index())
+		var sprites: Array = w.get_children()
+		assert_eq(sprites.size(), 4)
+		for s in sprites:
+			assert_eq(s.texture, wheel, "one shared wheel image")
+		assert_eq(c.sprite.texture, _main.resolver.get_texture(AssetCatalog.body_of(
+			AssetCatalog.CAR_PLAYER if c.racer_id == 0 else AssetCatalog.ai_car(c.racer_id))), "wheel-free body")
+
+
+func test_front_wheels_follow_steering_and_return_to_centre() -> void:
+	await _make_presented()
+	_main.start_race()
+	var c: Car = _main.car
+	var w: CarWheels = c.get_node("Wheels")
+	Input.action_press(PlayerControls.FIRE)
+	Input.action_press(PlayerControls.STEER_RIGHT)
+	await wait_seconds(0.6)
+	var full := rad_to_deg(w._front[0].rotation)
+	assert_almost_eq(full, _main.wheel_layout.max_steer_degrees, 1.0, "full right steering")
+	assert_eq(w._front[0].rotation, w._front[1].rotation, "both front wheels")
+	assert_lte(absf(w._shift), _main.wheel_layout.rear_shift_px + 0.001, "rear shift stays subtle")
+	for r in w._rear:
+		assert_eq(r.rotation, 0.0, "rear wheels do not steer")
+	Input.action_release(PlayerControls.STEER_RIGHT)
+	Input.action_press(PlayerControls.STEER_LEFT)
+	await wait_seconds(0.6)
+	assert_almost_eq(rad_to_deg(w._front[0].rotation), -_main.wheel_layout.max_steer_degrees, 1.0, "full left")
+	Input.action_release(PlayerControls.STEER_LEFT)
+	await wait_seconds(0.6)
+	assert_almost_eq(rad_to_deg(w._front[0].rotation), 0.0, 0.5, "back to neutral")
+	Input.action_release(PlayerControls.FIRE)
+
+
+func test_wheels_follow_a_car_that_is_not_simulated_here() -> void:
+	# a network client's car: inactive, moved and turned from outside
+	await _make_presented()
+	var c: Car = _main.cars[3]
+	var w: CarWheels = c.get_node("Wheels")
+	assert_false(c.active)
+	var turn := deg_to_rad(_main.driving_params.turn_rate_degrees)
+	var step := func() -> void:  # once per frame, like snapshot-driven cars
+		if is_instance_valid(c):
+			c.global_rotation += turn / 60.0
+			c.global_position += Vector2.from_angle(c.global_rotation) * 300.0 / 60.0
+	get_tree().process_frame.connect(step)
+	await wait_process_frames(40)
+	if get_tree().process_frame.is_connected(step):
+		get_tree().process_frame.disconnect(step)
+	assert_gt(rad_to_deg(w._front[0].rotation), 6.0, "turning right from its motion")
+	assert_lt(w._shift, 0.0, "rear wheels to the outside of the turn")
+	assert_gte(w._shift, -_main.wheel_layout.rear_shift_px - 0.001)
+
+
+func test_wheel_layout_is_configurable_per_car() -> void:
+	var layout := WheelLayout.new()
+	layout.per_car = {"cars/body_ai_4": Vector3(20, -18, 13)}
+	assert_eq(layout.positions("cars/body_ai_4"), Vector3(20, -18, 13))
+	assert_eq(layout.positions("cars/body_ai_5"), Vector3(layout.front_x, layout.rear_x, layout.half_track))
+	assert_almost_eq(CarWheels.steer_angle(layout, 5.0), deg_to_rad(layout.max_steer_degrees), 0.0001, "clamped")
+	assert_almost_eq(CarWheels.rear_shift(layout, -3.0), layout.rear_shift_px, 0.0001, "clamped")

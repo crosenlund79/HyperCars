@@ -22,3 +22,12 @@ listening and viewing checks need a person. Tunables: `src/audio/default_engine_
 
 Offline renders for a first impression (an approximation, not the game's output):
 `engine_mix_old_40s.wav` and `engine_mix_new_40s.wav` (same scale) from the P2 report.
+
+## Animated wheels (normal game scale, also on a TV / large monitor)
+
+- [ ] All ten cars show four wheels that look attached to the body at every angle, including while spinning after a hit; no doubled or floating wheels.
+- [ ] Hold left / right: both front wheels turn visibly but restrained (about 10°) and ease back when you release.
+- [ ] Fast corners: the rear wheels shift a hair to the outside, barely noticeable; nothing wobbles on straights or at standstill.
+- [ ] Rivals' front wheels move with their steering; wrecked cars' wheels darken with the body; respawning cars blink as before.
+- [ ] Split-screen and a LAN / online client: wheels animate on every car (the client's own car included).
+- [ ] Your own art: a `custom/graphics/cars/body_player.png` (no wheels) gets the shared wheels; an older `custom/graphics/cars/car_player.png` with painted wheels alone is shown as before, without extra wheels; `custom/graphics/cars/wheel.png` replaces the wheel on every car (restart after changes).

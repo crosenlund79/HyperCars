@@ -398,7 +398,7 @@ func _build_backdrop() -> void:
 		names.append(AssetCatalog.ai_car(i))
 	for slot in names.size():
 		var spr := Sprite2D.new()
-		spr.texture = resolver.get_texture(names[(slot + 1) % names.size()])
+		spr.texture = CarArt.icon(resolver, names[(slot + 1) % names.size()])
 		var t: Transform2D = track.grid_transform(slot)
 		spr.position = t.origin
 		spr.rotation = t.get_rotation()

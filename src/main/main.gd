@@ -95,6 +95,10 @@ var weapons_enabled := false
 ## Pre-race option: Classic / Tactical combat. Kept across races.
 var combat_style: WeaponRules.Style = WeaponRules.Style.CLASSIC
 var combat_view: CombatView
+## P2: the images each car is drawn with (index = racer id), see CarArt.look.
+var _car_looks: Array[Dictionary] = []
+## P2: shared wheel positions and motion (presentation only).
+var wheel_layout: WheelLayout = preload("res://src/presentation/default_wheel_layout.tres")
 ## Chevron over the locally controlled car(s) (presentation only).
 var player_marker: PlayerMarker
 ## Lighting pilot (presentation experiment; L toggles). Off by default.
@@ -192,7 +196,8 @@ func _ready() -> void:
 	racing_line = RacingLine.new(track.path, track.layout.road_width, driving_params, ai_params)
 
 	car.racer_id = RaceSession.PLAYER_ID
-	car.setup(driving_params, session.control_mode, resolver.get_texture(AssetCatalog.CAR_PLAYER))
+	_car_looks.append(CarArt.look(resolver, AssetCatalog.CAR_PLAYER))
+	car.setup(driving_params, session.control_mode, _car_looks[0].body)
 	cars.append(car)
 	drivers.append(null)
 	inputs.append(HumanDriverInput.new(RaceSession.PLAYER_ID,
@@ -206,14 +211,14 @@ func _ready() -> void:
 		ai_car.racer_id = i
 		add_child(ai_car)
 		move_child(ai_car, car.get_index())
-		var texture := resolver.get_texture(AssetCatalog.ai_car(i))
-		ai_car.setup(driving_params, CarModel.ControlMode.FIRE_TO_ACCELERATE, texture)
+		_car_looks.append(CarArt.look(resolver, AssetCatalog.ai_car(i)))
+		ai_car.setup(driving_params, CarModel.ControlMode.FIRE_TO_ACCELERATE, _car_looks[i].body)
 		cars.append(ai_car)
 		var params: AiParams = load(RivalRoster.params_path(i)) if RivalRoster.has_personality(i) else ai_params
 		drivers.append(AiDriver.new(racing_line, params))
 		inputs.append(AiDriverInput.new(i, drivers[-1]))
 		rival_ids.append(i)
-		car_textures[i] = texture
+		car_textures[i] = CarArt.icon(resolver, AssetCatalog.ai_car(i))
 		full_names[i] = RivalRoster.full_name(i)
 	if two:
 		var car2: Car = CAR_SCENE.instantiate()
@@ -221,7 +226,8 @@ func _ready() -> void:
 		car2.racer_id = RaceSession.PLAYER_2_ID
 		add_child(car2)
 		move_child(car2, car.get_index() + 1)
-		car2.setup(driving_params, session.control_mode, resolver.get_texture(AssetCatalog.CAR_PLAYER_2))
+		_car_looks.append(CarArt.look(resolver, AssetCatalog.CAR_PLAYER_2))
+		car2.setup(driving_params, session.control_mode, _car_looks[-1].body)
 		cars.append(car2)
 		drivers.append(null)
 		if net != null and net.is_host():
@@ -235,10 +241,10 @@ func _ready() -> void:
 	combat = CombatWorld.new(weapon_rules, cars.size(), track.path, track.layout.road_width * 0.5)
 	history = RaceHistory.new(rival_ids)
 	hud.setup_history(resolver, history, car_textures, full_names)
-	car_textures[RaceSession.PLAYER_ID] = resolver.get_texture(AssetCatalog.CAR_PLAYER)
+	car_textures[RaceSession.PLAYER_ID] = CarArt.icon(resolver, AssetCatalog.CAR_PLAYER)
 	full_names[RaceSession.PLAYER_ID] = "PLAYER 1" if two else "YOU"
 	if two:
-		car_textures[RaceSession.PLAYER_2_ID] = resolver.get_texture(AssetCatalog.CAR_PLAYER_2)
+		car_textures[RaceSession.PLAYER_2_ID] = CarArt.icon(resolver, AssetCatalog.CAR_PLAYER_2)
 		full_names[RaceSession.PLAYER_2_ID] = "PLAYER 2"
 	hud.set_field(car_textures, full_names)
 	if presentation_enabled:
@@ -255,6 +261,10 @@ func _ready() -> void:
 		add_child(combat_view)
 		combat_view.setup(combat, cars, resolver, race_audio)
 		combat_view.human_ids = session.human_ids
+		var wheel := resolver.get_texture(AssetCatalog.WHEEL)
+		for k in cars.size():  # four shared wheels under each body (not for flattened custom cars)
+			if _car_looks[k].wheels:
+				CarWheels.new().setup(cars[k], wheel, wheel_layout, _car_looks[k].body_logical)
 		player_marker = PlayerMarker.new()
 		player_marker.name = "PlayerMarker"
 		add_child(player_marker)

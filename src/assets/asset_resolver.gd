@@ -21,6 +21,7 @@ const AUDIO_EXTENSIONS: Array[String] = ["ogg", "wav"]
 
 var override_root: String
 var _cache: Dictionary = {}
+var _overridden: Dictionary = {}
 var _audio_cache: Dictionary = {}
 
 
@@ -47,8 +48,16 @@ func get_texture(logical_name: String) -> Texture2D:
 	var texture := _load_override(logical_name)
 	if texture == null:
 		texture = _load_fallback(logical_name)
+	else:
+		_overridden[logical_name] = true
 	_cache[logical_name] = texture
 	return texture
+
+
+## True when a valid user override supplies this graphic (resolves it if needed).
+func has_override(logical_name: String) -> bool:
+	get_texture(logical_name)
+	return _overridden.has(logical_name)
 
 
 func override_path(logical_name: String, extension: String = "png") -> String:
