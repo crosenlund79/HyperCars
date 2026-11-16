@@ -162,3 +162,56 @@ func test_race_menu_in_a_network_race_keeps_racing_and_leave_disconnects() -> vo
 	await _real_wait(3000, func() -> bool: return host_game.race == null)
 	assert_null(host_game.race, "host back at the menu")
 	assert_false(host_game.link.is_open(), "connection closed")
+
+
+func test_client_gets_the_hosts_circuit_biome_time_and_the_real_jump() -> void:
+	# J5: same circuit, biome (handling), time of day and jump on both computers
+	host_game.title.layout_id = "ravenhook"
+	host_game.title.track_variant = 3
+	host_game.title.night = true
+	await _connect_both()
+	if host_game.race == null or client_game.race == null:
+		fail_test("no race")
+		return
+	var h: Node2D = host_game.race
+	var c: Node2D = client_game.race
+	assert_eq(DevLayouts.id_of(c.track.layout), "ravenhook")
+	assert_eq(c.track_variant, 3, "the host's biome")
+	assert_true(c.night, "the host's time of day")
+	assert_eq(c.driving_params.grip, h.driving_params.grip, "the same Winter handling")
+	assert_not_null(h.jumps, "the host runs the jump")
+	assert_not_null(c.jumps, "the client shows and predicts it")
+	assert_true(c.track.has_node("Ravine0"), "the client's track has the real gap")
+
+
+func test_disconnect_mid_jump_leaves_no_stale_state() -> void:
+	host_game.title.layout_id = "kestrel_ridge"
+	await _connect_both()
+	if host_game.race == null or client_game.race == null:
+		fail_test("no race")
+		return
+	client_game.race.net.local_ready = true
+	client_game.race.net._send_ready()
+	await _real_wait(3000, func() -> bool: return host_game.race.net.client_ready)
+	var host_race: Node2D = host_game.race
+	host_race.start_race()
+	await _real_wait(3000, func() -> bool: return client_game.race.session.state == RaceSession.State.RACING)
+	# the client's car in the air on the host (as after a takeoff)
+	RaceSnapshot.set_jump(host_race.jumps, RaceSession.PLAYER_2_ID, {"air": true, "air_time": 0.1, "lift": 250.0, "jump": 0, "down": 0.0})
+	host_race.cars[RaceSession.PLAYER_2_ID].airborne = true
+	await wait_physics_frames(6)
+	client_game.back_to_title()  # leaves in mid-air
+	await _real_wait(6000, func() -> bool: return host_race.network_lost)
+	assert_true(host_race.network_lost)
+	host_race.exit_requested.emit()
+	await _real_wait(3000, func() -> bool: return host_game.race == null)
+	assert_null(host_game.race)
+	host_game.start_race(0)  # an ordinary race afterwards starts clean
+	await _real_wait(5000, func() -> bool: return host_game.race != null and host_game.race.is_inside_tree())
+	var fresh: Node2D = host_game.race
+	assert_null(fresh.net, "no network left over")
+	for car in fresh.cars:
+		assert_false(car.airborne, "nobody in the air")
+	for i in fresh.cars.size():
+		assert_false(fresh.jumps.is_airborne(i))
+		assert_false(fresh.jumps.is_down(i))

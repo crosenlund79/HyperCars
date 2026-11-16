@@ -122,3 +122,32 @@ func test_experimental_crossing_armed_race_agrees() -> void:
 	if not r[0].has("results") or not r[1].has("results"):
 		return
 	assert_eq(r[1].results[0], r[0].results[0], "same result, same destructions")
+
+
+## J5: real jumps over the network. The client's car crawls up to the lip
+## (fall=1) so it falls into the gap: takeoff, failed landing, the fall's
+## damage and the recovery all go through prediction and the host's
+## corrections. Both computers must agree on everything, jumps included.
+func _assert_jump_race(r: Array, label: String) -> void:
+	assert_true(r[0].has("results") and r[1].has("results"), "%s: %s" % [label, str(r)])
+	if not r[0].has("results") or not r[1].has("results"):
+		return
+	var host: Dictionary = r[0].results[0]
+	var client: Dictionary = r[1].results[0]
+	for k in ["order", "times", "positions", "condition", "ammo", "dnf", "destroyed", "takeoffs", "falls"]:
+		assert_eq(client[k], host[k], "%s: %s agree" % [label, k])
+	assert_gt(int(host.falls.get(str(RaceSession.PLAYER_2_ID), 0)), 0, label + ": the client's car fell in")
+	assert_lt(host.condition[RaceSession.PLAYER_2_ID], 100.0, label + ": the fall damaged it")
+
+
+func test_jumps_with_falls_agree_with_latency_jitter_and_loss() -> void:
+	var r := await _run(24751, ["laps=2", "layout=kestrel_ridge", "latency=100", "jitter=30", "loss=0.03", "fall=1", "timeout=140"])
+	_assert_jump_race(r, "Kestrel Ridge 100 ms")
+
+
+func test_armed_jump_race_at_170_ms_agrees() -> void:
+	var r := await _run(24752, ["laps=2", "layout=ravenhook", "latency=170", "jitter=40", "loss=0.05", "fall=1",
+		"weapons=1", "style=1", "fire_every=45", "timeout=140"])
+	_assert_jump_race(r, "Ravenhook 170 ms Tactical")
+	if r[1].has("jump_corrections"):
+		assert_lt(int(r[1].jump_corrections), 5, "jump predictions rarely need correcting")
