@@ -410,6 +410,7 @@ func _cycle_car(dir: int = 1) -> void:
 func refresh_car_choice() -> void:
 	_update_car_button()
 	_refresh_preview()
+	_build_backdrop()  # the newly displaced rival parks the junker
 
 
 func _update_car_button() -> void:
@@ -629,7 +630,8 @@ func _build_backdrop() -> void:
 	scenery.build(track, resolver, decals)
 	var names := ["cars/car_player"]
 	for i in range(1, 10):
-		names.append(AssetCatalog.ai_car(i))
+		# a rival whose car the player has won parks the junker
+		names.append(AssetCatalog.CAR_JUNKER if cars != null and cars.displaced(i) else AssetCatalog.ai_car(i))
 	for slot in names.size():
 		var spr := Sprite2D.new()
 		spr.texture = CarArt.icon(resolver, names[(slot + 1) % names.size()])

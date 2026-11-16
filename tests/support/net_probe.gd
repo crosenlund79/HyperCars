@@ -10,7 +10,7 @@ extends SceneTree
 
 var opts := {"role": "host", "port": "24690", "laps": "1", "weapons": "0", "style": "0", "out": "",
 	"latency": "0", "loss": "0", "races": "1", "fire_every": "0", "timeout": "120", "track": "1", "jitter": "0",
-	"mode": "0", "predict": "1", "fall": "0"}
+	"mode": "0", "predict": "1", "fall": "0", "shots": ""}
 var link: NetLink
 var main: Node2D
 var autopilot: AiDriver
@@ -84,7 +84,7 @@ func _on_client_message(_from: int, msg: Array) -> void:
 
 func _make_race(role: NetRace.Role, track: int = int(opts.track)) -> Node2D:
 	var m: Node2D = load("res://src/main/main.tscn").instantiate()
-	m.presentation_enabled = false
+	m.presentation_enabled = opts.shots != ""  # shots=<dir>: screenshots of jumps (needs a display)
 	if DevLayouts.LAYOUTS.has(opts.get("layout", "")):
 		m.layout_override = load(DevLayouts.LAYOUTS[opts.layout])
 	m.human_count = 2
@@ -131,6 +131,7 @@ func _tick() -> void:
 		return
 	var s: RaceSession = main.session
 	_count_jumps()
+	_jump_shots()
 	if opts.role == "host":
 		if waiting_next and s.state == RaceSession.State.MODE_SELECT:
 			waiting_next = false
@@ -174,6 +175,25 @@ func _tick() -> void:
 				quit()
 		if finished_at > 0 and main.session.state == RaceSession.State.MODE_SELECT:
 			finished_at = -1
+
+
+var _shot_taken := {}
+
+
+## shots=<dir>: the first moment this computer shows its own car, and then a
+## rival, high in the air.
+func _jump_shots() -> void:
+	if opts.shots == "" or main.jumps == null:
+		return
+	var me: int = main.local_player_id
+	for id in main.cars.size():
+		var key := "own" if id == me else "rival"
+		if _shot_taken.has(key) or not main.jumps.is_airborne(id) or main.jumps.height(id) < 12.0:
+			continue
+		if key == "rival" and main.cars[me].global_position.distance_to(main.cars[id].global_position) > 500.0:
+			continue
+		_shot_taken[key] = true
+		root.get_viewport().get_texture().get_image().save_png("%s/%s_%s.png" % [opts.shots, opts.role, key])
 
 
 func _count_jumps() -> void:

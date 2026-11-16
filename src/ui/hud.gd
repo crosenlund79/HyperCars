@@ -246,8 +246,8 @@ func show_menu(choice: String, weapons: bool = false, laps: int = 3, style: int 
 	var header := "GET READY" if track_name.is_empty() else "GET READY  -  %s" % track_name.to_upper()
 	_message_box.add_child(_centered(HyperTheme.label(header, 22, HyperTheme.CREAM_DIM, 600)))
 	_message_box.add_child(_centered(HyperTheme.label("<   %s   >" % choice, 34, HyperTheme.GOLD, 700)))
-	_message_box.add_child(_centered(HyperTheme.label("%s     %s COMBAT     %d LAPS" % [weapons_text(weapons),
-		WeaponRules.style_name(style), laps], 26, HyperTheme.RED if weapons else HyperTheme.CREAM, 700)))
+	_message_box.add_child(_centered(HyperTheme.label("%s     %s COMBAT     %s" % [weapons_text(weapons),
+		WeaponRules.style_name(style), Hud.laps_text(laps)], 26, HyperTheme.RED if weapons else HyperTheme.CREAM, 700)))
 	if not note.is_empty():
 		_message_box.add_child(_centered(HyperTheme.label(note, 22, HyperTheme.GOLD, 700)))
 	_message_box.add_child(_centered(HyperTheme.label("Left / Right: mode    Up / Down: weapons    C: combat style    Tab: laps    Fire: start    Esc: menu", 17, HyperTheme.CREAM_DIM, 500)))
@@ -615,7 +615,7 @@ func show_results(standings: Array[RacerState], footer: String = "Fire to race a
 	_menu_key = ""
 	_clear_message()
 	var laps: int = standings[0].tracker.lap_count if not standings.is_empty() else 0
-	_message_box.add_child(_centered(HyperTheme.label("RESULTS  -  %d LAPS" % laps, 34, HyperTheme.GOLD, 700)))
+	_message_box.add_child(_centered(HyperTheme.label("RESULTS  -  %s" % Hud.laps_text(laps), 34, HyperTheme.GOLD, 700)))
 	# One row per car (same columns as before); the HUD's own human rows get a
 	# box in their identity colour, other humans their colour.
 	var rows := VBoxContainer.new()
@@ -790,3 +790,8 @@ func _release_message() -> void:
 func _fade_in_message() -> void:
 	_message_tween = create_tween()
 	_message_tween.tween_property(_message, "modulate:a", 1.0, 0.2)
+
+
+## "1 LAP", "3 LAPS".
+static func laps_text(laps: int) -> String:
+	return "1 LAP" if laps == 1 else "%d LAPS" % laps

@@ -114,7 +114,13 @@ func _show(rival: int, victim: int) -> void:
 	_panel.visible = true
 	_panel.reset_size()
 	var w := _panel.get_combined_minimum_size().x
-	_panel.position = Vector2((1280.0 - w) * 0.5, 96)
+	_panel.position = Vector2((1280.0 - w) * 0.5, 190)  # below the GO! / FINISH! banners
+	var views: PlayerViews = race.player_views
+	if views != null and not views.view_for(victim).is_empty():
+		# split-screen: in the victim's own view, below their info panel
+		var c: SubViewportContainer = views.view_for(victim).container
+		var centre: float = c.position.x + c.size.x * c.scale.x * 0.5
+		_panel.position = Vector2(clampf(centre - w * 0.5, c.position.x + 8.0, c.position.x + c.size.x * c.scale.x - w - 8.0), 250)
 	_panel.modulate.a = 0.0
 	if _tween != null:
 		_tween.kill()
