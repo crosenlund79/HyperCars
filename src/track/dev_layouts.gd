@@ -14,17 +14,21 @@ extends RefCounted
 
 const LAYOUTS := {
 	"kestrel_ridge": "res://src/track/layouts/kestrel_ridge.tres",
+	"larkspur_ring": "res://src/track/layouts/larkspur_ring.tres",
+	"ravenhook": "res://src/track/layouts/ravenhook.tres",
 	"classic_01": "res://src/track/circuit_01.tres",
 	"exp_figure8_01": "res://src/track/layouts/exp_figure8_01.tres",
 }
 ## Layouts offered to players, in menu order.
-const PLAYER_LAYOUTS: Array[String] = ["kestrel_ridge"]
+const PLAYER_LAYOUTS: Array[String] = ["kestrel_ridge", "larkspur_ring", "ravenhook"]
 const DEFAULT := "kestrel_ridge"
 const ARG := "--layout="
 const CLASSIC := ""
 const NAMES := {
 	"": "Classic Circuit",
 	"kestrel_ridge": "Kestrel Ridge",
+	"larkspur_ring": "Larkspur Ring",
+	"ravenhook": "Ravenhook",
 	"classic_01": "Classic Circuit (Legacy)",
 	"exp_figure8_01": "Figure Eight (Experimental)",
 }
