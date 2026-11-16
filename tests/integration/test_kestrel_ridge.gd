@@ -249,6 +249,7 @@ func _ai_race(weapons: bool, style := WeaponRules.Style.CLASSIC) -> Dictionary:
 	var gate_from_upper := 0
 	var big_jumps := 0
 	var was_air := {}
+	var was_down := {}
 	var last := {}
 	_main.track.checkpoint_reached.connect(func(_i: int, body: Node2D) -> void:
 		if body is Car and _main.car_levels[body.racer_id] != 0:
@@ -263,8 +264,12 @@ func _ai_race(weapons: bool, style := WeaponRules.Style.CLASSIC) -> Dictionary:
 				jumps[id] = jumps.get(id, 0) + 1
 			was_air[id] = a
 			var d: float = _main.progress[id].distance
-			if last.has(id) and absf(d - last[id]) > 40.0 and not _main.jumps.is_down(id) and not _main.combat.is_wrecked(id):
+			var down: bool = _main.jumps.is_down(id)
+			# (a car recovering from a fall is set back past the gap: not a branch jump)
+			if last.has(id) and absf(d - last[id]) > 40.0 and not down and not was_down.get(id, false) \
+					and not _main.combat.is_wrecked(id):
 				big_jumps += 1
+			was_down[id] = down
 			last[id] = d
 	return {"jumps": jumps, "gate_from_upper": gate_from_upper, "progress_jumps": big_jumps}
 

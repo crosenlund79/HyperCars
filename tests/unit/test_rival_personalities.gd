@@ -43,10 +43,14 @@ func test_new_traits_are_neutral_by_default() -> void:
 	var p := AiParams.new()
 	assert_eq([p.defend_distance, p.pass_check_clearance, p.pass_side, p.disrupted_threshold, p.pass_impulse_chance],
 		[0.0, false, 0, 0.0, 0.0])
-	for id in [1, 2, 3]:
+	for id in [1, 3]:
 		var q := _params(id)
 		assert_eq([q.defend_distance, q.pass_check_clearance, q.pass_side, q.disrupted_threshold, q.pass_impulse_chance],
 			[0.0, false, 0, 0.0, 0.0], "pilot rival %d untouched" % id)
+	# Rocco blocks since the racecraft update (2026-11-16): aggressive defending only
+	var r := _params(2)
+	assert_eq([r.pass_check_clearance, r.pass_side, r.disrupted_threshold, r.pass_impulse_chance], [false, 0, 0.0, 0.0])
+	assert_gt(r.defend_distance, 0.0, "Rocco defends")
 
 
 func test_victor_keeps_the_latest_adjustment() -> void:
@@ -81,7 +85,7 @@ func test_maya_does_not_force_a_pass_into_an_occupied_lane() -> void:
 	var blockers := [slow_ahead, {"distance": 560.0, "lateral": -p.pass_offset, "speed": 300.0},
 		{"distance": 560.0, "lateral": p.pass_offset, "speed": 300.0}]
 	_run(maya2, _me(500.0, 0.0, 320.0), blockers, 30)
-	assert_eq(maya2.lane_bias, 0.0, "waits instead of forcing")
+	assert_lt(absf(maya2.lane_bias), p.pass_offset * 0.25, "waits instead of forcing (only her own line drift)")
 
 
 func test_dante_passes_on_the_outside_of_the_next_corner() -> void:

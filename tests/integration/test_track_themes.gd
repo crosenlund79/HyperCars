@@ -73,17 +73,22 @@ func test_track_uses_the_variant_art_with_identical_geometry() -> void:
 						shapes.append([s.position, s.shape])
 		built.append([m.track.centerline, m.track.checkpoint_samples, shapes.size(), m.grid_order])
 		if v == 3:
-			assert_string_contains(m.hud._message_box.get_child(0).text, "SNOW PASS")
+			assert_string_contains(m.hud._message_box.get_child(0).text, "WINTER")
 	assert_eq(built[1], built[0], "same geometry and grid")
 	assert_eq(built[2], built[0])
 
 
-func test_races_are_identical_on_every_variant() -> void:
-	for args in [["mode=race", "ticks=1800", "weapons=1"], ["mode=spectate", "ticks=2400", "weapons=1", "style=1"]]:
-		var base := ProbeRunner.run(PackedStringArray(args + ["theme=1"]))
-		assert_eq(base.length(), 32, base)
-		for v in ["2", "3"]:
-			assert_eq(ProbeRunner.run(PackedStringArray(args + ["theme=" + v])), base, "%s theme %s" % [str(args), v])
+## Biomes (2026-11-16) change handling for every car alike, so races on
+## Wasteland and Winter differ from Green Valley on purpose; each biome stays
+## deterministic (same race twice in fresh processes, same result).
+func test_biomes_change_races_deterministically() -> void:
+	var args := ["mode=race", "ticks=1800", "weapons=1"]
+	var base := ProbeRunner.run(PackedStringArray(args + ["theme=1"]))
+	assert_eq(base.length(), 32, base)
+	for v in ["2", "3"]:
+		var a := ProbeRunner.run(PackedStringArray(args + ["theme=" + v]))
+		assert_ne(a, base, "biome %s handles differently" % v)
+		assert_eq(ProbeRunner.run(PackedStringArray(args + ["theme=" + v])), a, "biome %s deterministic" % v)
 
 
 func test_variant_props_stay_clear_of_the_track() -> void:

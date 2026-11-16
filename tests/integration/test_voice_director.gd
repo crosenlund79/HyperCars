@@ -40,6 +40,7 @@ func _make(talkative := true, humans := 1, spectate := false) -> void:
 		p.repeat_factor = 1.0
 		p.min_gap = 0.5
 	_main.voice_params = p
+	_main.weapons_lock_enabled = false  # the "Weapons hot" call: test_weapons_hot.gd
 	if humans == 2:
 		_main.human_count = 2
 		_main.player_devices = [3, 4] as Array[int]
@@ -81,6 +82,7 @@ func _mine_on(id: int) -> void:
 ## Rival `rival` drives past the stopped player on the main straight.
 func _overtake(rival: int) -> void:
 	_park_rivals([rival])
+	await wait_physics_frames(2)  # parked bodies leave the road before anyone is placed
 	_place(P, 900.0, 0.0, -40.0, Drive.new(false))
 	_place(rival, 650.0, 260.0, 40.0, Drive.new(true))
 	await wait_seconds(2.5)

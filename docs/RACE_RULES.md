@@ -90,7 +90,13 @@ crossing the headlights. Night never changes physics. L still toggles lights in 
 
 ## Fingerprints
 
-With `damage=0 lock=0 contact=0` (`sim_probe.gd`) the original eight fingerprints are
-unchanged; with `lock=0 contact=0` the M6 ones. With everything on, the current values
-are pinned in `tests/integration/test_multiplayer_regression.gd` (the start is calmer and
-contacts turn cars, so races differ on purpose). No Guns races also change (contact yaw).
+All pinned simulation fingerprints were re-recorded with the race-experience update
+(2026-11-16): the rivals' own racing lines, wreck awareness, ammo pacing and
+race-length ammunition change every AI race, so no earlier value can hold. The three
+sets in `tests/integration/test_multiplayer_regression.gd` keep their meaning
+(`damage=0 lock=0 contact=0`, `lock=0 contact=0`, everything on), as do the M2.3 /
+M3 gates in `test_combat_race.gd` / `test_tactical_race.gd`; old values are in git
+history. Biomes change handling, so `test_track_themes.gd` now checks that each
+biome differs from Green Valley and is deterministic, instead of identical races.
+Day / Night, the menus, the championship screens, rewards and the popup are
+presentation or flow only and do not change a race.

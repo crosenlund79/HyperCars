@@ -40,10 +40,10 @@ func _back() -> void:
 func test_selector_defaults_to_kestrel_ridge_and_offers_no_legacy_layout() -> void:
 	var t: TitleScreen = _game.title
 	assert_eq(t.layout_id, KESTREL, "fresh launch: Kestrel Ridge")
-	assert_eq(t._layout_button.text, "LAYOUT: KESTREL RIDGE")
+	assert_eq(t._layout_button.text, "CIRCUIT:  KESTREL RIDGE")
 	t._cycle_layout()
 	assert_eq(t.layout_id, "larkspur_ring")
-	assert_eq(t._layout_button.text, "LAYOUT: LARKSPUR RING")
+	assert_eq(t._layout_button.text, "CIRCUIT:  LARKSPUR RING")
 	t._cycle_layout()
 	assert_eq(t.layout_id, "ravenhook")
 	t._cycle_layout()
@@ -67,7 +67,12 @@ func test_title_menu_fits_at_1280x720() -> void:
 	var r := Rect2(menu.global_position, menu.size)
 	assert_true(Rect2(0, 0, 1280, 720).encloses(r), "menu %s on screen" % r)
 	assert_lt(r.end.y, 686.0, "clear of the controls hint at the bottom")
-	assert_true(_game.title._layout_button.is_visible_in_tree())
+	_game.title._open_setup("quick")
+	await wait_frames(12)
+	assert_true(_game.title._layout_button.is_visible_in_tree(), "the circuit is chosen on the setup screen")
+	var setup: Control = _game.title._setup
+	var sr := Rect2(setup.global_position, setup.size)
+	assert_true(Rect2(0, 0, 1280, 720).encloses(sr), "setup screen %s on screen" % sr)
 
 
 func test_title_races_start_on_kestrel_ridge() -> void:

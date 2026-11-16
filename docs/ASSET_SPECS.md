@@ -28,6 +28,7 @@ Any resolution is accepted as long as the **aspect ratio and orientation** match
 | `custom/graphics/cars/body_ai_7.png` | 128 x 72 | 64 x 36 | Wheel-free body (P2): same size, orientation and pivot as the car image, transparent where the wheels go; the game adds four shared wheels. Takes precedence over the flattened car image. |
 | `custom/graphics/cars/body_ai_8.png` | 128 x 72 | 64 x 36 | Wheel-free body (P2): same size, orientation and pivot as the car image, transparent where the wheels go; the game adds four shared wheels. Takes precedence over the flattened car image. |
 | `custom/graphics/cars/body_ai_9.png` | 128 x 72 | 64 x 36 | Wheel-free body (P2): same size, orientation and pivot as the car image, transparent where the wheels go; the game adds four shared wheels. Takes precedence over the flattened car image. |
+| `custom/graphics/cars/body_junker.png` | 128 x 72 | 64 x 36 | Wheel-free junker body (championship rewards); same contract as the other bodies. One image for every displaced rival (each gets a slight tint). |
 | `custom/graphics/cars/body_player.png` | 128 x 72 | 64 x 36 | Wheel-free body (P2): same size, orientation and pivot as the car image, transparent where the wheels go; the game adds four shared wheels. Takes precedence over the flattened car image. |
 | `custom/graphics/cars/body_player_2.png` | 128 x 72 | 64 x 36 | Wheel-free body (P2): same size, orientation and pivot as the car image, transparent where the wheels go; the game adds four shared wheels. Takes precedence over the flattened car image. |
 | `custom/graphics/cars/car_ai_1.png` | 128 x 72 | 64 x 36 | Opponent car 1; same contract as the player car. |
@@ -39,6 +40,7 @@ Any resolution is accepted as long as the **aspect ratio and orientation** match
 | `custom/graphics/cars/car_ai_7.png` | 128 x 72 | 64 x 36 | Opponent car 7; same contract as the player car. |
 | `custom/graphics/cars/car_ai_8.png` | 128 x 72 | 64 x 36 | Opponent car 8; same contract as the player car. |
 | `custom/graphics/cars/car_ai_9.png` | 128 x 72 | 64 x 36 | Opponent car 9; same contract as the player car. |
+| `custom/graphics/cars/car_junker.png` | 128 x 72 | 64 x 36 | Championship: the battered junker a rival drives after the player has won their car; same contract as the player car (complete car with wheels, used for icons). |
 | `custom/graphics/cars/car_player.png` | 128 x 72 | 64 x 36 | Top-down, nose pointing right (+X), centred pivot, transparent background. |
 | `custom/graphics/cars/car_player_2.png` | 128 x 72 | 64 x 36 | Player 2 car (two-player races); same contract as the player car. Template is a blue recolour of it. |
 | `custom/graphics/cars/wheel.png` | 24 x 14 | 12 x 7 | Shared wheel (P2), top-down, rolling direction along X (car nose right), centred pivot, transparent background. One image for all ten cars; four instances per car at the positions in src/presentation/default_wheel_layout.tres. |

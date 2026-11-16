@@ -6,8 +6,9 @@ extends GutTest
 const MAIN_SCENE := preload("res://src/main/main.tscn")
 ## M2.3 commit 5b7f2e5 probe hashes (mode, 1800 ticks, no weapons). Weapons OFF
 ## must reproduce them exactly. Update only for an approved gameplay change.
-const M23_RACE_HASH := "2034d50b333b9dce8bead444bb7a118f"
-const M23_SPECTATE_HASH := "670d6fdca34edcfece56493ce061a927"
+## Re-recorded 2026-11-16 (race experience: rival lines and ammo pacing change races).
+const M23_RACE_HASH := "c05bd701626761fd57646ab818ed2dae"
+const M23_SPECTATE_HASH := "00d5a4084c654f1c3c3b7a282ab81edd"
 
 var _main: Node2D
 

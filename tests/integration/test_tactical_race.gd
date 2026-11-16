@@ -6,8 +6,9 @@ extends GutTest
 const MAIN_SCENE := preload("res://src/main/main.tscn")
 ## Probe hashes of commit 18fb978 (M3 combat + lighting pilot), weapons ON.
 ## Classic must reproduce them exactly. Update only for an approved gameplay change.
-const M3_CLASSIC_RACE_HASH := "cc071fa3ae1264205176ac408f08b99b"
-const M3_CLASSIC_SPECTATE_HASH := "d80a2e47fa629deaf7ba40971f7e0ce3"
+## Re-recorded 2026-11-16 (race experience: rival lines and ammo pacing change races).
+const M3_CLASSIC_RACE_HASH := "8911a59caa05d9745a47b76c03d34478"
+const M3_CLASSIC_SPECTATE_HASH := "19ce0eec7cfc8e9b0bb18e4032b63b41"
 
 var _main: Node2D
 
