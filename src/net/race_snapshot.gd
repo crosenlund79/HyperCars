@@ -3,12 +3,16 @@ extends RefCounted
 ## Authoritative race state the host sends to the client (M5.1): every car's
 ## pose, motion and presence, each racer's laps / progress / finish, the race
 ## clock and state, and (with weapons) the combat state. M6: each car's
-## condition and each racer's DNF. Plain arrays only, so
+## condition and each racer's DNF. J5: the jump state of the cars that are
+## flying or down in a gap (nothing for cars on the road). Plain arrays only, so
 ## var_to_bytes encodes them compactly and safely. Pure functions: capture on
 ## the host, apply on the client.
 
 const CAR_FIELDS := 7     # x, y, heading, vx, vy, present, condition
 const RACER_FIELDS := 7   # laps, next checkpoint, progress, finish position, finish time, lap start, dnf
+const JUMP_FIELDS := 5    # car id, seconds in the air (-1 on the ground), lift, jump index, seconds left down
+## Snapshot layout: [tick, state, elapsed, cars, racers, finish order, combat ([] = no weapons), jumps].
+const SIZE := 8
 
 
 static func capture(race: Node, tick: int) -> Array:
@@ -24,9 +28,45 @@ static func capture(race: Node, tick: int) -> Array:
 			r.finish_position, r.finish_time, r.lap_start, 1.0 if r.dnf else 0.0])
 	var snap := [tick, session.state, session.elapsed, cars, racers, PackedInt32Array(session.finish_order)]
 	var combat: CombatWorld = race.combat
-	if combat.enabled:
-		snap.append(capture_combat(combat))
+	snap.append(capture_combat(combat) if combat.enabled else [])
+	snap.append(capture_jumps(race.jumps))
 	return snap
+
+
+## Only the cars that are not simply on the road (flying, down in a gap).
+static func capture_jumps(jumps: JumpWorld) -> PackedFloat32Array:
+	var out := PackedFloat32Array()
+	if jumps == null:
+		return out
+	for i in jumps.airborne.size():
+		if jumps.airborne[i] == 1 or jumps.down_left[i] > 0.0:
+			out.append_array([i, jumps.air_time[i] if jumps.airborne[i] == 1 else -1.0, jumps.lift[i],
+				jumps.jump_of[i], jumps.down_left[i]])
+	return out
+
+
+## Car c's jump state in a snapshot: {air, air_time, lift, jump, down} (on the road when absent).
+static func jump_state(snap: Array, c: int) -> Dictionary:
+	var a: PackedFloat32Array = snap[7]
+	for k in range(0, a.size(), JUMP_FIELDS):
+		if int(a[k]) == c:
+			return {"air": a[k + 1] >= 0.0, "air_time": maxf(0.0, a[k + 1]), "lift": a[k + 2], "jump": int(a[k + 3]),
+				"down": a[k + 4]}
+	return {"air": false, "air_time": 0.0, "lift": 0.0, "jump": -1, "down": 0.0}
+
+
+## 0 on the road, 1 flying, 2 down in a gap.
+static func jump_phase(state: Dictionary) -> int:
+	return 1 if state.air else (2 if state.down > 0.0 else 0)
+
+
+## Sets car c's jump state on this computer (air_time advanced by `ahead` seconds).
+static func set_jump(jumps: JumpWorld, c: int, state: Dictionary, ahead: float = 0.0) -> void:
+	jumps.airborne[c] = 1 if state.air else 0
+	jumps.air_time[c] = state.air_time + ahead if state.air else 0.0
+	jumps.lift[c] = state.lift
+	jumps.down_left[c] = maxf(0.0, state.down - ahead) if state.down > 0.0 else 0.0
+	jumps.jump_of[c] = state.jump if state.air or state.down > 0.0 else -1
 
 
 static func capture_combat(combat: CombatWorld) -> Array:
@@ -59,7 +99,7 @@ static func decode(bytes: PackedByteArray) -> Array:
 
 ## Structure check before a received snapshot is used.
 static func is_valid(snap: Array, car_count: int, racer_count: int) -> bool:
-	if snap.size() < 6 or snap.size() > 7:
+	if snap.size() != SIZE:
 		return false
 	if typeof(snap[0]) != TYPE_INT or typeof(snap[1]) != TYPE_INT or snap[1] < 0 or snap[1] > 2:
 		return false
@@ -69,7 +109,14 @@ static func is_valid(snap: Array, car_count: int, racer_count: int) -> bool:
 		return false
 	if not snap[5] is PackedInt32Array:
 		return false
-	return snap.size() == 6 or snap[6] is Array
+	if not snap[6] is Array or not snap[7] is PackedFloat32Array or snap[7].size() % JUMP_FIELDS != 0:
+		return false
+	for k in range(0, snap[7].size(), JUMP_FIELDS):
+		var id := int(snap[7][k])
+		var j := int(snap[7][k + 3])
+		if id < 0 or id >= car_count or j < -1 or j > 8:
+			return false
+	return true
 
 
 static func tick_of(snap: Array) -> int:

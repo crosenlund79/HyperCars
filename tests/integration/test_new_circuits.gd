@@ -201,8 +201,8 @@ func test_couch_and_network_on_ravenhook() -> void:
 	_main.net = NetRace.new(link, NetRace.Role.HOST)
 	add_child_autofree(_main)
 	await wait_physics_frames(2)
-	assert_null(_main.jumps, "no jumping online until J5")
-	assert_string_contains(_main.hud_track_name, "JUMP BRIDGED ONLINE")
+	assert_not_null(_main.jumps, "J5: Ravenhook's jump online too")
+	assert_false(_main.hud_track_name.contains("ONLINE"))
 	link.close()
 
 

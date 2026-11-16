@@ -72,7 +72,7 @@ var use_command_line_layout := true
 var car_levels := PackedInt32Array()
 ## Cars near a bridge end (transition band): on both levels at once.
 var car_transitions := PackedByteArray()
-## J3: the layout's jumps (null without jumps, and in network races until J5).
+## J3 / J5: the layout's jumps (null on layouts without jumps).
 var jumps: JumpWorld = null
 var jump_rules: JumpRules = preload("res://src/race/default_jump_rules.tres")
 ## The Esc race menu (Resume / Leave). While it is open this computer's
@@ -240,17 +240,14 @@ func _ready() -> void:
 		layout_override = DevLayouts.load_selected()
 	if layout_override != null:
 		track.layout = layout_override
-	# J3: jumps are not synchronised over the network yet (J5): a network race
-	# drives the layout without them (no ramp, no gap) on both computers
-	track.jumps_enabled = net == null
+	# J5: jumps work in network races too (host-authoritative, see NetRace)
+	track.jumps_enabled = true
 	track.build(resolver, track_theme)
 	hud_track_name = "%s  -  %s" % [track_theme.display_name, DevLayouts.display_name(DevLayouts.id_of(layout_override))]
 	if night:
 		hud_track_name += "  -  NIGHT"
 	if championship_label != "":
 		hud_track_name = "%s  -  %s" % [championship_label, hud_track_name]
-	if track.layout.has_jumps() and net != null:
-		hud_track_name += "  (JUMP BRIDGED ONLINE)" if track.layout.has_elevation() and _has_flyover_jump() else "  (JUMP OFF ONLINE)"
 	track.checkpoint_reached.connect(_on_checkpoint_reached)
 	var two := is_two_player()
 	if two:
@@ -693,13 +690,6 @@ func _apply_loadouts() -> void:
 		if not (garage_player and id == RaceSession.PLAYER_ID):
 			ids.append(id)
 	combat.scale_ammo(weapon_rules.ammo_scale(session.lap_count()), ids)
-
-
-func _has_flyover_jump() -> bool:
-	for k in track.layout.jumps.size():
-		if track.layout.is_flyover(k, track.path.length):
-			return true
-	return false
 
 
 ## M6: every car starts at full condition without armour, except the player's

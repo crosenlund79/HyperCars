@@ -329,7 +329,7 @@ func test_couch_split_screen_race_runs_with_both_players_on_the_circuit() -> voi
 		assert_eq(v.camera.target, _main.cars[v.racer_id])
 
 
-func test_network_races_drive_the_leap_as_a_bridge() -> void:
+func test_network_races_have_the_real_leap() -> void:
 	var link := NetLink.new()
 	add_child_autofree(link)
 	link.host(24761)
@@ -340,10 +340,12 @@ func test_network_races_drive_the_leap_as_a_bridge() -> void:
 	_main.net = NetRace.new(link, NetRace.Role.HOST)
 	add_child_autofree(_main)
 	await wait_physics_frames(2)
-	assert_null(_main.jumps, "no jumping online until J5")
-	assert_false(_main.track.has_node("Ravine0"), "no ravine")
-	assert_false(_main.track.has_node("Jump0"), "no ramp markings")
+	assert_not_null(_main.jumps, "J5: jumping online")
+	assert_true(_main.track.has_node("Ravine0"), "the ravine")
+	assert_true(_main.track.has_node("Jump0"), "the ramp markings")
+	var gap := false
 	for i in _main.track.centerline.size():
-		assert_false(_main.track.in_flyover_gap(i), "the deck spans the gap: a plain bridge")
-	assert_string_contains(_main.hud_track_name, "JUMP BRIDGED ONLINE")
+		gap = gap or _main.track.in_flyover_gap(i)
+	assert_true(gap, "no deck over the gap, as offline")
+	assert_false(_main.hud_track_name.contains("ONLINE"), "no online note any more")
 	link.close()

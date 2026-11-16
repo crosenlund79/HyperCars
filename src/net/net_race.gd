@@ -13,8 +13,8 @@ enum Role { HOST, CLIENT }
 enum Msg { WELCOME, HELLO, SETUP, READY, START, SNAP, INPUT, RESULTS, EVENTS, BYE, REJECT, JOINED }
 
 ## Wire protocol version and game build: both must match before a session starts.
-const PROTOCOL := 4  # 3: M6 condition / DNF in snapshots; 4: Weapons Hot lock
-const GAME_BUILD := "hypercars-m5.2"
+const PROTOCOL := 5  # 3: M6 condition / DNF in snapshots; 4: Weapons Hot lock; 5: J5 jumps
+const GAME_BUILD := "hypercars-j5"
 
 
 ## Build string exchanged in WELCOME / HELLO. The track layout is not part of
@@ -61,6 +61,14 @@ var corrections := 0
 var correction_sum := 0.0
 var correction_max := 0.0
 var hard_snaps := 0
+## J5: times the host's jump outcome replaced our prediction (takeoff / landing / fall).
+var jump_corrections := 0
+var _was_predicting := false
+## A fall into a jump's gap we predicted (input tick, -1 none) and whether
+## the host has shown it yet; the newest input tick the host has applied.
+var _fall_tick := -1
+var _fall_confirmed := false
+var _snap_ack := -1
 ## CLIENT: optional source of the local player's command (tests use an autopilot);
 ## default reads the single-player actions on this computer.
 var input_source: Callable
@@ -199,10 +207,21 @@ func _local_car() -> Car:
 	return race.cars[race.local_player_id]
 
 
-## Whether the local car is simulated here this tick (racing, not wrecked).
+## Whether the local car is simulated here this tick (racing, not wrecked,
+## not down in a jump's gap).
 func _predicting() -> bool:
 	return predict and race.session.state != RaceSession.State.MODE_SELECT \
-		and not race.combat.is_wrecked(race.local_player_id) and not race.session.racers[race.local_player_id].dnf
+		and not race.combat.is_wrecked(race.local_player_id) and not race.session.racers[race.local_player_id].dnf \
+		and not (race.jumps != null and race.jumps.is_down(race.local_player_id))
+
+
+## The local car's jump phase on this computer: 0 road, 1 flying, 2 down.
+func _local_phase() -> int:
+	var j: JumpWorld = race.jumps
+	if j == null:
+		return 0
+	var id: int = race.local_player_id
+	return 1 if j.is_airborne(id) else (2 if j.is_down(id) else 0)
 
 
 ## The state reached after the previous input tick, kept for reconciliation.
@@ -210,7 +229,7 @@ func _record_prediction() -> void:
 	if input_tick <= 0:
 		return
 	var c := _local_car()
-	_history[input_tick] = [c.global_position, c.model.heading, c.model.velocity]
+	_history[input_tick] = [c.global_position, c.model.heading, c.model.velocity, _local_phase()]
 	_history.erase(input_tick - HISTORY)
 
 
@@ -218,6 +237,11 @@ func _record_prediction() -> void:
 ## it is wrecked / not predicting: then it follows the host's snapshots).
 func _drive_local_car(cmd: Dictionary) -> void:
 	var c := _local_car()
+	var predicting := _predicting()
+	if predicting and not _was_predicting and not snapshots.is_empty():
+		_resume_from_host(c)
+	_was_predicting = predicting
+	_predict_jump(c)
 	if not _predicting():
 		c.active = false
 		return
@@ -250,6 +274,14 @@ func _reconcile(snap: Array, ack: int) -> void:
 			hard_snaps += 1
 		return
 	var rec: Array = _history[ack]
+	if race.jumps != null:
+		var host_jump := RaceSnapshot.jump_state(snap, race.local_player_id)
+		var phase := RaceSnapshot.jump_phase(host_jump)
+		if phase != rec[3] and not _phase_near(ack, phase):
+			_adopt_jump(host_jump, (input_tick - ack) * Car.FIXED_STEP)
+			for t in _history:  # what we recorded since then followed the wrong jump
+				if t >= ack:
+					_history[t][3] = phase
 	var dpos: Vector2 = auth.position - rec[0]
 	var dhead := wrapf(auth.heading - rec[1], -PI, PI)
 	var dvel: Vector2 = auth.velocity - rec[2]
@@ -267,7 +299,99 @@ func _reconcile(snap: Array, ack: int) -> void:
 	for t in _history:
 		if t > ack:
 			var h: Array = _history[t]
-			_history[t] = [h[0] + dpos * k, h[1] + dhead * k, h[2] + dvel * k]
+			_history[t] = [h[0] + dpos * k, h[1] + dhead * k, h[2] + dvel * k, h[3]]
+
+
+## Prediction starts again (after a wreck or a fall, or at the start): from
+## the host's newest state of our car, not the interpolated past (which can
+## still be down in a jump's gap or at the wreck).
+func _resume_from_host(c: Car) -> void:
+	var auth := RaceSnapshot.car_state(snapshots[-1], race.local_player_id)
+	if auth.present:
+		_set_car(c, auth.position, auth.heading, auth.velocity)
+	var id: int = race.local_player_id
+	race.progress[id].reset(c.global_position)
+	race.progress[id].distance = race.session.racers[id].progress  # keep the lap count of the race distance
+	if race.jumps != null:
+		race.jumps.place(id, fposmod(race.progress[id].distance, race.track.path.length))
+	_history.clear()
+
+
+## J5: the local car's jump, predicted with the same JumpWorld the host runs
+## (takeoff from its own speed, flight, landing or a fall); the host's state
+## corrects it in _reconcile. Not predicting (wrecked, down): only tracks.
+func _predict_jump(c: Car) -> void:
+	var j: JumpWorld = race.jumps
+	if j == null:
+		return
+	var id: int = race.local_player_id
+	var p: RaceProgress = race.progress[id]
+	p.update(c.global_position)
+	if not _predicting():
+		j.place(id, fposmod(p.distance, race.track.path.length))
+		return
+	var along := c.model.velocity.dot(race.track.path.tangent_at(p.distance))
+	match j.step(id, Car.FIXED_STEP, p.distance, along, c.active):
+		"takeoff":
+			c.airborne = true
+		"landed":
+			c.airborne = false
+		"fell":
+			c.airborne = false
+			c.model.velocity = Vector2.ZERO
+			c.active = false  # down in the gap until the host confirms it (see _follow_host_jump)
+			_fall_tick = input_tick
+			_fall_confirmed = false
+
+
+## Our prediction reached the host's phase a tick or two before or after
+## `ack` (takeoff / landing timing within rounding): not a real difference.
+func _phase_near(ack: int, phase: int) -> bool:
+	for t in [ack - 2, ack - 1, ack + 1, ack + 2]:
+		if _history.has(t) and _history[t][3] == phase:
+			return true
+	return false
+
+
+## While our car is not predicted, its jump state follows the host's newest
+## snapshot (not the interpolated past). A fall we predicted is held until the
+## host shows it; if the host has applied our inputs past it without a fall,
+## it was a misprediction and the host's state wins.
+func _follow_host_jump(snap: Array) -> void:
+	var j: JumpWorld = race.jumps
+	if j == null or _predicting():
+		return
+	var id: int = race.local_player_id
+	var host := RaceSnapshot.jump_state(snap, id)
+	if _fall_tick >= 0 and not _fall_confirmed:
+		if host.down > 0.0:
+			_fall_confirmed = true
+		elif _snap_ack > _fall_tick + 2:
+			_fall_tick = -1
+			_adopt_jump(host, 0.0)
+			return
+		else:
+			return  # the host has not reached that tick yet
+	RaceSnapshot.set_jump(j, id, host)
+	_local_car().airborne = host.air
+	if host.down <= 0.0:
+		_fall_tick = -1
+
+
+## Our car waits in the gap for the host to confirm a predicted fall.
+func _holding_fall() -> bool:
+	return _fall_tick >= 0 and not _fall_confirmed
+
+
+## Takes the host's jump state for our car (it differs in phase from what we
+## predicted for that tick): ahead = how far our prediction is past it.
+func _adopt_jump(state: Dictionary, ahead: float) -> void:
+	var id: int = race.local_player_id
+	RaceSnapshot.set_jump(race.jumps, id, state, ahead)
+	var c := _local_car()
+	c.airborne = state.air
+	race.jumps.place(id, fposmod(race.progress[id].distance, race.track.path.length))
+	jump_corrections += 1
 
 
 func _set_car(c: Car, pos: Vector2, heading: float, vel: Vector2) -> void:
@@ -372,13 +496,18 @@ func _interpolate_cars() -> void:
 			break
 	if RaceSnapshot.tick_of(b) < RaceSnapshot.tick_of(a):
 		b = a
-	if b.size() > 6:
+	if not b[6].is_empty():
 		RaceSnapshot.apply_combat(race.combat, b[6])  # weapons and wrecks at the moment shown
 	var span := float(RaceSnapshot.tick_of(b) - RaceSnapshot.tick_of(a))
 	var t := 0.0 if span <= 0.0 else clampf((render_tick - RaceSnapshot.tick_of(a)) / span, 0.0, 1.0)
 	for c in race.cars.size():
-		if c == race.local_player_id and _predicting():
+		if c == race.local_player_id and (_predicting() or _holding_fall()):
 			continue  # our own car is predicted, not interpolated
+		if race.jumps != null and c != race.local_player_id:  # ours: _follow_host_jump
+			var js := RaceSnapshot.jump_state(b, c)
+			# flight time at the moment shown (b is up to one snapshot ahead of it)
+			RaceSnapshot.set_jump(race.jumps, c, js, (render_tick - RaceSnapshot.tick_of(b)) * Car.FIXED_STEP)
+			race.cars[c].airborne = js.air
 		var sa := RaceSnapshot.car_state(a, c)
 		var sb := RaceSnapshot.car_state(b, c)
 		var car: Car = race.cars[c]
@@ -470,6 +599,8 @@ func _on_message(from: int, msg: Array) -> void:
 				render_tick = -1.0
 				_history.clear()
 				_last_ack = -1
+				_fall_tick = -1
+				_was_predicting = false
 				_results_final = false
 				race.apply_network_setup(msg[1])
 		Msg.START:
@@ -484,7 +615,9 @@ func _on_message(from: int, msg: Array) -> void:
 					var newer := snapshots.is_empty() or RaceSnapshot.tick_of(snap) > RaceSnapshot.tick_of(snapshots[-1])
 					_push_snapshot(snap)
 					if newer:
+						_snap_ack = maxi(_snap_ack, msg[2])
 						_reconcile(snap, msg[2])
+						_follow_host_jump(snap)
 		Msg.EVENTS:
 			if is_client() and valid(msg, [TYPE_INT, TYPE_INT, TYPE_ARRAY]) and msg[1] == race.races_started:
 				var events: Array = race.combat.events

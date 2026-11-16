@@ -2,7 +2,7 @@ extends SceneTree
 ## Test helper: one side of a LAN race, run as its own Godot process.
 ##   godot --headless --path <project> -s res://tests/support/net_probe.gd -- \
 ##         role=host|client port=24690 laps=1 weapons=0 style=0 out=<file> \
-##         latency=0 loss=0 races=1 fire_every=0
+##         latency=0 loss=0 races=1 fire_every=0 layout=<id> jitter=0 fall=0
 ## Both humans are driven by an autopilot (an AiDriver steering the human's
 ## car through the normal input path: the host's local player input, and the
 ## client's INPUT messages). Each side writes the final result it shows
@@ -10,7 +10,7 @@ extends SceneTree
 
 var opts := {"role": "host", "port": "24690", "laps": "1", "weapons": "0", "style": "0", "out": "",
 	"latency": "0", "loss": "0", "races": "1", "fire_every": "0", "timeout": "120", "track": "1", "jitter": "0",
-	"mode": "0", "predict": "1"}
+	"mode": "0", "predict": "1", "fall": "0"}
 var link: NetLink
 var main: Node2D
 var autopilot: AiDriver
@@ -22,6 +22,11 @@ var finished_at := -1
 var shots := 0
 var tick := 0
 var waiting_next := false
+## J5: per car, takeoffs and falls into a jump's gap seen on this computer.
+var takeoffs := {}
+var falls := {}
+var _was_air := {}
+var _was_down := {}
 
 
 func _initialize() -> void:
@@ -103,6 +108,12 @@ func _client_autopilot() -> Dictionary:
 	var cmd := autopilot.decide({"position": c.global_position, "heading": c.model.heading,
 		"speed": c.model.velocity.dot(Vector2.from_angle(c.model.heading)),
 		"distance": progress[me_id].distance, "lateral": progress[me_id].lateral}, others, 1.0 / 60.0)
+	if opts.fall == "1" and main.track.layout.has_jumps():
+		# J5 test: crawl up to the jump's lip, so the car is too slow and falls in
+		var lip: float = main.track.layout.jumps[0].x
+		var d := fposmod(progress[me_id].distance, main.track.path.length)
+		if d > lip - 420.0 and d < lip:
+			cmd.fire = main.cars[me_id].model.velocity.length() < 140.0  # crawl up to the lip: too slow to clear the gap
 	if opts.mode == "1":
 		cmd.fire = not cmd.fire  # the autopilot thinks in Fire to Accelerate; in Fire to Brake, fire means brake
 	var fe := int(opts.fire_every)
@@ -119,6 +130,7 @@ func _tick() -> void:
 	if main == null or not main.is_inside_tree():
 		return
 	var s: RaceSession = main.session
+	_count_jumps()
 	if opts.role == "host":
 		if waiting_next and s.state == RaceSession.State.MODE_SELECT:
 			waiting_next = false
@@ -130,6 +142,8 @@ func _tick() -> void:
 		if s.state == RaceSession.State.FINISHED and s.all_finished() and finished_at < 0 and not waiting_next:
 			finished_at = tick
 			results.append(_result())
+			takeoffs = {}
+			falls = {}
 		if finished_at > 0 and tick - finished_at == 30:
 			races_done += 1
 			if races_done < int(opts.races):
@@ -147,16 +161,34 @@ func _tick() -> void:
 		if main.network_results.size() > 0 and finished_at < 0:
 			finished_at = tick
 			results.append(_result())
+			takeoffs = {}
+			falls = {}
 			races_done += 1
 			main.network_results = [] as Array[int]
 			if races_done >= int(opts.races):
 				var n: NetRace = main.net
 				_write({"results": results, "client_shots": main.combat.shots_fired[RaceSession.PLAYER_2_ID],
 					"corrections": n.corrections, "avg_error": n.correction_sum / maxf(1.0, n.corrections),
-					"max_error": n.correction_max, "hard_snaps": n.hard_snaps, "ping": link.ping_ms()})
+					"max_error": n.correction_max, "hard_snaps": n.hard_snaps, "ping": link.ping_ms(),
+					"jump_corrections": n.jump_corrections})
 				quit()
 		if finished_at > 0 and main.session.state == RaceSession.State.MODE_SELECT:
 			finished_at = -1
+
+
+func _count_jumps() -> void:
+	var j: JumpWorld = main.jumps
+	if j == null or main.session.state == RaceSession.State.MODE_SELECT:
+		return
+	for id in main.cars.size():
+		var air := j.is_airborne(id)
+		var down := j.is_down(id)
+		if air and not _was_air.get(id, false):
+			takeoffs[str(id)] = takeoffs.get(str(id), 0) + 1
+		if down and not _was_down.get(id, false):
+			falls[str(id)] = falls.get(str(id), 0) + 1
+		_was_air[id] = air
+		_was_down[id] = down
 
 
 func _result() -> Dictionary:
@@ -171,8 +203,17 @@ func _result() -> Dictionary:
 	for e in main.combat.events:
 		fired += int(e.kind == "fire")
 		destroyed += int(e.kind == "destroyed")
+	var condition := []
+	var ammo := []
+	var dnf := []
+	for id in main.cars.size():
+		condition.append(snappedf(main.damage.condition[id], 0.1))
+		ammo.append(main.combat.ammo[id].duplicate())
+		if s.racers[id].dnf:
+			dnf.append(id)
 	return {"order": s.finish_order.duplicate(), "times": times, "positions": positions, "grid": main.grid_order.duplicate(),
-		"sitting_out": s.sitting_out.duplicate(), "fired": fired, "destroyed": destroyed}
+		"sitting_out": s.sitting_out.duplicate(), "fired": fired, "destroyed": destroyed,
+		"condition": condition, "ammo": ammo, "dnf": dnf, "takeoffs": takeoffs.duplicate(), "falls": falls.duplicate()}
 
 
 func _write(data: Dictionary) -> void:
