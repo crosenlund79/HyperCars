@@ -21,6 +21,10 @@ var _laps_button: Button
 ## Track theme variant for racing and spectating (saved); the backdrop shows it.
 var track_variant := 1
 var _track_button: Button
+## Track layout id (DevLayouts; "" = Classic Circuit). Not saved: a launch starts
+## on the classic circuit unless the developer "--layout=<id>" argument is given.
+var layout_id: String = DevLayouts.selected_id()
+var _layout_button: Button
 ## Combat style preference (WeaponRules.Style) for racing and spectating (saved).
 var combat_style := 0
 var _style_button: Button
@@ -88,13 +92,16 @@ func setup(p_resolver: AssetResolver, p_settings: AudioSettings) -> void:
 	_load_weapons_pref()
 	_main_menu = _menu(root, [["RACE", _open_race], ["SPECTATE RIVALS", func() -> void: _start(2)],
 		["WEAPONS", _toggle_weapons], ["COMBAT", _toggle_style], ["LAPS", _cycle_laps], ["TRACK", _cycle_track],
-		["ACHIEVEMENTS", _open_achievements],
-		["SETTINGS", _open_settings], ["CONTROLS", _open_controls], ["QUIT", func() -> void: quit_requested.emit()]])
+		["LAYOUT", _cycle_layout], ["ACHIEVEMENTS", _open_achievements],
+		["SETTINGS", _open_settings], ["CONTROLS", _open_controls], ["QUIT", func() -> void: quit_requested.emit()]],
+		380, 34, 3)  # eleven entries: a little tighter, clear of the footer at 1280x720
 	_weapons_button = _main_menu.get_child(2)
 	_style_button = _main_menu.get_child(3)
 	_laps_button = _main_menu.get_child(4)
 	_track_button = _main_menu.get_child(5)
+	_layout_button = _main_menu.get_child(6)
 	_update_track_button()
+	_update_layout_button()
 	_update_weapons_button()
 	_update_style_button()
 	_update_laps_button()
@@ -267,6 +274,23 @@ func _cycle_track() -> void:
 	_camera.make_current()
 
 
+## Classic Circuit -> Figure Eight (Experimental) -> ... (not saved).
+func _cycle_layout() -> void:
+	_sfx_play("ui/ui_select")
+	var ids := DevLayouts.ids()
+	layout_id = ids[(ids.find(layout_id) + 1) % ids.size()]
+	_update_layout_button()
+	var pan := _pan
+	_backdrop.free()
+	_build_backdrop()
+	_pan = pan
+	_camera.make_current()
+
+
+func _update_layout_button() -> void:
+	_layout_button.text = "LAYOUT: %s" % DevLayouts.display_name(layout_id).to_upper()
+
+
 func _update_track_button() -> void:
 	_track_button.text = "TRACK: %s" % TrackTheme.load_variant(track_variant).display_name.to_upper()
 
@@ -345,15 +369,15 @@ func _show_only(node: Control) -> void:
 	create_tween().tween_property(node, "modulate:a", 1.0, 0.18)
 
 
-func _menu(root: Control, items: Array, width: int = 380) -> VBoxContainer:
+func _menu(root: Control, items: Array, width: int = 380, button_height: int = 38, gap: int = 4) -> VBoxContainer:
 	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 4)
+	box.add_theme_constant_override("separation", gap)
 	box.custom_minimum_size = Vector2(width, 0)
 	root.add_child(box)
 	for item in items:
 		var b := Button.new()
 		b.text = item[0]
-		b.custom_minimum_size = Vector2(width, 38)
+		b.custom_minimum_size = Vector2(width, button_height)
 		b.add_theme_font_size_override("font_size", 20)
 		for state in ["normal", "hover", "pressed", "focus", "disabled"]:
 			var sb: StyleBox = root.theme.get_stylebox(state, "Button").duplicate()
@@ -381,7 +405,8 @@ func _build_backdrop() -> void:
 	add_child(_backdrop)
 	var track := Node2D.new()
 	track.set_script(TRACK_SCRIPT)
-	track.layout = LAYOUT
+	var chosen := DevLayouts.load_layout(layout_id)
+	track.layout = chosen if chosen != null else LAYOUT
 	_backdrop.add_child(track)
 	track.build(resolver, TrackTheme.load_variant(track_variant))
 	# The backdrop never races: remove its collision and checkpoint nodes.

@@ -82,7 +82,8 @@ func _ready() -> void:
 ## devices: two-player split-screen with these controllers (no garage or
 ## achievements in two-player races).
 ## net: a LAN race (NetRace host or client); net_track: the host's track (client).
-func start_race(choice: int, with_garage: bool = false, devices: Array[int] = [], net: NetRace = null, net_track: int = -1) -> void:
+func start_race(choice: int, with_garage: bool = false, devices: Array[int] = [], net: NetRace = null, net_track: int = -1,
+		net_layout: String = "") -> void:
 	if race != null or _starting:
 		return  # a race is already running or starting: never create a second one
 	_starting = true
@@ -102,6 +103,9 @@ func start_race(choice: int, with_garage: bool = false, devices: Array[int] = []
 	if not two:
 		race.achievements = achievements
 	race.track_variant = net_track if net != null and net.is_client() else title.track_variant
+	# the title's LAYOUT choice (a LAN / online client: the host's layout)
+	race.use_command_line_layout = false
+	race.layout_override = DevLayouts.load_layout(net_layout if net != null and net.is_client() else title.layout_id)
 	add_child(race)
 	race.garage_requested.connect(_open_garage)
 	race.camera.make_current()
@@ -235,7 +239,8 @@ func _on_lan_peer_joined(peer_id: int) -> void:
 		_refuse(peer_id, "busy")
 		return
 	_pending_peer = peer_id
-	link.send([NetRace.Msg.WELCOME, NetRace.PROTOCOL, NetRace.build_id(), {"track_variant": title.track_variant}], true, peer_id)
+	link.send([NetRace.Msg.WELCOME, NetRace.PROTOCOL, NetRace.build_id(), {"track_variant": title.track_variant,
+		"layout": title.layout_id}], true, peer_id)
 	title.lan_panel.show_status("Player connected - checking versions...")
 	get_tree().create_timer(HELLO_TIMEOUT, true, false, true).timeout.connect(_hello_timeout.bind(peer_id))
 
@@ -281,7 +286,10 @@ func _on_lan_message(from: int, msg: Array) -> void:
 			if race == null and not _starting:
 				link.send([NetRace.Msg.HELLO, NetRace.PROTOCOL, NetRace.build_id()], true)
 				var track: int = clampi(int(msg[3].get("track_variant", 1)), 1, TrackTheme.VARIANT_COUNT)
-				start_race(0, false, [], NetRace.new(link, NetRace.Role.CLIENT), track)
+				var layout := str(msg[3].get("layout", DevLayouts.CLASSIC))
+				if not DevLayouts.NAMES.has(layout):
+					layout = DevLayouts.CLASSIC  # unknown: never guess a circuit
+				start_race(0, false, [], NetRace.new(link, NetRace.Role.CLIENT), track, layout)
 		NetRace.Msg.REJECT:
 			var why: String = str(msg[1]) if msg.size() > 1 else ""
 			close_lan()

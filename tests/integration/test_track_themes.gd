@@ -124,7 +124,7 @@ func test_title_cycles_and_remembers_the_track() -> void:
 	again.stop_audio()
 
 
-func test_experimental_layout_builds_with_any_theme_and_is_not_in_the_menu() -> void:
+func test_experimental_layout_builds_with_any_theme() -> void:
 	for variant in [1, 2, 3]:
 		var m: Node2D = MAIN_SCENE.instantiate()
 		m.presentation_enabled = false
@@ -134,6 +134,6 @@ func test_experimental_layout_builds_with_any_theme_and_is_not_in_the_menu() -> 
 		await wait_physics_frames(1)
 		assert_eq(m.track.layout, m.layout_override)
 		assert_almost_eq(m.track.path.length, 7358.0, 2.0)
-		assert_string_contains(m.hud_track_name, "EXPERIMENTAL")
+		assert_string_contains(m.hud_track_name, "Experimental")
 		assert_eq(m.track.theme.variant, variant, "visual theme independent of the layout")
-	assert_false(FileAccess.get_file_as_string("res://src/ui/title_screen.gd").contains("DevLayouts"), "not in the TRACK menu")
+	assert_false(FileAccess.get_file_as_string("res://src/track/track_theme.gd").contains("DevLayouts"), "layouts are not themes")

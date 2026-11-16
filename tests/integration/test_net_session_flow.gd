@@ -125,3 +125,16 @@ func test_bad_address_and_unreachable_host_give_clear_messages() -> void:
 	await _real_wait(25000, func() -> bool: return client_game.title.lan_panel._status.text.begins_with("Could not connect"))
 	assert_string_contains(client_game.title.lan_panel._status.text, "Could not connect")
 	assert_null(client_game.race)
+
+
+func test_client_races_on_the_hosts_layout() -> void:
+	host_game.title.layout_id = "exp_figure8_01"
+	assert_eq(client_game.title.layout_id, DevLayouts.CLASSIC, "the client's own choice is the classic circuit")
+	await _connect_both()
+	assert_not_null(host_game.race)
+	assert_not_null(client_game.race)
+	if host_game.race == null or client_game.race == null:
+		return
+	assert_eq(DevLayouts.id_of(host_game.race.track.layout), "exp_figure8_01")
+	assert_eq(DevLayouts.id_of(client_game.race.track.layout), "exp_figure8_01", "the client follows the host's layout")
+	assert_almost_eq(client_game.race.track.path.length, host_game.race.track.path.length, 0.01)

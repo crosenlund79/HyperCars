@@ -59,10 +59,12 @@ const LAP_OPTIONS: Array[int] = [3, 7, 20, 50]
 @export_range(1, 3) var track_variant := 1
 var track_theme: TrackTheme
 var hud_track_name := ""
-## J0: an experimental track layout for this race scene (tests, probes); when
-## null, the developer command line (DevLayouts, "--layout=<id>") may pick one;
-## otherwise the scene's normal circuit is used.
+## Track layout for this race scene (null = the classic circuit). The game
+## sets it from the title screen's LAYOUT choice; scenes started without the
+## game (tests, probes, the editor) may take the developer command line
+## (DevLayouts, "--layout=<id>") unless use_command_line_layout is off.
 var layout_override: TrackLayout = null
+var use_command_line_layout := true
 ## J1: road level of each car (0 ground, 1 elevated). Always 0 on flat circuits.
 var car_levels := PackedInt32Array()
 
@@ -170,14 +172,12 @@ func _ready() -> void:
 	PlayerControls.ensure_actions()
 	resolver = AssetResolver.new()
 	track_theme = TrackTheme.load_variant(track_variant)
-	if layout_override == null:
+	if layout_override == null and use_command_line_layout:
 		layout_override = DevLayouts.load_selected()
 	if layout_override != null:
 		track.layout = layout_override
 	track.build(resolver, track_theme)
-	hud_track_name = track_theme.display_name
-	if layout_override != null:
-		hud_track_name += "  (EXPERIMENTAL LAYOUT)"
+	hud_track_name = "%s  -  %s" % [track_theme.display_name, DevLayouts.display_name(DevLayouts.id_of(layout_override))]
 	track.checkpoint_reached.connect(_on_checkpoint_reached)
 	var two := is_two_player()
 	if two:

@@ -1,19 +1,18 @@
-# Experimental track layouts (developer only)
+# Track layouts
 
-Experimental circuits are **not** in the TRACK menu and never saved. Pick one for a
-single run with a command-line argument after `--`:
+The title screen's **LAYOUT** button chooses the circuit: **Classic Circuit** (default)
+or **Figure Eight (Experimental)**. It is independent of the **TRACK** button, which
+chooses the visual theme (Green Valley / Heather Moor / Snow Pass), and applies to quick,
+garage and spectator races and to couch two-player races. The choice is **not saved**:
+every launch starts on the Classic Circuit. The grid panel names the theme and layout
+("GET READY - GREEN VALLEY - FIGURE EIGHT (EXPERIMENTAL)").
 
-```
-godot --path . -- --layout=exp_figure8_01
-```
+LAN / online: the host's layout (and theme) is sent to the client when it joins, so both
+always race the same circuit.
 
-(With an exported build: `HyperCars.x86_64 -- --layout=exp_figure8_01`.)
-
-Everything else works as usual: the title TRACK button still chooses the visual theme
-(Green Valley / Heather Moor / Snow Pass), and RACE, SPECTATE, two players, garage
-races and LAN work on the chosen layout. The grid panel says "(EXPERIMENTAL LAYOUT)".
-For a LAN / online race both computers must start with the same `--layout=` argument;
-otherwise the join is refused as a different build.
+Developer shortcut: `godot --path . -- --layout=exp_figure8_01` preselects a layout on
+the title screen (and is used by race scenes started without the title: tests, probes,
+the editor).
 
 | Id | File | What it tests |
 |---|---|---|

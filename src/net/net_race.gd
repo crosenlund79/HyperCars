@@ -17,12 +17,10 @@ const PROTOCOL := 2
 const GAME_BUILD := "hypercars-m5.2"
 
 
-## Build string exchanged in WELCOME / HELLO: the game build, plus the
-## developer layout when one is selected (J0), so both computers must run the
-## same circuit.
+## Build string exchanged in WELCOME / HELLO. The track layout is not part of
+## it: the host sends its layout (and theme) in WELCOME and the client uses it.
 static func build_id() -> String:
-	var dev := DevLayouts.selected_id()
-	return GAME_BUILD if dev.is_empty() else GAME_BUILD + "+" + dev
+	return GAME_BUILD
 const SNAP_INTERVAL := 2
 ## Client renders this many ticks behind the newest snapshot (smoothness vs delay).
 const INTERP_DELAY := 4.0
