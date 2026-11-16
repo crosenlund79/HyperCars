@@ -37,5 +37,10 @@ func discard_pending_shots() -> void:
 	pass
 
 
+## Micro Nemesis: who destroyed this car (computer drivers remember; -1 nobody).
+func on_destroyed_by(_offender: int) -> void:
+	pass
+
+
 func on_destroyed() -> void:
 	pass

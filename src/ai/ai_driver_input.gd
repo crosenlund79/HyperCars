@@ -20,6 +20,10 @@ func on_destroyed() -> void:
 	driver.on_destroyed()
 
 
+func on_destroyed_by(offender: int) -> void:
+	driver.on_destroyed_by(offender, racer_id)
+
+
 func drive(race: Node, step: float) -> Dictionary:
 	var id := racer_id
 	var cars: Array[Car] = race.cars
@@ -28,7 +32,7 @@ func drive(race: Node, step: float) -> Dictionary:
 	for other in race.grid_order:
 		if other != id:
 			others.append({"distance": progress[other].distance, "lateral": progress[other].lateral,
-				"speed": cars[other].model.forward_speed()})
+				"speed": cars[other].model.forward_speed(), "wrecked": race.combat.is_wrecked(other)})
 	var me := {"position": cars[id].global_position, "heading": cars[id].model.heading,
 		"speed": cars[id].model.forward_speed(), "distance": progress[id].distance,
 		"lateral": progress[id].lateral}
@@ -56,14 +60,14 @@ func weapons(race: Node, step: float, _states: Array) -> Dictionary:
 			continue
 		targets.append({"position": cars[other].global_position, "velocity": cars[other].model.velocity,
 			"distance": progress[other].distance, "lateral": progress[other].lateral,
-			"speed": cars[other].model.forward_speed(), "wrecked": combat.is_wrecked(other)})
+			"speed": cars[other].model.forward_speed(), "wrecked": combat.is_wrecked(other), "id": other})
 	var me := {"position": cars[id].global_position, "heading": cars[id].model.heading,
 		"speed": cars[id].model.forward_speed(), "distance": progress[id].distance, "lateral": progress[id].lateral}
 	var r := session.racers[id]
 	var ctx := {"front_ready": front_ready, "rear_ready": rear_ready, "front_ammo": combat.ammo[id][CombatWorld.FRONT],
 		"front_start": combat.start_ammo[id][CombatWorld.FRONT], "laps_left": r.tracker.lap_count - r.tracker.laps_completed,
 		"lap_count": r.tracker.lap_count, "missile_speed": rules.missile_speed, "hit_radius": rules.hit_radius,
-		"mine_fuse": rules.mine_fuse,
+		"mine_fuse": rules.mine_fuse, "rear_ammo": combat.ammo[id][CombatWorld.REAR], "rear_start": combat.start_ammo[id][CombatWorld.REAR],
 		"pressure": d.params.pressure_attack_drop > 0.0 and d.under_pressure(me, targets)}
 	if race.combat_style == WeaponRules.Style.TACTICAL:
 		ctx.merge({"front_weapon": combat.weapon_of(id, CombatWorld.FRONT), "rear_weapon": combat.weapon_of(id, CombatWorld.REAR),

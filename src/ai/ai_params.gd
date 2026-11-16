@@ -121,3 +121,25 @@ extends Resource
 ## "Occasionally brilliant": attempts per second to take a near-perfect shot
 ## (quality >= 0.9) at once, whatever the mood or the aim time. 0 disables.
 @export var brilliance_rate := 0.0
+
+## --- Racecraft (2026-11): ammunition over a whole race, grudges, wrecks ahead
+## and each driver's own way of using the road. Decisions only.
+## How strictly a driver spends ammunition in step with the race (0 = fires
+## whenever it likes, 1 = never ahead of schedule): when more of the starting
+## rounds are gone than the race is done, shots need to be that much better.
+@export_range(0.0, 1.0) var ammo_discipline := 0.6
+## Micro Nemesis: after being destroyed by a driver, shots at that driver look
+## up to grudge_bonus better (0..1 quality), fading over grudge_time s.
+@export var grudge_bonus := 0.12
+@export var grudge_time := 20.0
+## Wrecks ahead: how far ahead the driver reads the road for a wrecked car
+## (seconds at the current speed, at least traffic_distance), and how long it
+## takes to react once one is in view (s).
+@export var hazard_lookahead := 0.7
+@export var hazard_reaction := 0.25
+## Own line: a preferred offset from the shared racing line (px, + = right)
+## and a slow wander around it (amplitude px, period s).
+@export var line_offset := 0.0
+@export var line_wander := 0.0
+@export var line_wander_period := 6.0
+

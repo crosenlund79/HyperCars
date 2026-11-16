@@ -45,6 +45,16 @@ var rear_shots := 0
 var brilliant_shots := 0
 var shots_by_weapon: Dictionary = {}
 var _aim: Array[float] = [0.0, 0.0]
+## Micro Nemesis: who destroyed this driver last (-1 none) and for how long the
+## grudge still matters (s).
+var grudge_id := -1
+var grudge_left := 0.0
+## Wreck ahead: seconds it has been in view; counters for tests.
+var _hazard_seen := 0.0
+var hazard_avoids := 0
+## Own line wander (time and phase, per race).
+var _time := 0.0
+var _wander_phase := 0.0
 
 
 func _init(p_line: RacingLine, p_params: AiParams) -> void:
@@ -66,6 +76,12 @@ func begin_race(seed_value: int) -> void:
 	brilliant_shots = 0
 	shots_by_weapon = {}
 	_aim = [0.0, 0.0]
+	grudge_id = -1
+	grudge_left = 0.0
+	_hazard_seen = 0.0
+	hazard_avoids = 0
+	_time = 0.0
+	_wander_phase = TAU * float(posmod(seed_value, 997)) / 997.0
 	lane_bias = 0.0
 	commitment = 1.0
 	in_corner = false
@@ -88,7 +104,8 @@ func begin_race(seed_value: int) -> void:
 func decide(me: Dictionary, others: Array, delta: float) -> Dictionary:
 	var s: float = me.distance
 	var speed: float = me.speed
-	var target_lateral := line.offset_at(s)
+	_time += delta
+	var target_lateral := own_line(s)
 	var blocked := false
 	var lift := false
 
@@ -120,6 +137,22 @@ func decide(me: Dictionary, others: Array, delta: float) -> Dictionary:
 			_defending = true
 		else:
 			_defending = false
+
+	# a wrecked car ahead: seen in time (personality), steer round it if there is room
+	var hazard := _hazard_ahead(me, others, speed)
+	if hazard.is_empty():
+		_hazard_seen = 0.0
+	else:
+		_hazard_seen += delta
+		if _hazard_seen >= params.hazard_reaction:
+			var avoid := choose_pass_lateral(me.lateral, hazard.lateral, s)
+			if not is_nan(avoid):
+				if _hazard_seen - delta < params.hazard_reaction:
+					hazard_avoids += 1  # reacted to this wreck
+				target_lateral = avoid
+				blocked = true
+			elif hazard.gap < params.follow_gap * 1.5:
+				lift = true
 
 	_update_fluster(me, others, delta)
 	var flustered := fluster_time > 0.0
@@ -274,6 +307,31 @@ func _nearest_car_ahead(me: Dictionary, others: Array, any_lane: bool = false) -
 	return best
 
 
+## This driver's own line at s: the shared racing line, shifted by the
+## driver's preferred offset and slow wander, kept inside the road.
+func own_line(s: float) -> float:
+	var lateral := line.offset_at(s) + params.line_offset
+	if params.line_wander > 0.0:
+		lateral += params.line_wander * sin(TAU * _time / maxf(params.line_wander_period, 0.5) + _wander_phase)
+	var limit := line.half_width_at(s) - params.pass_margin
+	return clampf(lateral, -limit, limit)
+
+
+## The nearest wrecked car in this driver's path within its reading distance.
+func _hazard_ahead(me: Dictionary, others: Array, speed: float) -> Dictionary:
+	var reach := maxf(params.traffic_distance, speed * params.hazard_lookahead)
+	var best := {}
+	for o in others:
+		if not o.get("wrecked", false):
+			continue
+		var gap := _gap(me, o)
+		if gap <= 0.0 or gap > reach or absf(o.lateral - me.lateral) > params.car_clearance + 12.0:
+			continue
+		if best.is_empty() or gap < best.gap:
+			best = {"gap": gap, "lateral": o.lateral}
+	return best
+
+
 ## Lateral position to pass a car at other_lateral: the side with room that is
 ## closest to where we are. NAN when neither side has room inside the road.
 func choose_pass_lateral(my_lateral: float, other_lateral: float, s: float = NAN) -> float:
@@ -301,11 +359,12 @@ func on_destroyed() -> void:
 ## Returns {front: bool, rear: bool}.
 func decide_weapons(me: Dictionary, targets: Array, ctx: Dictionary, delta: float) -> Dictionary:
 	retaliating = maxf(0.0, retaliating - delta)
+	grudge_left = maxf(0.0, grudge_left - delta)
 	var boost := params.retaliation_boost if retaliating > 0.0 else 1.0
 	var relief := 0.15 if retaliating > 0.0 else 0.0
 	var out := {"front": false, "rear": false}
 	if ctx.front_ready:
-		var threshold := params.attack_min_confidence - relief
+		var threshold := params.attack_min_confidence - relief + spend_penalty(ctx.front_ammo, ctx.front_start, ctx)
 		if params.confidence_variation > 0.0:
 			threshold += weapon_rng.randf_range(-params.confidence_variation, params.confidence_variation)
 		if ctx.get("pressure", false):
@@ -315,7 +374,7 @@ func decide_weapons(me: Dictionary, targets: Array, ctx: Dictionary, delta: floa
 		if quality >= threshold and quality > 0.0 and not hold and weapon_rng.randf() < params.attack_rate * boost * delta:
 			out.front = true
 			front_shots += 1
-		elif params.waste_chance > 0.0 and not hold and weapon_rng.randf() < params.waste_chance * delta:
+		elif params.waste_chance > 0.0 and not hold and weapon_rng.randf() < params.waste_chance * _waste_scale(ctx) * delta:
 			out.front = true
 			front_shots += 1
 			wasted_shots += 1
@@ -323,7 +382,8 @@ func decide_weapons(me: Dictionary, targets: Array, ctx: Dictionary, delta: floa
 			held_for_reserve += 1
 	if ctx.rear_ready:
 		var mq := mine_quality(me, targets, ctx)
-		if mq >= params.mine_min_quality - relief and weapon_rng.randf() < params.mine_rate * boost * delta:
+		var rear_threshold := params.mine_min_quality - relief + spend_penalty(ctx.get("rear_ammo", 0), ctx.get("rear_start", 0), ctx)
+		if mq >= rear_threshold and weapon_rng.randf() < params.mine_rate * boost * delta:
 			out.rear = true
 			mines_dropped += 1
 	return out
@@ -347,7 +407,7 @@ func front_shot_quality(me: Dictionary, targets: Array, ctx: Dictionary) -> floa
 		var predicted: Vector2 = t.position + t.velocity * time - me.position
 		var miss := absf(predicted.cross(fwd))
 		var q := clampf(1.0 - miss / (ctx.hit_radius * 1.5), 0.0, 1.0) * (1.0 - 0.3 * along / params.attack_range)
-		best = maxf(best, q)
+		best = maxf(best, _with_grudge(q, t))
 	return best
 
 
@@ -363,8 +423,47 @@ func mine_quality(me: Dictionary, targets: Array, ctx: Dictionary) -> float:
 		if absf(t.lateral - me.lateral) > 45.0:
 			continue
 		var arrival: float = gap / t.speed
-		best = maxf(best, clampf(1.0 - absf(arrival - ctx.mine_fuse) / 0.8, 0.0, 1.0))
+		best = maxf(best, _with_grudge(clampf(1.0 - absf(arrival - ctx.mine_fuse) / 0.8, 0.0, 1.0), t))
 	return best
+
+
+## Micro Nemesis: a shot that would hit the driver who destroyed us looks a
+## little better (personality), fading with the grudge. Only a real chance
+## (quality above zero) is improved: nobody chases revenge.
+func _with_grudge(q: float, t: Dictionary) -> float:
+	if q <= 0.0 or grudge_left <= 0.0 or t.get("id", -2) != grudge_id:
+		return q
+	return minf(1.0, q + params.grudge_bonus * grudge_left / maxf(params.grudge_time, 0.01))
+
+
+## Ammunition over the race: how much harder a shot must be when more of the
+## starting rounds are gone than the race is done (scaled by ammo_discipline);
+## on the last lap nothing is saved any more.
+func spend_penalty(ammo: int, start: int, ctx: Dictionary) -> float:
+	if start <= 0 or params.ammo_discipline <= 0.0:
+		return 0.0
+	var laps: int = maxi(1, ctx.get("lap_count", 1))
+	var laps_left: int = ctx.get("laps_left", laps)
+	if laps_left <= 1:
+		return -0.1 * params.ammo_discipline
+	var done := clampf(float(laps - laps_left) / float(laps), 0.0, 1.0)
+	var used := 1.0 - float(ammo) / float(start)
+	if used < done - 0.2:  # well under budget: ammunition is there to be used
+		return -minf(0.2, (done - 0.2 - used) * 0.6)
+	return params.ammo_discipline * maxf(0.0, used - done - 0.1) * 2.0
+
+
+## Disciplined drivers waste fewer rounds when they are ahead of their budget.
+func _waste_scale(ctx: Dictionary) -> float:
+	return clampf(1.0 - spend_penalty(ctx.front_ammo, ctx.front_start, ctx) * 2.0, 0.1, 1.0)
+
+
+## Remembers who destroyed this driver (Micro Nemesis; -1 / self: nobody).
+func on_destroyed_by(offender: int, self_id: int) -> void:
+	if offender < 0 or offender == self_id or params.grudge_bonus <= 0.0:
+		return
+	grudge_id = offender
+	grudge_left = params.grudge_time
 
 
 func _hold_ammo(ctx: Dictionary) -> bool:
@@ -387,6 +486,7 @@ func _hold_ammo(ctx: Dictionary) -> bool:
 ## super_hit_radius.
 func decide_weapons_tactical(me: Dictionary, targets: Array, ctx: Dictionary, delta: float) -> Dictionary:
 	retaliating = maxf(0.0, retaliating - delta)
+	grudge_left = maxf(0.0, grudge_left - delta)
 	var boost := params.retaliation_boost if retaliating > 0.0 else 1.0
 	var relief := 0.15 if retaliating > 0.0 else 0.0
 	var pressure: bool = ctx.get("pressure", false)
@@ -399,7 +499,8 @@ func decide_weapons_tactical(me: Dictionary, targets: Array, ctx: Dictionary, de
 		var weapon: int = ctx.front_weapon if slot == 0 else ctx.rear_weapon
 		var is_mine := weapon == WeaponRules.Weapon.MINE
 		var q := tactical_quality(weapon, me, targets, ctx)
-		var threshold := (params.mine_min_quality if is_mine else params.attack_min_confidence) - relief
+		var threshold := (params.mine_min_quality if is_mine else params.attack_min_confidence) - relief \
+			+ spend_penalty(ctx.front_ammo if slot == 0 else ctx.rear_ammo, ctx.front_start if slot == 0 else ctx.rear_start, ctx)
 		if params.confidence_variation > 0.0:
 			threshold += weapon_rng.randf_range(-params.confidence_variation, params.confidence_variation)
 		if pressure:
@@ -420,7 +521,7 @@ func decide_weapons_tactical(me: Dictionary, targets: Array, ctx: Dictionary, de
 			brilliant_shots += 1
 		elif good and aimed and not hold and weapon_rng.randf() < rate * delta:
 			fire = true
-		elif slot == 0 and params.waste_chance > 0.0 and not hold and weapon_rng.randf() < params.waste_chance * delta:
+		elif slot == 0 and params.waste_chance > 0.0 and not hold and weapon_rng.randf() < params.waste_chance * _waste_scale(ctx) * delta:
 			fire = true
 			wasted_shots += 1
 		elif good and hold:
@@ -475,7 +576,7 @@ func rear_shot_quality(me: Dictionary, targets: Array, ctx: Dictionary) -> float
 		var predicted: Vector2 = t.position + t.velocity * time - me.position
 		var miss := absf(predicted.cross(back))
 		var q := clampf(1.0 - miss / (ctx.hit_radius * 1.5), 0.0, 1.0) * (1.0 - 0.3 * along / params.attack_range)
-		best = maxf(best, q)
+		best = maxf(best, _with_grudge(q, t))
 	return best
 
 

@@ -58,6 +58,24 @@ const ALL_WEAPONS: Array[Weapon] = [Weapon.FRONT_MISSILE, Weapon.REAR_MISSILE, W
 @export var respawn_grace := 1.5
 
 
+## Ammunition per race length (2026-11): the starting rounds are multiplied by
+## the factor for the race's laps, so combat lasts in long races (3 laps = the
+## standard loadout). Lengths not listed use the nearest shorter one.
+@export var ammo_scale_by_laps: Dictionary = {3: 1.0, 7: 2.0, 20: 5.0, 50: 10.0}
+## Most rounds of one weapon a car can carry.
+const MAX_ROUNDS := 99
+
+
+func ammo_scale(laps: int) -> float:
+	var best := 1.0
+	var best_laps := -1
+	for l in ammo_scale_by_laps:
+		if int(l) <= laps and int(l) > best_laps:
+			best_laps = int(l)
+			best = float(ammo_scale_by_laps[l])
+	return best
+
+
 func ammo_for(slot: int) -> int:
 	return front_ammo if slot == 0 else rear_ammo
 

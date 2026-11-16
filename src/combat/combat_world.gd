@@ -108,6 +108,18 @@ func set_loadout(id: int, front_weapon: int, front_ammo: int, rear_weapon: int, 
 	_custom_loadouts = true
 
 
+## Long races: every listed car's starting rounds times factor (rounded up,
+## at most WeaponRules.MAX_ROUNDS).
+func scale_ammo(factor: float, ids: Array) -> void:
+	if factor == 1.0:
+		return
+	for id in ids:
+		for slot in 2:
+			var n := mini(WeaponRules.MAX_ROUNDS, int(ceil(ammo[id][slot] * factor - 0.0001)))
+			ammo[id][slot] = n
+			start_ammo[id][slot] = n
+
+
 func weapon_of(id: int, slot: int) -> int:
 	return loadout[id][slot]
 

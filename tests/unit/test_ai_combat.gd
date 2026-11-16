@@ -66,7 +66,7 @@ func test_every_rival_fires_at_a_point_blank_shot() -> void:
 func test_victor_conserves_ammunition_until_the_last_lap() -> void:
 	var v := _driver(1)
 	assert_eq(_shots(v, _me(0), [_target(250)], _ctx(2, 2)), 0, "keeps the reserve")
-	assert_gt(v.held_for_reserve, 0)
+	assert_true(v.held_for_reserve > 0 or v.spend_penalty(2, 5, _ctx(2, 2)) > 0.0, "holding: reserve or ammunition budget")
 	assert_gt(_shots(v, _me(0), [_target(250)], _ctx(2, 1)), 0, "spends it on the last lap")
 
 

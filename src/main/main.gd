@@ -130,6 +130,11 @@ var damage_enabled := true
 ## that never leaves the grid cannot hold everyone's weapons). off = no lock.
 var weapons_lock_enabled := true
 var weapons_lock_timeout := 15.0
+## Wreck recovery: seconds each (car, wreck) pair has been stuck together, and
+## the pairs allowed to pass through each other until the wreck is back racing.
+const WRECK_STUCK_TIME := 0.5
+var _stuck := {}
+var _passing := {}
 ## Per car: has crossed the start line for the first time this race.
 var _crossed_start := PackedByteArray()
 signal weapons_unlocked
@@ -560,6 +565,7 @@ func reset_race() -> void:
 	combat.style = combat_style
 	_apply_loadouts()
 	_reset_damage()
+	_clear_wreck_passes()
 	_restart_timer = -1.0
 	_stuck_time = 0.0
 	_best_progress = -INF
@@ -602,14 +608,20 @@ func _apply_loadouts() -> void:
 		for id in range(1, cars.size()):
 			var l := RivalArmoury.loadout(id)
 			combat.set_loadout(id, l[0], l[1], l[2], l[3])
-	if session.spectator:
-		return
-	if garage != null:
+	var garage_player := garage != null and not session.spectator
+	if garage_player:
 		var g := garage.race_loadout()
 		combat.set_loadout(RaceSession.PLAYER_ID, g[0], g[1], g[2], g[3])
-	elif combat_style == WeaponRules.Style.TACTICAL:
+	elif not session.spectator and combat_style == WeaponRules.Style.TACTICAL:
 		var q := RivalArmoury.QUICK_RACE_PLAYER
 		combat.set_loadout(RaceSession.PLAYER_ID, q[0], q[1], q[2], q[3])
+	# longer races carry more rounds: everyone, except a garage player, who
+	# races with the rounds they own (the garage economy is unchanged)
+	var ids: Array = []
+	for id in cars.size():
+		if not (garage_player and id == RaceSession.PLAYER_ID):
+			ids.append(id)
+	combat.scale_ammo(weapon_rules.ammo_scale(session.lap_count()), ids)
 
 
 func _has_flyover_jump() -> bool:
@@ -871,6 +883,7 @@ func _physics_process(_delta: float) -> void:
 	_drive_cars(step)
 	if combat.enabled:
 		_combat_tick(step)
+		_update_wreck_passes(step)
 	session.tick(step)
 	if is_two_player():
 		_human_safety(step)
@@ -1388,6 +1401,10 @@ func _combat_tick(step: float) -> void:
 		var e: Dictionary = combat.events[k]
 		if e.kind == "destroyed" and _takes_damage(e.car) and damage.weapon_hit(e.car, e.type):
 			_retire(e.car)
+	for k in range(first_event, combat.events.size()):  # Micro Nemesis: who did it
+		var ev: Dictionary = combat.events[k]
+		if ev.kind == "destroyed":
+			inputs[ev.car].on_destroyed_by(ev.owner)
 	for id in result.destroyed:
 		cars[id].active = false
 		cars[id].model.velocity = Vector2.ZERO
@@ -1396,6 +1413,46 @@ func _combat_tick(step: float) -> void:
 		cars[id].model.velocity = Vector2.ZERO
 		if session.state != RaceSession.State.MODE_SELECT and not damage.is_retired(id):
 			cars[id].active = true
+
+
+## Wreck recovery: a racing car held against a stationary weapon wreck for
+## WRECK_STUCK_TIME may drive through that one wreck (the first impact is
+## normal). The exception ends once the wreck is racing again and the two
+## are apart. Racing cars always collide with each other; retired (DNF) cars
+## already collide with nothing.
+func _update_wreck_passes(step: float) -> void:
+	for w in grid_order:
+		if not combat.is_wrecked(w):
+			continue
+		for id in grid_order:
+			if id == w or not cars[id].active:
+				continue
+			var key := Vector2i(id, w)
+			if _passing.has(key):
+				continue
+			var c := cars[id]
+			if c.global_position.distance_to(cars[w].global_position) < 72.0 and c.model.velocity.length() < 90.0:
+				_stuck[key] = _stuck.get(key, 0.0) + step
+				if _stuck[key] >= WRECK_STUCK_TIME:
+					c.add_collision_exception_with(cars[w])
+					cars[w].add_collision_exception_with(c)
+					_passing[key] = true
+			else:
+				_stuck.erase(key)
+	for key in _passing.keys():
+		var w: int = key.y
+		if not combat.is_wrecked(w) and cars[key.x].global_position.distance_to(cars[w].global_position) > 90.0:
+			cars[key.x].remove_collision_exception_with(cars[w])
+			cars[w].remove_collision_exception_with(cars[key.x])
+			_passing.erase(key)
+
+
+func _clear_wreck_passes() -> void:
+	for key in _passing:
+		cars[key.x].remove_collision_exception_with(cars[key.y])
+		cars[key.y].remove_collision_exception_with(cars[key.x])
+	_passing.clear()
+	_stuck.clear()
 
 
 ## Weapons Hot: unlocks once every car still in the race has crossed the
