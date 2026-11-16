@@ -33,6 +33,11 @@ static func full_name(id: int) -> String:
 	return '%s "%s"' % [RIVALS[id - 1].name, RIVALS[id - 1].nickname]
 
 
+## Nickname, e.g. "The Professor".
+static func nickname(id: int) -> String:
+	return RIVALS[id - 1].nickname
+
+
 static func params_path(id: int) -> String:
 	var path: String = RIVALS[id - 1].params
 	return path if not path.is_empty() else DEFAULT_PARAMS

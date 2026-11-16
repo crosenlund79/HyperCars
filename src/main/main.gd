@@ -21,6 +21,9 @@ signal garage_requested
 ## still running are placed in running order). Emitted once per race.
 signal race_began
 signal race_concluded(order: Array)
+## Championship: Fire on the results hands the round's finishing order and
+## retirements (racer ids) to the game, which shows the standings.
+signal championship_round_done(order: Array, dnf: Array)
 
 enum Choice { FIRE_TO_ACCELERATE, FIRE_TO_BRAKE, SPECTATE }
 
@@ -141,6 +144,8 @@ signal weapons_unlocked
 var damage_view: DamageView = null
 ## Commentary and rival taunts (presentation; off with presentation_enabled).
 var voice: VoiceDirector = null
+## Rival taunt card when a rival destroys a local player's car (presentation).
+var defeat_popup: DefeatPopup = null
 var voice_enabled := true
 var voice_params: VoiceParams = preload("res://src/audio/default_voice_params.tres")
 ## Barrier / car contacts reported by the cars during their physics step,
@@ -169,6 +174,22 @@ var _race_open := false
 ## TIME: NIGHT (race setup / championship): night lighting from the start.
 ## Presentation only: no physics change (the biome sets the handling).
 var night := false
+## Championship rewards (single-player and spectating; never in couch or
+## network races): the rival car the player drives (0 = the player's own car,
+## n = rival n's car repainted red) and the rivals whose cars the player has
+## won - they race in the shared junker body, with their identity unchanged.
+var player_car := 0
+## Championship round (0-based) this race scene runs, -1 outside a championship;
+## the round's starting grid (empty = the usual first grid) and its title.
+var championship_round := -1
+var championship_grid: Array[int] = []
+var championship_label := ""
+var _round_reported := false
+var displaced: Array[int] = []
+## Slight per-rival tints for the junker (index = racer id).
+const JUNKER_TINTS: Array[Color] = [Color(1, 1, 1), Color(1, 0.92, 0.9), Color(0.92, 0.95, 1),
+	Color(0.96, 1, 0.9), Color(1, 0.97, 0.86), Color(0.94, 0.9, 1), Color(1, 0.9, 0.96),
+	Color(0.9, 1, 0.98), Color(1, 0.95, 0.92), Color(0.9, 0.94, 0.94)]
 ## M4 two-player races: number of humans (1 or 2), set before the scene starts.
 ## With 2, Player 2 is racer 10, the field stays 10 cars (2 humans + 8 rivals,
 ## one rival sitting out per race in a fixed rotation), and the garage and
@@ -224,6 +245,10 @@ func _ready() -> void:
 	track.jumps_enabled = net == null
 	track.build(resolver, track_theme)
 	hud_track_name = "%s  -  %s" % [track_theme.display_name, DevLayouts.display_name(DevLayouts.id_of(layout_override))]
+	if night:
+		hud_track_name += "  -  NIGHT"
+	if championship_label != "":
+		hud_track_name = "%s  -  %s" % [championship_label, hud_track_name]
 	if track.layout.has_jumps() and net != null:
 		hud_track_name += "  (JUMP BRIDGED ONLINE)" if track.layout.has_elevation() and _has_flyover_jump() else "  (JUMP OFF ONLINE)"
 	track.checkpoint_reached.connect(_on_checkpoint_reached)
@@ -244,6 +269,8 @@ func _ready() -> void:
 	race_menu.name = "RaceMenu"
 	add_child(race_menu)
 	race_menu.setup(HyperTheme.build(resolver))
+	if championship_round >= 0:
+		race_menu.set_leave_text("ABANDON CHAMPIONSHIP")
 	race_menu.resume_requested.connect(resume_race)
 	race_menu.leave_requested.connect(leave_race)
 	hud.follow_requested.connect(follow_driver)
@@ -263,7 +290,7 @@ func _ready() -> void:
 		track.half_widths if not track.layout.narrow_sections.is_empty() else PackedFloat32Array())
 
 	car.racer_id = RaceSession.PLAYER_ID
-	_car_looks.append(CarArt.look(resolver, AssetCatalog.CAR_PLAYER))
+	_car_looks.append(_player_look())
 	car.setup(driving_params, session.control_mode, _car_looks[0].body)
 	cars.append(car)
 	drivers.append(null)
@@ -278,14 +305,16 @@ func _ready() -> void:
 		ai_car.racer_id = i
 		add_child(ai_car)
 		move_child(ai_car, car.get_index())
-		_car_looks.append(CarArt.look(resolver, AssetCatalog.ai_car(i)))
+		_car_looks.append(CarArt.look(resolver, _rival_car(i)))
 		ai_car.setup(driving_params, CarModel.ControlMode.FIRE_TO_ACCELERATE, _car_looks[i].body)
+		if _rival_car(i) == AssetCatalog.CAR_JUNKER:
+			ai_car.sprite.modulate = JUNKER_TINTS[i % JUNKER_TINTS.size()]
 		cars.append(ai_car)
 		var params: AiParams = load(RivalRoster.params_path(i)) if RivalRoster.has_personality(i) else ai_params
 		drivers.append(AiDriver.new(racing_line, params))
 		inputs.append(AiDriverInput.new(i, drivers[-1]))
 		rival_ids.append(i)
-		car_textures[i] = CarArt.icon(resolver, AssetCatalog.ai_car(i))
+		car_textures[i] = CarArt.icon(resolver, _rival_car(i))
 		full_names[i] = RivalRoster.full_name(i)
 	if two:
 		var car2: Car = CAR_SCENE.instantiate()
@@ -319,7 +348,7 @@ func _ready() -> void:
 		combat.layout = track.layout
 	history = RaceHistory.new(rival_ids)
 	hud.setup_history(resolver, history, car_textures, full_names)
-	car_textures[RaceSession.PLAYER_ID] = CarArt.icon(resolver, AssetCatalog.CAR_PLAYER)
+	car_textures[RaceSession.PLAYER_ID] = _player_icon()
 	full_names[RaceSession.PLAYER_ID] = "PLAYER 1" if two else "YOU"
 	if two:
 		car_textures[RaceSession.PLAYER_2_ID] = CarArt.icon(resolver, AssetCatalog.CAR_PLAYER_2)
@@ -351,6 +380,10 @@ func _ready() -> void:
 			voice.name = "VoiceDirector"
 			add_child(voice)
 			voice.setup(self, resolver, voice_params)
+		defeat_popup = DefeatPopup.new()
+		defeat_popup.name = "DefeatPopup"
+		add_child(defeat_popup)
+		defeat_popup.setup(self, resolver, car_textures)
 		damage_view = DamageView.new()
 		damage_view.name = "DamageView"
 		add_child(damage_view)
@@ -389,6 +422,8 @@ func _ready() -> void:
 		_setup_split_screen()
 	_set_hud_humans()
 	_race_grid = first_grid_two_players(sitting_out_rival(0)) if two else first_grid(cars.size(), player_first_grid_slot)
+	if championship_grid.size() == cars.size():
+		_race_grid = championship_grid.duplicate()
 	_spectator_grid = rival_ids.duplicate()
 	grid_order = _race_grid
 	reset_race()
@@ -501,6 +536,33 @@ static func first_grid(field_size: int, player_slot: int) -> Array[int]:
 ## Simulation throughput multiplier. Every physics tick still advances the race by
 ## exactly Car.FIXED_STEP with the same AI inputs and collision calculations; fast
 ## mode only runs more ticks per real second.
+## Championship rewards apply to single-player races and spectating only.
+func _rewards_apply() -> bool:
+	return human_count == 1 and net == null
+
+
+## The image a rival races with: its own car, or the junker once the player owns it.
+func _rival_car(id: int) -> String:
+	if _rewards_apply() and displaced.has(id):
+		return AssetCatalog.CAR_JUNKER
+	return AssetCatalog.ai_car(id)
+
+
+## The player's car look: their own red car, or a won rival car repainted red.
+func _player_look() -> Dictionary:
+	if not _rewards_apply() or player_car <= 0:
+		return CarArt.look(resolver, AssetCatalog.CAR_PLAYER)
+	var look := CarArt.look(resolver, AssetCatalog.ai_car(player_car))
+	look.body = CarPaint.repaint(look.body)
+	return look
+
+
+func _player_icon() -> Texture2D:
+	if not _rewards_apply() or player_car <= 0:
+		return CarArt.icon(resolver, AssetCatalog.CAR_PLAYER)
+	return CarPaint.repaint(CarArt.icon(resolver, AssetCatalog.ai_car(player_car)))
+
+
 func set_sim_speed(multiplier: int) -> void:
 	sim_speed = maxi(1, multiplier)
 	Engine.physics_ticks_per_second = BASE_TICKS * sim_speed
@@ -774,6 +836,20 @@ func _conclude_race() -> void:
 		net.send_results(order)
 
 
+## Championship: the round's finishing order (retired cars last, as classified)
+## and the retirements, reported once.
+func _report_round() -> void:
+	_round_reported = true
+	_conclude_race()
+	var order: Array = []
+	var dnf: Array = []
+	for r in session.standings():
+		order.append(r.id)
+		if r.dnf:
+			dnf.append(r.id)
+	championship_round_done.emit(order, dnf)
+
+
 ## Garage race: once the player has finished, pays the prize and keeps the
 ## rounds left (exactly once per race; the garage also guards against repeats).
 func _settle_garage() -> void:
@@ -866,6 +942,10 @@ func _physics_process(_delta: float) -> void:
 		RaceSession.State.FINISHED:
 			if not session.spectator:
 				var skip_garage := garage != null and _menu_pressed(PlayerControls.HISTORY_VIEW)
+				if championship_round >= 0:
+					if _menu_pressed(PlayerControls.FIRE) and not _round_reported:
+						_report_round()
+					return
 				if _menu_pressed(PlayerControls.FIRE) or skip_garage:
 					if is_two_player():
 						var leaving := sitting_out_rival(multiplayer_round + 1)
@@ -1286,6 +1366,8 @@ func _refresh_hud() -> void:
 	if session.state == RaceSession.State.FINISHED:
 		if net != null:
 			hud.show_results(session.standings(), "Fire: next race" if net.is_host() else "Waiting for the host to continue")
+		elif championship_round >= 0:
+			hud.show_results(session.standings(), "Fire: championship standings")
 		elif garage != null and _garage_settled:
 			hud.show_results(session.standings(), "Prize money: $%d     Fire: garage     Tab: skip shopping, next race" % garage.last_prize)
 		else:

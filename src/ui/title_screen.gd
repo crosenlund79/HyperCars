@@ -6,6 +6,8 @@ extends Node
 
 ## choice: 0 Fire to Accelerate, 1 Fire to Brake, 2 Spectate; garage: garage race.
 signal start_requested(choice: int, garage: bool)
+## GO RACING! > CHAMPIONSHIP > START (choice: 0 Fire to Accelerate, 1 Fire to Brake).
+signal championship_requested(choice: int)
 ## Two-player split-screen with the joined devices (Player 1 first).
 signal two_player_requested(devices: Array[int])
 ## LAN race (M5.1): the game root hosts / joins / cancels and reports status.
@@ -28,6 +30,27 @@ var _layout_button: Button
 ## Combat style preference (WeaponRules.Style) for racing and spectating (saved).
 var combat_style := 0
 var _style_button: Button
+## TIME: DAY / NIGHT (saved), the control mode (saved) and the player's car
+## (0 = own car, else a won rival car; saved).
+var night := false
+var _time_button: Button
+var control_choice := 0
+var _control_button: Button
+var player_car := 0
+var _car_button: Button
+## The car collection (won rival cars); set by the game before setup.
+var cars: CarCollection
+## GO RACING!: the modes, and the shared race setup (mode: "quick",
+## "garage", "spectate", "multi", "championship").
+var _mode_menu: VBoxContainer
+var _setup: PanelContainer
+var _setup_title: Label
+var _setup_note: Label
+var _setup_rows: VBoxContainer
+var _preview: CircuitPreview
+var setup_mode := "quick"
+## Championship schedule shown on the setup screen (set by the game).
+var championship: ChampionshipSchedule
 signal quit_requested
 
 const TRACK_SCRIPT := preload("res://src/track/track.gd")
@@ -90,29 +113,30 @@ func setup(p_resolver: AssetResolver, p_settings: AudioSettings) -> void:
 	root.add_child(_tagline)
 
 	_load_weapons_pref()
-	_main_menu = _menu(root, [["RACE", _open_race], ["SPECTATE RIVALS", func() -> void: _start(2)],
-		["WEAPONS", _toggle_weapons], ["COMBAT", _toggle_style], ["LAPS", _cycle_laps], ["TRACK", _cycle_track],
-		["LAYOUT", _cycle_layout], ["ACHIEVEMENTS", _open_achievements],
+	_main_menu = _menu(root, [["GO RACING!", _open_modes], ["ACHIEVEMENTS", _open_achievements],
 		["SETTINGS", _open_settings], ["CONTROLS", _open_controls], ["QUIT", func() -> void: quit_requested.emit()]],
-		380, 34, 3)  # eleven entries: a little tighter, clear of the footer at 1280x720
-	_weapons_button = _main_menu.get_child(2)
-	_style_button = _main_menu.get_child(3)
-	_laps_button = _main_menu.get_child(4)
-	_track_button = _main_menu.get_child(5)
-	_layout_button = _main_menu.get_child(6)
+		380, 40, 6)
+	(_main_menu.get_child(0) as Button).add_theme_font_size_override("font_size", 28)
+	(_main_menu.get_child(0) as Button).custom_minimum_size.y = 58
+	_mode_menu = _menu(root, [["QUICK RACE", func() -> void: _open_setup("quick")],
+		["GARAGE RACE", func() -> void: _open_setup("garage")],
+		["CHAMPIONSHIP", func() -> void: _open_setup("championship")],
+		["SPECTATE", func() -> void: _open_setup("spectate")],
+		["MULTIPLAYER", func() -> void: _open_setup("multi")],
+		["BACK", _show_main]], 420, 40, 5)
+	_build_setup(root)
 	_update_track_button()
 	_update_layout_button()
 	_update_weapons_button()
 	_update_style_button()
 	_update_laps_button()
-	_race_menu = _menu(root, [["QUICK RACE: FIRE TO ACCELERATE", func() -> void: _start(0)],
-		["QUICK RACE: FIRE TO BRAKE", func() -> void: _start(1)],
-		["GARAGE RACE: FIRE TO ACCELERATE", func() -> void: _start(0, true)],
-		["GARAGE RACE: FIRE TO BRAKE", func() -> void: _start(1, true)],
-		["TWO PLAYERS: SPLIT SCREEN", _open_join],
+	_update_time_button()
+	_update_control_button()
+	_update_car_button()
+	_race_menu = _menu(root, [["TWO PLAYERS: SPLIT SCREEN", _open_join],
 		["TWO PLAYERS: LAN / ONLINE", _open_lan],
-		["BACK", _show_main]], 520)
-	var race_title := HyperTheme.label("QUICK RACE: standard weapons\nGARAGE RACE: prize money and your own weapons", 18, HyperTheme.GOLD, 600)
+		["BACK", func() -> void: _open_setup("multi")]], 520)
+	var race_title := HyperTheme.label("MULTIPLAYER: two players on one screen, or two computers", 18, HyperTheme.GOLD, 600)
 	race_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_race_menu.add_child(race_title)
 	_race_menu.move_child(race_title, 0)
@@ -218,10 +242,189 @@ func _process(delta: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not _ui.visible:
 		return
+	if _setup.visible and (event.is_action_pressed("ui_left") or event.is_action_pressed("ui_right")):
+		var focused := get_viewport().gui_get_focus_owner()
+		if focused is Button and focused.has_meta("cycle"):
+			(focused.get_meta("cycle") as Callable).call(-1 if event.is_action_pressed("ui_left") else 1)
+			get_viewport().set_input_as_handled()
+			return
 	if event.is_action_pressed("ui_cancel") and not _main_menu.visible:
 		_sfx_play("ui/ui_back")
-		_show_main()
+		if _setup.visible or _race_menu.visible:
+			_open_modes()
+		else:
+			_show_main()
 		get_viewport().set_input_as_handled()
+
+
+# ------------------------------------------------- GO RACING! and race setup
+
+func _open_modes() -> void:
+	_sfx_play("ui/ui_select")
+	_show_only(_mode_menu)
+	(_mode_menu.get_child(0) as Button).grab_focus()
+
+
+func _build_setup(root: Control) -> void:
+	_setup = PanelContainer.new()
+	_setup.position = Vector2(40, 40)
+	_setup.custom_minimum_size = Vector2(1200, 600)
+	root.add_child(_setup)
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 26)
+	_setup.add_child(h)
+	var left := VBoxContainer.new()
+	left.add_theme_constant_override("separation", 4)
+	h.add_child(left)
+	_setup_title = HyperTheme.label("QUICK RACE", 30, HyperTheme.GOLD, 700)
+	_setup_title.custom_minimum_size = Vector2(520, 52)
+	left.add_child(_setup_title)
+	_setup_rows = VBoxContainer.new()
+	_setup_rows.add_theme_constant_override("separation", 6)
+	left.add_child(_setup_rows)
+	_layout_button = _setup_row("CIRCUIT", _cycle_layout)
+	_track_button = _setup_row("BIOME", _cycle_track)
+	_time_button = _setup_row("TIME", _cycle_time)
+	_laps_button = _setup_row("LAPS", _cycle_laps)
+	_weapons_button = _setup_row("WEAPONS", func(_d: int = 1) -> void: _toggle_weapons())
+	_style_button = _setup_row("COMBAT", func(_d: int = 1) -> void: _toggle_style())
+	_control_button = _setup_row("CONTROL", _cycle_control)
+	_car_button = _setup_row("CAR", _cycle_car)
+	var go := Button.new()
+	go.text = "START"
+	go.custom_minimum_size = Vector2(520, 46)
+	go.add_theme_font_size_override("font_size", 24)
+	go.pressed.connect(_setup_start)
+	go.focus_entered.connect(func() -> void: _sfx_play("ui/ui_move"))
+	_setup_rows.add_child(go)
+	var back := Button.new()
+	back.text = "BACK"
+	back.custom_minimum_size = Vector2(520, 38)
+	back.pressed.connect(_open_modes)
+	_setup_rows.add_child(back)
+	var right := VBoxContainer.new()
+	right.add_theme_constant_override("separation", 10)
+	h.add_child(right)
+	_preview = CircuitPreview.new()
+	_preview.custom_minimum_size = Vector2(600, 440)
+	right.add_child(_preview)
+	_setup_note = HyperTheme.label("", 19, HyperTheme.CREAM, 600)
+	_setup_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_setup_note.custom_minimum_size = Vector2(600, 0)
+	right.add_child(_setup_note)
+	_setup.visible = false
+
+
+## One setup row: a button that cycles its value (Enter: next; Left / Right: either way).
+func _setup_row(_tag: String, cycle: Callable) -> Button:
+	var b := Button.new()
+	b.custom_minimum_size = Vector2(520, 42)
+	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	b.add_theme_font_size_override("font_size", 19)
+	b.set_meta("cycle", cycle)
+	b.pressed.connect(func() -> void: cycle.call(1))
+	b.focus_entered.connect(func() -> void: _sfx_play("ui/ui_move"))
+	b.mouse_entered.connect(b.grab_focus)
+	_setup_rows.add_child(b)
+	return b
+
+
+func _open_setup(mode: String) -> void:
+	_sfx_play("ui/ui_select")
+	setup_mode = mode
+	var titles := {"quick": "QUICK RACE  -  standard weapons", "garage": "GARAGE RACE  -  prize money, your own weapons",
+		"spectate": "SPECTATE  -  the nine rivals race", "multi": "MULTIPLAYER  -  two players",
+		"championship": "CHAMPIONSHIP  -  three rounds"}
+	_setup_title.text = titles.get(mode, mode.to_upper())
+	var champ := mode == "championship"
+	for b in [_layout_button, _track_button, _time_button, _laps_button]:
+		b.visible = not champ
+	_control_button.visible = mode != "spectate"
+	_car_button.visible = mode != "spectate" and mode != "multi"
+	_refresh_preview()
+	_show_only(_setup)
+	_setup.reset_size()
+	(_layout_button if not champ else _weapons_button).grab_focus()
+
+
+func _setup_start() -> void:
+	match setup_mode:
+		"quick": _start(control_choice)
+		"garage": _start(control_choice, true)
+		"spectate": _start(2)
+		"multi": _open_race()
+		"championship":
+			_sfx_play("ui/ui_select")
+			championship_requested.emit(control_choice)
+
+
+func _refresh_preview() -> void:
+	if _preview == null:
+		return
+	if setup_mode == "championship" and championship != null:
+		var r := championship.get_round(0)
+		_preview.show_circuit(DevLayouts.load_layout(r.layout), r.variant, r.night)
+		_setup_note.text = championship.describe()
+		return
+	var chosen := DevLayouts.load_layout(layout_id)
+	_preview.show_circuit(chosen if chosen != null else LAYOUT, track_variant, night)
+	var theme := TrackTheme.load_variant(track_variant)
+	var feel := {1: "Baseline grip, clear skies.", 2: "Rain: wet road, a little less grip and response.",
+		3: "Snow: lower grip, longer braking, more sliding."}
+	_setup_note.text = "%s  -  %s, %s\n%s" % [DevLayouts.display_name(layout_id), theme.display_name,
+		"night" if night else "day", feel.get(track_variant, "")]
+
+
+func _cycle_time(_dir: int = 1) -> void:
+	_sfx_play("ui/ui_select")
+	night = not night
+	_update_time_button()
+	_save_pref("night", night)
+	_refresh_preview()
+
+
+func _update_time_button() -> void:
+	_time_button.text = "TIME:  %s" % ("NIGHT" if night else "DAY")
+
+
+func _cycle_control(_dir: int = 1) -> void:
+	_sfx_play("ui/ui_select")
+	control_choice = 1 - control_choice
+	_update_control_button()
+	_save_pref("control", control_choice)
+
+
+func _update_control_button() -> void:
+	_control_button.text = "CONTROL:  %s" % ("FIRE TO BRAKE" if control_choice == 1 else "FIRE TO ACCELERATE")
+
+
+func _cycle_car(dir: int = 1) -> void:
+	_sfx_play("ui/ui_select")
+	var options: Array[int] = cars.choices() if cars != null else [CarCollection.OWN_CAR] as Array[int]
+	player_car = options[posmod(options.find(player_car) + dir, options.size())]
+	_update_car_button()
+	_save_pref("player_car", player_car)
+
+
+## After a championship reward: the CAR option and the next schedule.
+func refresh_car_choice() -> void:
+	_update_car_button()
+	_refresh_preview()
+
+
+func _update_car_button() -> void:
+	if cars != null and not cars.owns(player_car):
+		player_car = CarCollection.OWN_CAR
+	var owned := cars.owned.size() if cars != null else 0
+	_car_button.text = "CAR:  %s  (%d of 9 rival cars won)" % ["YOUR OWN" if player_car == CarCollection.OWN_CAR
+		else RivalRoster.short_name(player_car).to_upper() + "'S", owned]
+
+
+func _save_pref(key: String, value: Variant) -> void:
+	var cfg := ConfigFile.new()
+	cfg.load(settings.path)
+	cfg.set_value("game", key, value)
+	cfg.save(settings.path)
 
 
 func _toggle_weapons() -> void:
@@ -234,10 +437,10 @@ func _toggle_weapons() -> void:
 	cfg.save(settings.path)
 
 
-func _cycle_laps() -> void:
+func _cycle_laps(dir: int = 1) -> void:
 	_sfx_play("ui/ui_select")
 	var options: Array[int] = [3, 7, 20, 50]
-	laps = options[(options.find(laps) + 1) % options.size()]
+	laps = options[posmod(options.find(laps) + dir, options.size())]
 	_update_laps_button()
 	var cfg := ConfigFile.new()
 	cfg.load(settings.path)
@@ -256,12 +459,12 @@ func _toggle_style() -> void:
 
 
 func _update_style_button() -> void:
-	_style_button.text = "COMBAT: %s" % WeaponRules.style_name(combat_style)
+	_style_button.text = "COMBAT:  %s" % WeaponRules.style_name(combat_style)
 
 
-func _cycle_track() -> void:
+func _cycle_track(dir: int = 1) -> void:
 	_sfx_play("ui/ui_select")
-	track_variant = track_variant % TrackTheme.VARIANT_COUNT + 1
+	track_variant = posmod(track_variant - 1 + dir, TrackTheme.VARIANT_COUNT) + 1
 	_update_track_button()
 	var cfg := ConfigFile.new()
 	cfg.load(settings.path)
@@ -272,14 +475,16 @@ func _cycle_track() -> void:
 	_build_backdrop()
 	_pan = pan
 	_camera.make_current()
+	_refresh_preview()
 
 
 ## The player layouts in turn (not saved).
-func _cycle_layout() -> void:
+func _cycle_layout(dir: int = 1) -> void:
 	_sfx_play("ui/ui_select")
 	var ids := DevLayouts.ids(layout_id)
-	layout_id = ids[(ids.find(layout_id) + 1) % ids.size()]
+	layout_id = ids[posmod(ids.find(layout_id) + dir, ids.size())]
 	_update_layout_button()
+	_refresh_preview()
 	var pan := _pan
 	_backdrop.free()
 	_build_backdrop()
@@ -288,19 +493,19 @@ func _cycle_layout() -> void:
 
 
 func _update_layout_button() -> void:
-	_layout_button.text = "LAYOUT: %s" % DevLayouts.display_name(layout_id).to_upper()
+	_layout_button.text = "CIRCUIT:  %s" % DevLayouts.display_name(layout_id).to_upper()
 
 
 func _update_track_button() -> void:
-	_track_button.text = "TRACK: %s" % TrackTheme.load_variant(track_variant).display_name.to_upper()
+	_track_button.text = "BIOME:  %s" % TrackTheme.load_variant(track_variant).display_name.to_upper()
 
 
 func _update_laps_button() -> void:
-	_laps_button.text = "LAPS: %d" % laps
+	_laps_button.text = "LAPS:  %d" % laps
 
 
 func _update_weapons_button() -> void:
-	_weapons_button.text = "WEAPONS: ON" if weapons_on else "WEAPONS: NO GUNS"
+	_weapons_button.text = "WEAPONS:  ON" if weapons_on else "WEAPONS:  NO GUNS"
 
 
 func _load_weapons_pref() -> void:
@@ -310,6 +515,9 @@ func _load_weapons_pref() -> void:
 		var saved := int(cfg.get_value("game", "laps", 3))
 		laps = saved if [3, 7, 20, 50].has(saved) else 3
 		combat_style = clampi(int(cfg.get_value("game", "combat_style", 0)), 0, 1)
+		night = bool(cfg.get_value("game", "night", false))
+		control_choice = clampi(int(cfg.get_value("game", "control", 0)), 0, 1)
+		player_car = clampi(int(cfg.get_value("game", "player_car", 0)), 0, 9)
 
 
 func _start(choice: int, garage: bool = false) -> void:
@@ -317,6 +525,7 @@ func _start(choice: int, garage: bool = false) -> void:
 	start_requested.emit(choice, garage)
 
 
+## MULTIPLAYER > START: split screen or two computers.
 func _open_race() -> void:
 	_sfx_play("ui/ui_select")
 	_show_only(_race_menu)
@@ -361,9 +570,9 @@ func _show_main() -> void:
 
 
 func _show_only(node: Control) -> void:
-	for n in [_main_menu, _race_menu, _settings_panel, _controls_panel, _achievements_panel, _join_panel, lan_panel]:
+	for n in [_main_menu, _mode_menu, _setup, _race_menu, _settings_panel, _controls_panel, _achievements_panel, _join_panel, lan_panel]:
 		n.visible = n == node
-	_logo.visible = node != _controls_panel and node != _achievements_panel
+	_logo.visible = node != _controls_panel and node != _achievements_panel and node != _setup
 	_tagline.visible = _logo.visible
 	node.modulate.a = 0.0
 	create_tween().tween_property(node, "modulate:a", 1.0, 0.18)

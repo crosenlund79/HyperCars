@@ -45,6 +45,8 @@ const ACHIEVEMENT_BADGE := "ui/achievement_badge"
 const ACHIEVEMENT_LOCKED := "ui/achievement_locked"
 ## P2: one shared wheel image for every car, drawn four times per car.
 const WHEEL := "cars/wheel"
+## Championship rewards: the one junker every displaced rival drives.
+const CAR_JUNKER := "cars/car_junker"
 
 ## display_size: world/screen pixels the texture is scaled to (sprites, strips).
 ## tile_world_size: world pixels covered by one repeat of a seamless tile.
@@ -93,6 +95,10 @@ const SPECS := {
 		"notes": "Wheel-free body (P2): same size, orientation and pivot as the car image, transparent where the wheels go; the game adds four shared wheels. Takes precedence over the flattened car image."},
 	"cars/body_ai_9": {"template_size": Vector2i(128, 72), "display_size": Vector2(64, 36),
 		"notes": "Wheel-free body (P2): same size, orientation and pivot as the car image, transparent where the wheels go; the game adds four shared wheels. Takes precedence over the flattened car image."},
+	CAR_JUNKER: {"template_size": Vector2i(128, 72), "display_size": Vector2(64, 36),
+		"notes": "Championship: the battered junker a rival drives after the player has won their car; same contract as the player car (complete car with wheels, used for icons)."},
+	"cars/body_junker": {"template_size": Vector2i(128, 72), "display_size": Vector2(64, 36),
+		"notes": "Wheel-free junker body (championship rewards); same contract as the other bodies. One image for every displaced rival (each gets a slight tint)."},
 	WHEEL: {"template_size": Vector2i(24, 14), "display_size": Vector2(12, 7),
 		"notes": "Shared wheel (P2), top-down, rolling direction along X (car nose right), centred pivot, transparent background. One image for all ten cars; four instances per car at the positions in src/presentation/default_wheel_layout.tres."},
 	TARMAC: {"template_size": Vector2i(256, 256), "tile_world_size": 256.0,

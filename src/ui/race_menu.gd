@@ -65,6 +65,11 @@ func open(network: bool) -> void:
 	_opened_frame = Engine.get_process_frames()
 
 
+## The leave button's label (a championship round abandons the championship).
+func set_leave_text(text: String) -> void:
+	_leave.text = text
+
+
 func close() -> void:
 	visible = false
 	for b in [_resume, _leave]:

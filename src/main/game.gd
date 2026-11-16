@@ -11,6 +11,8 @@ const MAIN_SCENE := preload("res://src/main/main.tscn")
 
 ## Where achievements and rival careers are saved (tests use a scratch file).
 @export var achievements_path := AchievementStore.DEFAULT_PATH
+## Where the won rival cars are saved (tests use a scratch file).
+@export var cars_path := CarCollection.DEFAULT_PATH
 
 var resolver: AssetResolver
 var settings: AudioSettings
@@ -33,6 +35,15 @@ var garage_screen: GarageScreen
 ## Achievements (M3.5): one persistent store for the installation, the toast.
 var achievements: AchievementStore
 var toast: AchievementToast
+## Championship: the won rival cars (saved), the running championship (null
+## outside one), its screen, the player's control choice for its rounds, and
+## the last reward (rival id, -1 none) for tests.
+var cars: CarCollection
+var champ: Championship
+var champ_screen: ChampionshipScreen
+var _champ_choice := 0
+var last_reward := -1
+var reward_rng := RandomNumberGenerator.new()
 
 
 func _ready() -> void:
@@ -51,6 +62,9 @@ func _ready() -> void:
 	title = TitleScreen.new()
 	title.name = "Title"
 	title.achievements = achievements
+	cars = CarCollection.new(cars_path)
+	title.cars = cars
+	title.championship = ChampionshipSchedule.for_run(cars.championships_run)
 	add_child(title)
 	title.setup(resolver, settings)
 	title.start_requested.connect(start_race)
@@ -59,6 +73,15 @@ func _ready() -> void:
 	title.lan_join_requested.connect(func(address: String) -> void: join_lan(address))
 	title.lan_cancel_requested.connect(close_lan)
 	title.quit_requested.connect(quit_game)
+	title.championship_requested.connect(start_championship)
+	champ_screen = ChampionshipScreen.new()
+	champ_screen.name = "ChampionshipScreen"
+	add_child(champ_screen)
+	champ_screen.setup(resolver)
+	champ_screen.continue_requested.connect(_next_round)
+	champ_screen.abandon_requested.connect(abandon_championship)
+	champ_screen.done.connect(abandon_championship)
+	reward_rng.randomize()
 	garage = PlayerGarage.new(load("res://src/garage/default_garage_rules.tres"))
 	garage_screen = GarageScreen.new()
 	garage_screen.name = "Garage"
@@ -82,8 +105,10 @@ func _ready() -> void:
 ## devices: two-player split-screen with these controllers (no garage or
 ## achievements in two-player races).
 ## net: a LAN race (NetRace host or client); net_track: the host's track (client).
+## net_night: the host's time of day (client). round: a championship round
+## (Championship.next_round(); empty = not a championship race).
 func start_race(choice: int, with_garage: bool = false, devices: Array[int] = [], net: NetRace = null, net_track: int = -1,
-		net_layout: String = "") -> void:
+		net_layout: String = "", net_night: bool = false, round: Dictionary = {}) -> void:
 	if race != null or _starting:
 		return  # a race is already running or starting: never create a second one
 	_starting = true
@@ -102,10 +127,22 @@ func start_race(choice: int, with_garage: bool = false, devices: Array[int] = []
 		race.garage = garage
 	if not two:
 		race.achievements = achievements
-	race.track_variant = net_track if net != null and net.is_client() else title.track_variant
+	var client := net != null and net.is_client()
+	race.track_variant = net_track if client else title.track_variant
+	race.night = net_night if client else title.night
 	# the title's LAYOUT choice (a LAN / online client: the host's layout)
 	race.use_command_line_layout = false
-	race.layout_override = DevLayouts.load_layout(net_layout if net != null and net.is_client() else title.layout_id)
+	race.layout_override = DevLayouts.load_layout(net_layout if client else title.layout_id)
+	if not two:  # won rival cars (single-player and spectating only)
+		race.player_car = title.player_car if cars.owns(title.player_car) else CarCollection.OWN_CAR
+		race.displaced = cars.owned.duplicate()
+	if not round.is_empty():
+		race.track_variant = round.variant
+		race.night = round.night
+		race.layout_override = DevLayouts.load_layout(round.layout)
+		race.championship_round = champ.round_index()
+		race.championship_grid = champ.next_grid()
+		race.championship_label = "ROUND %d OF %d" % [champ.round_index() + 1, champ.schedule.round_count()]
 	add_child(race)
 	race.garage_requested.connect(_open_garage)
 	race.camera.make_current()
@@ -113,8 +150,10 @@ func start_race(choice: int, with_garage: bool = false, devices: Array[int] = []
 	if net == null or net.is_host():  # a LAN client takes the host's settings
 		race.set_weapons_enabled(title.weapons_on)
 		race.set_combat_style(title.combat_style)
-		race.set_lap_count(title.laps)
+		race.set_lap_count(title.laps if round.is_empty() else int(round.laps))
 	race.exit_requested.connect(back_to_title)
+	if not round.is_empty():
+		race.championship_round_done.connect(_on_round_done)
 	if choice == 2:
 		race.start_race()  # spectating starts straight away
 	elif with_garage:
@@ -136,12 +175,88 @@ func _close_garage(start: bool) -> void:
 func back_to_title() -> void:
 	await _fade_to(1.0)
 	garage_screen.close()
+	champ_screen.close()
+	champ = null  # leaving a championship round abandons the championship
 	close_lan()
 	if race != null:
 		race.queue_free()
 		race = null
 	title.show_title()
 	await _fade_to(0.0)
+
+
+# ---------------------------------------------------------------- Championship
+
+## Starts a three-round championship with the title's next schedule.
+func start_championship(choice: int) -> void:
+	if race != null or _starting or champ != null:
+		return
+	champ = Championship.new(title.championship)
+	_champ_choice = choice
+	last_reward = -1
+	cars.count_championship()
+	title.championship = ChampionshipSchedule.for_run(cars.championships_run)  # the one after this
+	start_race(choice, false, [], null, -1, "", false, champ.next_round())
+
+
+## A round's result (Fire on the results): record it and show the standings.
+func _on_round_done(order: Array, dnf: Array) -> void:
+	if champ == null or race == null:
+		return
+	champ.record(order, dnf)
+	await _fade_to(1.0)
+	var player_car: int = race.player_car
+	race.queue_free()
+	race = null
+	champ_screen.set_icons(car_icons(player_car))
+	var reward := ""
+	var reward_car: Texture2D = null
+	if champ.finished():
+		if champ.champion() == Championship.PLAYER:
+			last_reward = cars.unlock_random(reward_rng)
+			reward = reward_text(last_reward, cars.all_owned())
+			if last_reward > 0:
+				reward_car = CarPaint.repaint(CarArt.icon(resolver, AssetCatalog.ai_car(last_reward)))
+		else:
+			reward = "Win the championship to take one of your rivals' cars."
+		title.refresh_car_choice()
+	champ_screen.show_standings(champ, reward, reward_car)
+	await _fade_to(0.0)
+
+
+## The reward message for a won championship (rival -1: nothing left to win).
+static func reward_text(rival: int, all_owned: bool) -> String:
+	if rival < 1:
+		return "CHAMPIONSHIP WON!\nYou already own all nine rival cars - the collection is complete."
+	var text := "CHAMPIONSHIP WON - YOU UNLOCKED %s!\n%s's car is yours, in your red. %s races a junker from now on." % [
+		RivalRoster.nickname(rival).to_upper(), RivalRoster.short_name(rival), RivalRoster.short_name(rival)]
+	if all_owned:
+		text += "\nALL NINE RIVAL CARS COLLECTED!"
+	return text
+
+
+## Car pictures for the standings, as the cars race (junkers, the player's car).
+func car_icons(player_car: int) -> Dictionary:
+	var icons := {}
+	icons[RaceSession.PLAYER_ID] = CarPaint.repaint(CarArt.icon(resolver, AssetCatalog.ai_car(player_car))) \
+		if player_car > 0 else CarArt.icon(resolver, AssetCatalog.CAR_PLAYER)
+	for id in range(1, 10):
+		icons[id] = CarArt.icon(resolver, AssetCatalog.CAR_JUNKER if cars.displaced(id) else AssetCatalog.ai_car(id))
+	return icons
+
+
+func _next_round() -> void:
+	if champ == null or champ.finished() or race != null or _starting:
+		return
+	champ_screen.close()
+	start_race(_champ_choice, false, [], null, -1, "", false, champ.next_round())
+
+
+## Abandon (or, after the final, finish) the championship: back to the menu.
+func abandon_championship() -> void:
+	if race != null:
+		return
+	back_to_title()
 
 
 # ---------------------------------------------------------------- LAN (M5.1)
@@ -240,7 +355,7 @@ func _on_lan_peer_joined(peer_id: int) -> void:
 		return
 	_pending_peer = peer_id
 	link.send([NetRace.Msg.WELCOME, NetRace.PROTOCOL, NetRace.build_id(), {"track_variant": title.track_variant,
-		"layout": title.layout_id}], true, peer_id)
+		"layout": title.layout_id, "night": title.night}], true, peer_id)
 	title.lan_panel.show_status("Player connected - checking versions...")
 	get_tree().create_timer(HELLO_TIMEOUT, true, false, true).timeout.connect(_hello_timeout.bind(peer_id))
 
@@ -289,7 +404,8 @@ func _on_lan_message(from: int, msg: Array) -> void:
 				var layout := str(msg[3].get("layout", DevLayouts.CLASSIC))
 				if not DevLayouts.NAMES.has(layout):
 					layout = DevLayouts.CLASSIC  # unknown: never guess a circuit
-				start_race(0, false, [], NetRace.new(link, NetRace.Role.CLIENT), track, layout)
+				start_race(0, false, [], NetRace.new(link, NetRace.Role.CLIENT), track, layout,
+					msg[3].get("night", false) == true)
 		NetRace.Msg.REJECT:
 			var why: String = str(msg[1]) if msg.size() > 1 else ""
 			close_lan()
