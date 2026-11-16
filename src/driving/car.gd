@@ -18,6 +18,10 @@ var model: CarModel
 var steer := 0.0
 var fire := false
 var active := false
+## J3 (experimental jumps): flying off a ramp. In the air the car keeps the
+## velocity it took off with (no steering, throttle or grip); it still meets
+## barriers. Never set on ordinary road.
+var airborne := false
 ## Identifies the racer in the race session (0 = player).
 var racer_id := 0
 
@@ -48,7 +52,8 @@ func place(at: Transform2D) -> void:
 func _physics_process(_delta: float) -> void:
 	if model == null or not active:
 		return
-	model.update(FIXED_STEP, steer, fire)
+	if not airborne:
+		model.update(FIXED_STEP, steer, fire)
 	global_rotation = model.heading
 	var motion := model.velocity * FIXED_STEP
 	for i in MAX_SLIDES:

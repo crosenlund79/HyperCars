@@ -23,6 +23,8 @@ var path: ClosedPath
 ## (0 ground, 1 bridge), `band` (near a bridge end: on both levels) and
 ## `index` (their position along the centreline) in their state.
 var layout: TrackLayout = null
+## (J3) Cars may also carry `air` (flying over a jump): nothing on the ground
+## meets them.
 var road_half_width := 75.0
 ## Per car: ammo [front, rear], cooldown, wreck and grace timers, counters.
 var ammo: Array = []
@@ -219,9 +221,10 @@ func step(dt: float, cars: Array) -> Dictionary:
 		match p.type:
 			W.SUPER_MISSILE:
 				var owner_car: Dictionary = cars[p.owner]
-				if layout != null:  # orbits on its owner's road level
+				if layout != null:  # orbits on its owner's road level (in the air too)
 					p.level = owner_car.get("level", 0)
 					p.band = owner_car.get("band", false)
+					p.air = owner_car.get("air", false)
 				p.angle += deg_to_rad(rules.super_orbit_speed_degrees) * dt
 				p.pos = owner_car.position + Vector2.from_angle(p.angle) * rules.super_orbit_radius
 				if p.age >= rules.super_duration or is_wrecked(p.owner):
@@ -318,6 +321,8 @@ static func levels_meet(level_a: int, band_a: bool, level_b: int, band_b: bool) 
 
 
 func _meets(a: Dictionary, b: Dictionary) -> bool:
+	if a.get("air", false) != b.get("air", false):
+		return false  # J3: a car in the air is out of reach of ground weapons (and the reverse)
 	return levels_meet(a.get("level", 0), a.get("band", false), b.get("level", 0), b.get("band", false))
 
 
@@ -328,7 +333,9 @@ func _launch_level(p: Dictionary, shooter: Dictionary) -> void:
 		return
 	p.level = shooter.get("level", 0)
 	p.band = shooter.get("band", false)
-	if p.type != W.SUPER_MISSILE:
+	if p.type == W.SUPER_MISSILE:
+		p.air = shooter.get("air", false)
+	else:
 		p.hint = shooter.get("index", -1)
 		_follow_level(p)
 

@@ -34,11 +34,20 @@ extends Resource
 ## circuit) = a flat circuit, unchanged behaviour.
 @export var elevation_zones: PackedVector2Array = PackedVector2Array()
 
+## Optional (J3, experimental): jumps, each Vector3(lip, ramp_length, gap_length)
+## in px along the centreline: a ramp rises over ramp_length up to the lip at
+## arc distance `lip`; the gap_length after it has no road (a pit) and must be
+## flown over. Empty (every normal circuit) = no jumps.
+@export var jumps: PackedVector3Array = PackedVector3Array()
+
 ## Room beyond the road edge (px) that crossings, zone ends, checkpoint gates
 ## and the grid keep from the other road (barrier + a car length + margin).
 const CROSSING_CLEARANCE := 120.0
 ## Gates keep at least this far (px along the road) from a zone end.
 const GATE_ZONE_MARGIN := 120.0
+## A jump needs this much straight road before its ramp (to line up) and after
+## its gap (to land and recover), and keeps gates this far away (px).
+const JUMP_RUNWAY := 200.0
 ## Within this distance (px along the road) of a zone end a car belongs to both
 ## levels (collides with cars and barriers of either), so two cars on the same
 ## road are never on different levels while they touch. Must stay below
@@ -75,11 +84,72 @@ func validate() -> PackedStringArray:
 			errors.append("corners %d and %d overlap (no room for a straight)" % [i, j])
 	if errors.is_empty():
 		errors.append_array(validate_elevation())
+		errors.append_array(validate_jumps())
 	return errors
 
 
 func has_elevation() -> bool:
 	return not elevation_zones.is_empty()
+
+
+func has_jumps() -> bool:
+	return not jumps.is_empty()
+
+
+## The jump whose ramp-to-gap span contains arc distance s (index), or -1.
+func jump_at(s: float, lap_length: float) -> int:
+	var w := fposmod(s, lap_length)
+	for k in jumps.size():
+		var j := jumps[k]
+		if w >= j.x - j.y and w < j.x + j.z:
+			return k
+	return -1
+
+
+## Problems with the jumps (empty when valid): each on one straight with room
+## to line up and to land, on the ground level, clear of bridge ends,
+## crossings and the starting grid, not overlapping another.
+func validate_jumps() -> PackedStringArray:
+	var errors := PackedStringArray()
+	if jumps.is_empty():
+		return errors
+	var c := sample_centerline()
+	var path := ClosedPath.new(c)
+	var tans := tangents(c)
+	var crossings := find_crossings(c)
+	for k in jumps.size():
+		var j := jumps[k]
+		if j.y <= 0.0 or j.z <= 0.0:
+			errors.append("jump %d needs a ramp and a gap" % k)
+			continue
+		var from := j.x - j.y - JUMP_RUNWAY
+		var to := j.x + j.z + JUMP_RUNWAY
+		if from < 0.0 or to > path.length - grid_extent():
+			errors.append("jump %d is too close to the start line / grid" % k)
+		var dir := path.tangent_at(from)
+		var s := from
+		while s <= to:
+			var i := path.index_at(s)
+			if absf(tans[i].angle_to(dir)) > 0.02:
+				errors.append("jump %d must be on one straight (with %.0f px either side)" % [k, JUMP_RUNWAY])
+				break
+			if level_at(s, path.length) != 0 or in_transition(s, path.length):
+				errors.append("jump %d must be on the ground, clear of bridge ends" % k)
+				break
+			s += sample_spacing
+		for x in crossings:
+			for s_branch in [x.s_a, x.s_b]:
+				if s_branch > from - crossing_reach(x.angle) and s_branch < to + crossing_reach(x.angle):
+					errors.append("jump %d is too close to a crossing" % k)
+		for m in range(k + 1, jumps.size()):
+			var o := jumps[m]
+			if from < o.x + o.z + JUMP_RUNWAY and o.x - o.y - JUMP_RUNWAY < to:
+				errors.append("jumps %d and %d overlap" % [k, m])
+	var gates := checkpoint_sample_indices(c.size(), c)
+	for g in range(1, gates.size()):
+		if not _gate_allowed(path.cumulative[gates[g]], c[gates[g]], path, crossings):
+			errors.append("checkpoint %d could not be placed clear of the jumps" % g)
+	return errors
 
 
 ## True within TRANSITION_BAND of either end of an elevation zone.
@@ -209,6 +279,9 @@ func grid_extent() -> float:
 func _gate_allowed(s: float, at: Vector2, path: ClosedPath, crossings: Array[Dictionary]) -> bool:
 	if level_at(s, path.length) != 0:
 		return false
+	for j in jumps:  # never on a jump, nor where cars line up for it or land
+		if s > j.x - j.y - JUMP_RUNWAY and s < j.x + j.z + JUMP_RUNWAY:
+			return false
 	for z in elevation_zones:
 		for s_end in [z.x, z.y]:
 			if absf(wrapf(s - s_end, -path.length * 0.5, path.length * 0.5)) < GATE_ZONE_MARGIN:
@@ -298,21 +371,27 @@ static func offset_line(centerline: PackedVector2Array, distance: float) -> Pack
 
 
 ## Sample indices of the checkpoints, evenly spaced, index 0 = start/finish.
-## With elevation zones (and the centreline given), a gate that would sit on
-## the bridge, at a crossing or by a zone end moves forward to the first
-## clear sample.
+## With elevation zones or jumps (and the centreline given), a gate that would
+## sit on the bridge, at a crossing, by a zone end or on a jump moves forward
+## to the first clear sample (or back, when there is no room before the next).
 func checkpoint_sample_indices(sample_count: int, centerline: PackedVector2Array = PackedVector2Array()) -> PackedInt32Array:
 	var out := PackedInt32Array()
 	for c in checkpoint_count:
 		out.append(int(round(float(c) * sample_count / checkpoint_count)) % sample_count)
-	if elevation_zones.is_empty() or centerline.size() != sample_count:
+	if (elevation_zones.is_empty() and jumps.is_empty()) or centerline.size() != sample_count:
 		return out
 	var path := ClosedPath.new(centerline)
 	var crossings := find_crossings(centerline)
 	for g in range(1, out.size()):
-		var i := out[g]
+		var target := out[g]
 		var limit := out[g + 1] if g + 1 < out.size() else sample_count
+		var i := target
 		while i < limit - 1 and not _gate_allowed(path.cumulative[i], centerline[i], path, crossings):
 			i += 1
+		if not _gate_allowed(path.cumulative[i], centerline[i], path, crossings):
+			# no room ahead before the next gate: move back instead (still after the previous one)
+			i = target
+			while i > out[g - 1] + 1 and not _gate_allowed(path.cumulative[i], centerline[i], path, crossings):
+				i -= 1
 		out[g] = i
 	return out

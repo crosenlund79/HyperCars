@@ -11,6 +11,8 @@ const CAR_LAYER := 2
 ## use their own collision layers, so the two levels never touch.
 const WALL_UPPER_LAYER := 4
 const CAR_UPPER_LAYER := 8
+## J3: cars in the air (over a jump) meet barriers and other flying cars only.
+const CAR_AIR_LAYER := 16
 ## J2 draw order on elevated layouts: everything on the bridge level draws
 ## UPPER_Z_OFFSET above its ground-level counterpart (cars 0 -> 6, mines 1 -> 7,
 ## missiles 3 -> 9); the bridge's shadow and deck sit in between.
@@ -29,6 +31,9 @@ const GROUND_MARGIN := 900.0
 ## Visual theme variant (ground, road, barrier). Geometry and collision are
 ## the same for every variant. Null = Variant 1.
 var theme: TrackTheme
+## J3: build the layout's jumps (ramp and gap). Off in network races until J5,
+## where the layout is driven as a plain road.
+var jumps_enabled := true
 
 var centerline := PackedVector2Array()
 var checkpoint_samples := PackedInt32Array()
@@ -52,6 +57,8 @@ func build(resolver: AssetResolver, p_theme: TrackTheme = null) -> void:
 	_build_walls(resolver.get_texture(theme.asset(AssetCatalog.WALL)), half, left_edge, right_edge)
 	if layout.has_elevation():
 		_build_bridge_shadow(half + AssetCatalog.SPECS[theme.asset(AssetCatalog.WALL)].display_size.y)
+	if jumps_enabled and layout.has_jumps():
+		_build_jumps(half)
 	_build_checkpoints()
 
 
@@ -202,8 +209,11 @@ func in_transition(s: float) -> bool:
 
 
 ## Collision layer / mask of a present car on a road level; in a transition
-## band (near a bridge end) it belongs to both levels.
-static func car_collision(level: int, transition: bool = false) -> Vector2i:
+## band (near a bridge end) it belongs to both levels; in the air (J3) it meets
+## only the barriers and other flying cars.
+static func car_collision(level: int, transition: bool = false, airborne: bool = false) -> Vector2i:
+	if airborne:
+		return Vector2i(CAR_AIR_LAYER, WALL_LAYER | CAR_AIR_LAYER)
 	if transition:
 		return Vector2i(CAR_LAYER | CAR_UPPER_LAYER, WALL_LAYER | WALL_UPPER_LAYER | CAR_LAYER | CAR_UPPER_LAYER)
 	if level == 0:
@@ -279,6 +289,76 @@ func _build_bridge_shadow(half_outer: float) -> void:
 		shadow.color = BRIDGE_SHADOW_COLOR
 		shadow.z_index = BRIDGE_SHADOW_Z
 		add_child(shadow)
+
+
+## J3 jump visuals (procedural, no artwork): warning chevrons on the approach,
+## a lighter ramp rising to a bright lip, the dark gap with its far edge, and a
+## striped landing zone. Gameplay comes from JumpWorld, not from these shapes.
+const RAMP_COLOR := Color(0.93, 0.78, 0.42, 0.55)
+const RAMP_EDGE := Color(1.0, 0.93, 0.62, 0.95)
+const JUMP_CHEVRON := Color(1.0, 0.86, 0.3, 0.8)
+const GAP_COLOR := Color(0.33, 0.24, 0.17, 1.0)
+const GAP_DEPTH := Color(0.19, 0.13, 0.1, 1.0)
+const GAP_RIM := Color(0.36, 0.27, 0.22, 1.0)
+const LANDING_COLOR := Color(1.0, 1.0, 1.0, 0.28)
+
+
+func _build_jumps(half: float) -> void:
+	for k in layout.jumps.size():
+		var j := layout.jumps[k]
+		var lip := j.x
+		var ramp_from := lip - j.y
+		var gap_end := lip + j.z
+		var node := Node2D.new()
+		node.name = "Jump%d" % k
+		add_child(node)
+		for c in 3:  # approach chevrons
+			node.add_child(_chevron(ramp_from - 70.0 - c * 55.0, half * 0.55, JUMP_CHEVRON))
+		var ramp := _strip(ramp_from, lip, half - 4.0, RAMP_COLOR)
+		ramp.name = "Ramp"
+		node.add_child(ramp)
+		for c in 2:
+			node.add_child(_chevron(ramp_from + j.y * (0.3 + 0.35 * c), half * 0.45, RAMP_EDGE))
+		var pit := _strip(lip, gap_end, half + 14.0, GAP_COLOR)
+		pit.name = "Gap"
+		node.add_child(pit)
+		node.add_child(_strip(lip + 22.0, gap_end - 14.0, half - 18.0, GAP_DEPTH))
+		node.add_child(_strip(lip - 7.0, lip, half - 2.0, RAMP_EDGE))  # the lip
+		node.add_child(_strip(gap_end, gap_end + 9.0, half + 14.0, GAP_RIM))  # far edge
+		for stripe in 4:  # landing zone
+			var a := gap_end + 30.0 + stripe * 34.0
+			node.add_child(_strip(a, a + 14.0, half - 10.0, LANDING_COLOR))
+
+
+## A polygon across the road between arc distances s0 and s1.
+func _strip(s0: float, s1: float, half_width: float, color: Color) -> Polygon2D:
+	var left := PackedVector2Array()
+	var right := PackedVector2Array()
+	var steps := maxi(1, int(ceil((s1 - s0) / 8.0)))
+	for i in steps + 1:
+		var s := lerpf(s0, s1, float(i) / steps)
+		var t := path.tangent_at(s)
+		var r := Vector2(-t.y, t.x)
+		left.append(path.point_at(s) - r * half_width)
+		right.append(path.point_at(s) + r * half_width)
+	right.reverse()
+	var poly := Polygon2D.new()
+	poly.polygon = left + right
+	poly.color = color
+	return poly
+
+
+## A forward-pointing chevron painted on the road at arc distance s.
+func _chevron(s: float, half_width: float, color: Color) -> Line2D:
+	var t := path.tangent_at(s)
+	var r := Vector2(-t.y, t.x)
+	var tip := path.point_at(s) + t * 18.0
+	var line := Line2D.new()
+	line.points = PackedVector2Array([tip - t * 30.0 - r * half_width, tip, tip - t * 30.0 + r * half_width])
+	line.width = 9.0
+	line.default_color = color
+	line.joint_mode = Line2D.LINE_JOINT_ROUND
+	return line
 
 
 func _build_start_line(texture: Texture2D) -> void:

@@ -96,3 +96,67 @@ values above are unchanged by J4):
 
 Changed where a weapon met a car on the other level (no hit any more) or a missile at the
 crossing is now checked against its own road for leaving it.
+
+## Jump (J3, experimental)
+
+The figure-eight has one jump on the lower diagonal straight, after the crossing:
+`TrackLayout.jumps = [Vector3(lip, ramp, gap)] = (6050, 90, 130)` px of arc distance
+(ramp 5960–6050, gap 6050–6180). Optional data: layouts without `jumps` (the Classic
+Circuit) are unchanged. `validate_jumps()` keeps a jump on one straight with 200 px of
+runway either side, on the ground, clear of bridge ends, crossings, the grid and every
+checkpoint gate (gates move off the jump).
+
+**Flight model** (`src/race/jump_world.gd`, numbers in `src/race/default_jump_rules.tres`,
+all provisional): a car whose centre crosses the lip forwards takes off with an upward
+speed `vz = ramp_slope × v` (v = its speed along the road; slope 0.5). In the air it keeps
+the velocity it had — steering, throttle, braking and grip do nothing (the ground driving
+model is not stepped) — and its height follows `h = vz·t − ½·g·t²` (g = 900). It touches
+down after `2·vz / g` seconds, so the distance flown is `2 · slope · v² / g`:
+
+| speed at the lip (px/s) | flown (px) | result over the 130 px gap |
+|---|---|---|
+| 420 (top speed) | 196 | lands |
+| 360 | 144 | lands |
+| 342 | 130 | the clearing speed |
+| 300 | 100 | falls into the gap |
+
+Touching down before the far edge of the gap — or rolling into it on the ground — is a
+**failed jump**: the car stops in the gap for `recovery_time` (2 s), then is set back on
+the road 40 px past the gap, facing along it, and drives on. Its race progress carries on
+(not reset), checkpoints and laps are unaffected (no gate near the jump). Nothing else
+decides success: no hidden speed threshold besides the flight itself.
+
+**Collisions and combat:** a flying car uses its own collision layer (16) and meets only
+the barriers and other flying cars, so it passes over cars on the road; the ground layers
+are restored at the landing tick. Ground missiles and mine blasts never touch a flying car
+(and a flying car's mine or missile is a ground weapon); a super missile fired in the air
+orbits in the air with its owner. Bridge-level combat (J4) is unchanged.
+
+**AI:** unchanged (no personality or racing-line changes). All nine rivals reach the lip
+near top speed and clear the gap every lap; a rival that arrives too slow (after a hit, a
+spin, a wreck) falls like anyone else.
+
+**Presentation** (`src/presentation/jump_view.gd`, procedural, existing textures and
+sounds): approach chevrons, a lighter ramp with a bright lip, an earthy gap with a dark
+core, landing stripes; a flying car grows with its height (up to ~1.3×) and casts a
+separate shadow that moves away from it, and draws above ground cars; landing kicks up
+dust with a thud; a failed jump sinks and darkens the car in the gap with smoke, sparks
+and a crash. Wheels and custom car overrides scale with the body.
+
+**Network races:** jumping is **off** until J5 (no synchronised flight yet). In LAN /
+online races the figure-eight is driven without the jump on both computers — no ramp or
+gap is built, nobody takes off — and the grid panel says "(JUMP OFF ONLINE)".
+
+Fingerprints: the eight original probes (Classic Circuit) are identical. Figure-eight
+probes change, since every car now flies over the gap (fresh processes, same twice):
+
+| probe (`layout=exp_figure8_01`) | before J3 | after J3 |
+|---|---|---|
+| `mode=spectate ticks=4800 weapons=0` | `3f773ed8…` | `dfd0738aa449fcf7b541d36d50cfae48` |
+| `mode=race ticks=3600 weapons=0` | `53352071…` | `a6814824582681214c0693924c72fbc5` |
+| `mode=race ticks=3600 weapons=1` | `7afec9e8…` | `9157630680ed00e4c452ba6c88db8f6d` |
+| `mode=race ticks=3600 weapons=1 style=1` | `7d32d98b…` | `a8b7aec2d4331b253c171255beafe2ac` |
+| `mode=spectate ticks=4800 weapons=1` | `312d8159…` | `c908c564c9eb85dafff706d078f820ab` |
+| `mode=spectate ticks=4800 weapons=1 style=1` | `47f19227…` | `294c78fbdcfde848a0707b0f190ae854` |
+
+Tests: `tests/unit/test_jumps.gd`, `tests/integration/test_jump_race.gd`.

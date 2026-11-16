@@ -69,6 +69,9 @@ var use_command_line_layout := true
 var car_levels := PackedInt32Array()
 ## Cars near a bridge end (transition band): on both levels at once.
 var car_transitions := PackedByteArray()
+## J3: the layout's jumps (null without jumps, and in network races until J5).
+var jumps: JumpWorld = null
+var jump_rules: JumpRules = preload("res://src/race/default_jump_rules.tres")
 ## The Esc race menu (Resume / Leave). While it is open this computer's
 ## drivers give no commands; a race without network play is paused.
 var race_menu: RaceMenu
@@ -116,6 +119,7 @@ var _car_looks: Array[Dictionary] = []
 var wheel_layout: WheelLayout = preload("res://src/presentation/default_wheel_layout.tres")
 ## Chevron over the locally controlled car(s) (presentation only).
 var player_marker: PlayerMarker
+var jump_view: JumpView = null
 ## Lighting pilot (presentation experiment; L toggles). Off by default.
 var lighting: LightingPilot
 ## Garage race (M3.5): the player's money and weapons for this game session;
@@ -183,8 +187,13 @@ func _ready() -> void:
 		layout_override = DevLayouts.load_selected()
 	if layout_override != null:
 		track.layout = layout_override
+	# J3: jumps are not synchronised over the network yet (J5): a network race
+	# drives the layout without them (no ramp, no gap) on both computers
+	track.jumps_enabled = net == null
 	track.build(resolver, track_theme)
 	hud_track_name = "%s  -  %s" % [track_theme.display_name, DevLayouts.display_name(DevLayouts.id_of(layout_override))]
+	if track.layout.has_jumps() and net != null:
+		hud_track_name += "  (JUMP OFF ONLINE)"
 	track.checkpoint_reached.connect(_on_checkpoint_reached)
 	var two := is_two_player()
 	if two:
@@ -265,8 +274,10 @@ func _ready() -> void:
 		progress.append(RaceProgress.new(track.path))
 	car_levels.resize(cars.size())
 	car_transitions.resize(cars.size())
+	if track.layout.has_jumps() and track.jumps_enabled:
+		jumps = JumpWorld.new(track.layout, jump_rules, track.path, cars.size())
 	combat = CombatWorld.new(weapon_rules, cars.size(), track.path, track.layout.road_width * 0.5)
-	if track.layout.has_elevation():
+	if track.layout.has_elevation() or track.layout.has_jumps():
 		combat.layout = track.layout
 	history = RaceHistory.new(rival_ids)
 	hud.setup_history(resolver, history, car_textures, full_names)
@@ -297,6 +308,11 @@ func _ready() -> void:
 		for k in cars.size():  # four shared wheels under each body (not for flattened custom cars)
 			if _car_looks[k].wheels:
 				CarWheels.new().setup(cars[k], wheel, wheel_layout, _car_looks[k].body_logical)
+		if jumps != null:
+			jump_view = JumpView.new()
+			jump_view.name = "JumpView"
+			add_child(jump_view)
+			jump_view.setup(jumps, cars, resolver, race_audio)
 		player_marker = PlayerMarker.new()
 		player_marker.name = "PlayerMarker"
 		add_child(player_marker)
@@ -440,6 +456,8 @@ func set_sim_speed(multiplier: int) -> void:
 	Engine.max_physics_steps_per_frame = maxi(8, sim_speed * 2)
 	if effects != null:
 		effects.set_enabled(sim_speed == 1)
+	if jump_view != null:
+		jump_view.enabled = sim_speed == 1
 	if race_audio != null:
 		race_audio.fast = sim_speed > 1
 	if combat_view != null:
@@ -506,6 +524,10 @@ func reset_race() -> void:
 	_best_progress = -INF
 	car_levels.fill(0)  # the grid is on the ground
 	car_transitions.fill(0)
+	if jumps != null:
+		jumps.reset()
+		for c in cars:
+			c.airborne = false
 	for id in cars.size():
 		_show_car(id, grid_order.has(id))
 	for slot in grid_order.size():
@@ -782,6 +804,7 @@ func _physics_process(_delta: float) -> void:
 		return
 	_update_progress()
 	_update_levels()
+	_update_jumps(Car.FIXED_STEP)
 	_drive_cars(step)
 	if combat.enabled:
 		_combat_tick(step)
@@ -901,7 +924,7 @@ func _show_car(id: int, on: bool) -> void:
 ## re-registers the body and changes contact order.
 func _apply_car_collision(id: int, present: bool) -> void:
 	var c := cars[id]
-	var want := Track.car_collision(car_levels[id], car_transitions[id] == 1) if present else Vector2i.ZERO
+	var want := Track.car_collision(car_levels[id], car_transitions[id] == 1, c.airborne) if present else Vector2i.ZERO
 	if c.collision_layer != want.x or c.collision_mask != want.y:
 		c.collision_layer = want.x
 		c.collision_mask = want.y
@@ -920,6 +943,42 @@ func _update_levels() -> void:
 			car_levels[id] = level
 			car_transitions[id] = band
 			_apply_car_collision(id, true)
+
+
+## J3: takeoff over a ramp lip, flight, landing, and falling into the gap
+## (the car stops; after the recovery time it is set back on the road just past
+## the gap). Deterministic: arc distance and speed along the road each tick.
+func _update_jumps(step: float) -> void:
+	if jumps == null:
+		return
+	for id in grid_order:
+		var c := cars[id]
+		var s: float = progress[id].distance
+		var along := c.model.velocity.dot(track.path.tangent_at(s))
+		match jumps.step(id, step, s, along, c.active):
+			"takeoff":
+				c.airborne = true
+				_apply_car_collision(id, true)
+			"landed":
+				c.airborne = false
+				_apply_car_collision(id, true)
+			"fell":
+				c.airborne = false
+				c.active = false
+				c.model.velocity = Vector2.ZERO
+				_apply_car_collision(id, true)
+				inputs[id].on_destroyed()
+			"recovered":
+				var back := jumps.recovery_distance(jumps.jump_of[id])
+				c.place(Transform2D(track.path.tangent_at(back).angle(), track.path.point_at(back)))
+				progress[id].update(c.global_position)
+				session.set_progress(id, progress[id].distance)
+				jumps.place(id, fposmod(progress[id].distance, track.path.length))
+				jumps.jump_of[id] = -1
+				if session.state == RaceSession.State.RACING and not combat.is_wrecked(id):
+					c.active = true
+		if jumps.is_down(id):
+			c.active = false  # stays down in the gap (also after a weapon respawn)
 
 
 ## A car's road level as this computer knows it (a network client reads the
@@ -945,10 +1004,12 @@ func draw_level_of(id: int) -> int:
 ## J2: cars on the bridge draw above the deck, cars below it underneath
 ## (presentation only; flat circuits: nothing).
 func _present_levels() -> void:
-	if not track.layout.has_elevation():
+	if not track.layout.has_elevation() and jumps == null:
 		return
 	for i in cars.size():
 		var z := Track.UPPER_Z_OFFSET * draw_level_of(i)
+		if cars[i].airborne:
+			z = maxi(z, Track.UPPER_Z_OFFSET)  # flying: drawn over the cars on the road
 		if cars[i].z_index != z:
 			cars[i].z_index = z
 
@@ -1192,4 +1253,5 @@ func _combat_states() -> Array:
 			states[i]["level"] = car_levels[i]
 			states[i]["band"] = car_transitions[i] == 1
 			states[i]["index"] = progress[i].index
+			states[i]["air"] = cars[i].airborne
 	return states
