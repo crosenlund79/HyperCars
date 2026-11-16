@@ -196,8 +196,16 @@ func level_at_distance(s: float) -> int:
 	return layout.level_at(s, path.length)
 
 
-## Collision layer / mask of a present car on a road level.
-static func car_collision(level: int) -> Vector2i:
+## Road level at a car's progress is changing (near a zone end, both levels).
+func in_transition(s: float) -> bool:
+	return layout.in_transition(s, path.length)
+
+
+## Collision layer / mask of a present car on a road level; in a transition
+## band (near a bridge end) it belongs to both levels.
+static func car_collision(level: int, transition: bool = false) -> Vector2i:
+	if transition:
+		return Vector2i(CAR_LAYER | CAR_UPPER_LAYER, WALL_LAYER | WALL_UPPER_LAYER | CAR_LAYER | CAR_UPPER_LAYER)
 	if level == 0:
 		return Vector2i(CAR_LAYER, WALL_LAYER | CAR_LAYER)
 	return Vector2i(CAR_UPPER_LAYER, WALL_UPPER_LAYER | CAR_UPPER_LAYER)

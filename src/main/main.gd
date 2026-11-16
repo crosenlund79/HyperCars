@@ -67,6 +67,8 @@ var layout_override: TrackLayout = null
 var use_command_line_layout := true
 ## J1: road level of each car (0 ground, 1 elevated). Always 0 on flat circuits.
 var car_levels := PackedInt32Array()
+## Cars near a bridge end (transition band): on both levels at once.
+var car_transitions := PackedByteArray()
 
 var resolver: AssetResolver
 var session: RaceSession
@@ -251,6 +253,7 @@ func _ready() -> void:
 	for c in cars:
 		progress.append(RaceProgress.new(track.path))
 	car_levels.resize(cars.size())
+	car_transitions.resize(cars.size())
 	combat = CombatWorld.new(weapon_rules, cars.size(), track.path, track.layout.road_width * 0.5)
 	history = RaceHistory.new(rival_ids)
 	hud.setup_history(resolver, history, car_textures, full_names)
@@ -486,6 +489,7 @@ func reset_race() -> void:
 	_stuck_time = 0.0
 	_best_progress = -INF
 	car_levels.fill(0)  # the grid is on the ground
+	car_transitions.fill(0)
 	for id in cars.size():
 		_show_car(id, grid_order.has(id))
 	for slot in grid_order.size():
@@ -885,7 +889,7 @@ func _show_car(id: int, on: bool) -> void:
 ## re-registers the body and changes contact order.
 func _apply_car_collision(id: int, present: bool) -> void:
 	var c := cars[id]
-	var want := Track.car_collision(car_levels[id]) if present else Vector2i.ZERO
+	var want := Track.car_collision(car_levels[id], car_transitions[id] == 1) if present else Vector2i.ZERO
 	if c.collision_layer != want.x or c.collision_mask != want.y:
 		c.collision_layer = want.x
 		c.collision_mask = want.y
@@ -899,8 +903,10 @@ func _update_levels() -> void:
 		return
 	for id in grid_order:
 		var level := track.level_at_distance(progress[id].distance)
-		if level != car_levels[id]:
+		var band := 1 if track.in_transition(progress[id].distance) else 0
+		if level != car_levels[id] or band != car_transitions[id]:
 			car_levels[id] = level
+			car_transitions[id] = band
 			_apply_car_collision(id, true)
 
 

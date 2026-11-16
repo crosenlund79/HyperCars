@@ -37,9 +37,18 @@ Not yet level-aware (later stages, J4): weapons. Missiles, mines and explosions 
 flat 2D distance, so with weapons on they can hit a car on the other level at the
 crossing. Test the prototype with No Guns for clean level behaviour.
 
+Bridge ends (fix after J2): within 80 px (along the road) of either end of the bridge a car
+belongs to **both** levels — it collides with cars and barriers of either — so two cars on
+the same road can never pass through each other while one has switched level and the other
+has not (they used to, unseen, with the rear car drawn under the deck). The band is
+validated to stay clear of the other road and of every checkpoint gate. Cars in the band are
+also drawn on the bridge level, so a car straddling the deck's edge is drawn whole.
+
 Prototype fingerprints (fresh processes, `tests/support/sim_probe.gd`, layout
-`exp_figure8_01`): `mode=spectate ticks=4800 weapons=0` → `7fb45fa02e9fcbfae31a1181a6fca7fa`,
-`mode=race ticks=3600 weapons=0` → `a1d5d5c90f374570917f821a5b23e72b`.
+`exp_figure8_01`; changed by the bridge-end fix, since cars there now collide):
+`mode=spectate ticks=4800 weapons=0` → `3f773ed8d02565f09e008bdbf4b33746`,
+`mode=race ticks=3600 weapons=0` → `53352071e3c5478b43b4cd03d62d793d`
+(J1/J2 values: `7fb45fa0…`, `a1d5d5c9…`).
 
 ## Bridge visuals (J2)
 

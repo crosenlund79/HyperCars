@@ -39,6 +39,11 @@ extends Resource
 const CROSSING_CLEARANCE := 120.0
 ## Gates keep at least this far (px along the road) from a zone end.
 const GATE_ZONE_MARGIN := 120.0
+## Within this distance (px along the road) of a zone end a car belongs to both
+## levels (collides with cars and barriers of either), so two cars on the same
+## road are never on different levels while they touch. Must stay below
+## GATE_ZONE_MARGIN; zone ends are validated to be far from the other road.
+const TRANSITION_BAND := 80.0
 
 
 ## Grid slot (0 = pole) as {distance_behind_line, lateral}; lateral > 0 = right.
@@ -75,6 +80,16 @@ func validate() -> PackedStringArray:
 
 func has_elevation() -> bool:
 	return not elevation_zones.is_empty()
+
+
+## True within TRANSITION_BAND of either end of an elevation zone.
+func in_transition(s: float, lap_length: float) -> bool:
+	var w := fposmod(s, lap_length)
+	for z in elevation_zones:
+		for s_end in [z.x, z.y]:
+			if absf(wrapf(w - s_end, -lap_length * 0.5, lap_length * 0.5)) < TRANSITION_BAND:
+				return true
+	return false
 
 
 ## Road level at arc distance s (any value; wrapped onto the lap):
@@ -137,6 +152,8 @@ func validate_elevation() -> PackedStringArray:
 		return errors
 	if crossings.is_empty():
 		errors.append("elevation zones but no crossing")
+	if TRANSITION_BAND >= GATE_ZONE_MARGIN:
+		errors.append("transition band must be narrower than the gate margin")
 	for k in elevation_zones.size():
 		var z := elevation_zones[k]
 		if z.x < 0.0 or z.y > path.length or z.x >= z.y:

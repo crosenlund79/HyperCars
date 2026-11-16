@@ -223,6 +223,8 @@ func _drive_local_car(cmd: Dictionary) -> void:
 		return
 	# walls of its own road level only: other cars are shown in the past, contacts come from the host
 	var walls := Track.WALL_LAYER if race.level_of(race.local_player_id) == 0 else Track.WALL_UPPER_LAYER
+	if race.track.layout.has_elevation() and race.track.in_transition(race.session.racers[race.local_player_id].progress):
+		walls = Track.WALL_LAYER | Track.WALL_UPPER_LAYER  # near a bridge end: both levels' barriers
 	if c.collision_mask != walls:
 		c.collision_mask = walls
 	c.active = true

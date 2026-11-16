@@ -280,3 +280,30 @@ func test_scenery_and_lamps_stay_off_both_roads() -> void:
 			assert_gt(_min_distance_to_road(spr.position), half, "prop %s off the roads" % spr.texture.resource_path.get_file())
 	for lamp in _main.lighting._lamp_sprites:
 		assert_gt(_min_distance_to_road(lamp.position), half + 19.0, "lamp off the roads")
+
+
+# --- Figure-eight fixes: no ghosting at the bridge ends ---
+
+## A rival right behind you as you reach either end of the bridge must bump
+## into you, not pass through you while the two of you are on different levels.
+func test_cars_on_the_same_road_never_pass_through_each_other_at_bridge_ends() -> void:
+	for at_start in [true, false]:
+		await _make()
+		_main.start_race()
+		await wait_physics_frames(2)
+		var zone: Vector2 = _main.track.layout.elevation_zones[0]
+		var edge := zone.x if at_start else zone.y
+		_place(0, edge + 6.0, 60.0)    # you: just past the bridge end, slow
+		_place(4, edge - 46.0, 380.0)  # Hank: right behind you, fast
+		_main.inputs[0] = DriverInput.new()  # you coast
+		var hits := []
+		_main.cars[4].car_hit.connect(func(o: Car, _s: float) -> void: hits.append(o.racer_id))
+		var passed_through := false
+		for f in 30:
+			await wait_physics_frames(1)
+			if _main.progress[4].distance > _main.progress[0].distance and not hits.has(0):
+				passed_through = true
+		assert_has(hits, 0, "rear-ended you at the %s of the bridge" % ("start" if at_start else "end"))
+		assert_false(passed_through, "never through you at the %s of the bridge" % ("start" if at_start else "end"))
+		_main.free()
+
