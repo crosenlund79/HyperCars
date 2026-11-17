@@ -161,7 +161,7 @@ func decide(me: Dictionary, others: Array, delta: float) -> Dictionary:
 			blocked = true
 			passing = true
 			target_lateral = pass_lateral
-		elif ahead.gap < params.follow_gap:
+		elif ahead.gap < params.follow_gap and not _parked_in_bay_ahead(me, ahead):
 			lift = true
 	_was_passing = passing
 	if not passing and params.defend_distance > 0.0:
@@ -853,6 +853,34 @@ func _update_beside(s: float, me: Dictionary) -> void:
 	_beside_lane = 1 if float(me.lateral) > (d.x + d.y) * 0.5 else 0
 
 
+## A car ahead that sits in a service bay while this driver is leaving the
+## apron (or driving the through-lane): no reason to stop behind it.
+func _parked_in_bay_ahead(me: Dictionary, ahead: Dictionary) -> bool:
+	if line.layout == null or is_nan(_apron_exit(me)) or wants_bay(me):
+		return false
+	var b: Dictionary = line.layout.branches[line.layout.pit_branch()]
+	var strip := line.layout.bay_strip(b, line.center.length)
+	return (float(ahead.lateral) - strip.x) * signf(float(b.side)) > 0.0
+
+
+## Leaving the bays (served, given up, or just on the apron): back to the
+## middle of the through-lane at once (NAN = not on the apron).
+func _apron_exit(me: Dictionary) -> float:
+	var pb := line.layout.pit_branch()
+	if pb < 0 or not me.get("pit", {}).get("in_lane", false):
+		return NAN
+	var b: Dictionary = line.layout.branches[pb]
+	var strip := line.layout.bay_strip(b, line.center.length)
+	var side := signf(float(b.side))
+	if (float(me.lateral) - strip.x) * side < -4.0:
+		return NAN  # in the through-lane already
+	return strip.x - float(b.lane) * 0.5 * side
+
+
+## Speed (px/s) a driver keeps while finishing its turn into the bay.
+const BAY_CREEP := 26.0
+
+
 ## Wants a service bay on this pass: stopping, not yet served, not given up.
 func wants_bay(me: Dictionary) -> bool:
 	var pit: Dictionary = me.get("pit", {})
@@ -888,19 +916,22 @@ func _pit_stop_speed(s: float, me: Dictionary, delta: float) -> float:
 			_wait_left -= delta
 		return sqrt(2.0 * decel * maxf(0.0, stop_at - w))
 	var to_bay: float = TrackLayout.bay_centre(b, bay) - w
-	if int(pit.get("in_bay", -1)) == bay and absf(to_bay) < float(b.box_length) * 0.3:
-		return 0.0
-	if to_bay < -float(b.box_length) * 0.3:
+	if int(pit.get("in_bay", -1)) == bay:
+		return 0.0  # in its bay: stop here (short of the stub at the bay's far end)
+	if to_bay < -float(b.box_length) * 0.4:
 		return INF  # overshot: carry on (no reversing), no service this time
-	return sqrt(2.0 * decel * maxf(0.0, to_bay - 6.0))
+	# creep on while still turning in (stopping short of the bay would park it half outside)
+	return maxf(BAY_CREEP, sqrt(2.0 * decel * maxf(0.0, to_bay - 6.0)))
 
 
 ## Aim lateral offset at arc distance s for a driver turning into its bay
 ## (NAN = follow the route): from the through-lane into the bay over the
 ## last stretch before it, and straight out again once served.
 func _bay_aim(s: float, me: Dictionary) -> float:
-	if line.layout == null or not wants_bay(me):
+	if line.layout == null:
 		return NAN
+	if not wants_bay(me):
+		return _apron_exit(me)
 	var bay: int = me.get("pit", {}).get("bay", -1)
 	if bay < 0:
 		return NAN

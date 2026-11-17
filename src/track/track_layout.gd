@@ -290,15 +290,15 @@ func in_pit_lane(s: float, lap_length: float, lateral: float) -> bool:
 
 
 ## The service bay (0-based) a point is in, -1 if none: within the bay's
-## length and with its centre a quarter of the way into the bay (so a car
-## stopped in it is clear of the through-lane).
+## length and with its centre at least 15 % of the way into the bay (a car
+## stopped there leaves the through-lane practically clear).
 func bay_at(s: float, lap_length: float, lateral: float) -> int:
 	if not in_pit_lane(s, lap_length, lateral):
 		return -1
 	var b: Dictionary = branches[branch_at(s, lap_length)]
 	var strip := bay_strip(b, lap_length)
 	var into := (lateral - strip.x) * signf(float(b.side))
-	if into < float(b.bay_depth) * 0.25:
+	if into < float(b.bay_depth) * 0.15:
 		return -1
 	var w := fposmod(s, lap_length)
 	for k in bay_count(b):
