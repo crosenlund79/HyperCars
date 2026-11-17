@@ -461,6 +461,7 @@ func update_tower(standings: Array[RacerState]) -> void:
 		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		var name := HyperTheme.label("", _row_font, HyperTheme.CREAM, 600)
 		name.custom_minimum_size = Vector2(_row_font * 3.9, 0)
+		name.size_flags_horizontal = Control.SIZE_EXPAND_FILL  # numbers line up at the right, under their heads
 		row.add_child(pos)
 		row.add_child(icon)
 		row.add_child(name)
@@ -474,19 +475,24 @@ func update_tower(standings: Array[RacerState]) -> void:
 		_tower.add_child(panel)
 		_tower_rows.append([panel, pos, icon, name, cells])
 	if stats != null and not _split_view and _tower_header == null:
-		_tower_header = HBoxContainer.new()
-		_tower_header.alignment = BoxContainer.ALIGNMENT_END
-		_tower_header.add_theme_constant_override("separation", 6 if _row_font >= 18 else 4)
+		var head_panel := PanelContainer.new()  # the rows' 1 px margin, so heads and numbers line up
+		head_panel.add_theme_stylebox_override("panel", _no_highlight)
+		head_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var heads := HBoxContainer.new()
+		heads.alignment = BoxContainer.ALIGNMENT_END
+		heads.add_theme_constant_override("separation", 6 if _row_font >= 18 else 4)
+		head_panel.add_child(heads)
+		_tower_header = head_panel
 		var tomb := TextureRect.new()
 		tomb.texture = _tomb_texture
 		tomb.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		tomb.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		tomb.custom_minimum_size = Vector2(_row_font * 1.3, _row_font - 4)
-		_tower_header.add_child(tomb)
+		heads.add_child(tomb)
 		for t in ["K", "D"]:
 			var h := _stat_cell(t, _row_font - 4, HyperTheme.GOLD)
 			h.custom_minimum_size.x = _row_font * 1.3
-			_tower_header.add_child(h)
+			heads.add_child(h)
 		_tower.add_child(_tower_header)
 		_tower.move_child(_tower_header, 0)
 	for i in _tower_rows.size():
@@ -636,7 +642,7 @@ func set_info_visible(on: bool) -> void:
 
 
 ## Results card: podium stars, car icons, names with nicknames, time or gap.
-func show_results(standings: Array[RacerState], footer: String = "Fire to race again (reversed grid)") -> void:
+func show_results(standings: Array[RacerState], footer: String = "Enter: race again (reversed grid)") -> void:
 	var key := footer
 	for r in standings:
 		key += "|%d:%d:%.3f:%s" % [r.id, r.finish_position, r.finish_time, r.dnf]
@@ -719,7 +725,7 @@ func show_results(standings: Array[RacerState], footer: String = "Fire to race a
 
 
 ## Plain-text results (kept for logs and tests).
-static func results_text(standings: Array[RacerState], footer: String = "Fire to race again (reversed grid)") -> String:
+static func results_text(standings: Array[RacerState], footer: String = "Enter: race again (reversed grid)") -> String:
 	var lines := PackedStringArray(["RESULTS"])
 	for i in standings.size():
 		var r := standings[i]
@@ -872,10 +878,14 @@ func _stats_header(font: int) -> Control:
 	row.add_child(tomb)
 	row.add_child(_stat_cell("K", font, HyperTheme.GOLD))
 	row.add_child(_stat_cell("D", font, HyperTheme.GOLD))
-	var pad := Control.new()
-	pad.custom_minimum_size = Vector2(8, 0)
-	row.add_child(pad)
-	return row
+	var panel := PanelContainer.new()  # the result rows' margins, so heads sit over their numbers
+	var box := StyleBoxEmpty.new()
+	box.content_margin_left = 4
+	box.content_margin_right = 8
+	panel.add_theme_stylebox_override("panel", box)
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(row)
+	return panel
 
 
 # ------------------------------------------------- finished: watch the rest
