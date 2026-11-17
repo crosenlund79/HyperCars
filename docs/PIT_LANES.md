@@ -18,17 +18,26 @@ positions, gaps and timing in the same way. Checkpoint gates span every lane.
 
 | Circuit | Pit lane (arc px) | Service bays (centres) | Split section | Split lanes (left / right) |
 |---|---|---|---|---|
-| Kestrel Ridge | 250–1350, main straight, right | 676 / 800 / 924 | 5430–6070 (west loop straight) | 96 / 96: equal |
-| Larkspur Ring | 300–1500, main straight, right | 776 / 900 / 1024 | 4150–4950 (through a bend) | 84 / 112: tight inside or fast-but-wide outside |
-| Ravenhook | 250–1350, main straight, right | 676 / 800 / 924 | 7650–8320 | 112 / 84: wide left or narrow right |
+| Kestrel Ridge | 250–1520, main straight, right | 705 / 885 / 1065 | 5430–6070 (west loop straight) | 96 / 96: equal |
+| Larkspur Ring | 300–1750, main straight, right | 845 / 1025 / 1205 | 4150–4950 (through a bend) | 84 / 112: tight inside or fast-but-wide outside |
+| Ravenhook | 250–1600, main straight, right | 745 / 925 / 1105 | 7650–8320 | 112 / 84: wide left or narrow right |
 
-All three pit lanes use the same layout (Pit Lane Refinement, 2026-11-17):
+All three pit lanes use the same layout (Pit Lane Refinement; roomier bays in
+Personality & Polish, 2026-11-17):
 - 280 px entry and exit ramps and a 24 px divider;
-- a 72 px **through-lane** beside the divider, clear all the way;
-- three numbered **service bays**, PIT 1–3 (90 px long, 64 px deep, 34 px apart),
-  on an apron that bulges out of the outer wall around them (70 px tapers), so cars
-  turn out of the through-lane into a bay and back;
-- short barrier stubs between the bays at the back wall.
+- an 80 px **through-lane** beside the divider, clear all the way;
+- three numbered **service bays**, PIT 1–3: 110 px long, 84 px deep, 70 px apart
+  (180 px centre to centre);
+- the bays sit on an apron that bulges out of the outer wall around them (110 px
+  tapers), so cars turn out of the through-lane into a bay and back;
+- no barrier stubs between the bays (they caught cars rolling along the apron): the
+  bays are marked by thick frames and large PIT 1–3 numbers.
+
+**Room to manoeuvre:** the car is unchanged (a 60 × 32 px capsule turning at 210°/s;
+at the 50 % limiter its turning circle is about 57 px). It was driven with digital
+keys into the middle bay with both neighbours parked, from the limiter and with a slow
+late turn-in. The closest it came to a parked car was 50 px (25–29 px with the earlier
+90 px bays), and 22 px to the barrier. It made no contact going in or out.
 
 Each pit lane has a PIT sign before the entry (`track/pit_sign` template), "PIT"
 lettering, white limiter lines and the bay frames: gold when free, red while a car
@@ -39,9 +48,10 @@ screen's circuit preview draws the lanes from the real geometry.
 
 - **Service:** stopping in a free bay (below 12 px/s) for **6 s** restores **+30
   condition points**, never above 100 %. The service is free.
-- **One car per bay:** a car claims a free bay by stopping in it and holds it until
-  it has physically left it (also after its service). Another car stopping in a held
-  bay is never serviced. Three cars can be serviced at the same time, one per bay.
+- **One car per bay:** a car in a bay occupies it, whether it wants service or not,
+  and holds it until it has physically left (also after its service). A held bay is
+  never shown as free and never services another car. Three cars can be serviced at
+  the same time, one per bay. A retired car occupies nothing.
 - **Pit full:** with all three bays held, nobody else can begin a service: wait for
   a bay or drive on along the through-lane. The HUD shows "PIT FULL - NO FREE PIT
   BAY"; the bay frames are red. Cars are never queued, moved or teleported into a bay.
