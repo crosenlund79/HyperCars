@@ -19,6 +19,10 @@ var _theme: TrackTheme
 func build(track: Track, resolver: AssetResolver, decal_layer: Node2D) -> void:
 	_theme = track.theme if track.theme != null else TrackTheme.load_variant(1)
 	_landmarks.clear()
+	_extra = PackedFloat32Array()
+	if not track.layout.branches.is_empty():
+		for i in track.centerline.size():
+			_extra.append(maxf(0.0, maxf(track.left_widths[i], track.right_widths[i]) - track.layout.road_width * 0.5) + 24.0)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = SEED
 	var c := track.centerline
@@ -44,7 +48,7 @@ func build(track: Track, resolver: AssetResolver, decal_layer: Node2D) -> void:
 	for k in ([-2, -1, 0, 1, 2] if _theme.grandstands else []):
 		var s := fposmod(k * 320.0 + 160.0, track.path.length)
 		var p := track.path.point_at(s) + start_out * (half + 150.0)
-		if _clear_of_track(p, c, half + 90.0):
+		if _clear(p, c, half + 90.0):
 			var st := _sprite(self, resolver, AssetCatalog.GRANDSTAND, p, start_dir.angle())
 			st.z_index = 1
 			_landmarks.append([p, _radius(AssetCatalog.GRANDSTAND)])
@@ -62,7 +66,7 @@ func build(track: Track, resolver: AssetResolver, decal_layer: Node2D) -> void:
 		var side := -1.0 if rng.randf() < 0.5 else 1.0
 		var p := c[i] + right * side * (half + rng.randf_range(CLEARANCE + 30.0, 520.0)) + Vector2(rng.randf_range(-40, 40), rng.randf_range(-40, 40))
 		var kind: Array = _pick(kinds, rng)
-		if not _clear_of_track(p, c, half + maxf(CLEARANCE, _radius(kind[0])) + 30.0) or _overlaps_landmark(p, _radius(kind[0])):
+		if not _clear(p, c, half + maxf(CLEARANCE, _radius(kind[0])) + 30.0) or _overlaps_landmark(p, _radius(kind[0])):
 			continue
 		var spr := _sprite(self, resolver, kind[0], p, rng.randf_range(0, TAU))
 		var scale_jitter := rng.randf_range(0.8, 1.2)
@@ -82,10 +86,10 @@ func build(track: Track, resolver: AssetResolver, decal_layer: Node2D) -> void:
 			var right := Vector2(-tans[i].y, tans[i].x)
 			var outside := -right * side
 			var p := c[i] + outside * (half + 60.0)
-			if _clear_of_track(p, c, half + 45.0):
+			if _clear(p, c, half + 45.0):
 				_sprite(self, resolver, AssetCatalog.TYRE_STACK, p, rng.randf_range(0, TAU))
 				var fp := p + tans[i] * 50.0 + outside * 10.0
-				if _clear_of_track(fp, c, half + 45.0):
+				if _clear(fp, c, half + 45.0):
 					_flags.append(_flag(resolver, fp))
 
 
@@ -100,14 +104,20 @@ func _add_landmarks(track: Track, resolver: AssetResolver, rng: RandomNumberGene
 	var n := c.size()
 	if _theme.pit_building:
 		var r := _radius("scenery/pit_building")
-		for s in [600.0, 900.0, 300.0, 1200.0]:
-			var at := fposmod(-s, track.path.length)
+		var spots: Array = [[-600.0, 1.0], [-900.0, 1.0], [-300.0, 1.0], [-1200.0, 1.0]]
+		var pb := track.layout.pit_branch()
+		if pb >= 0:  # beside the pit lane's service box, behind its outer wall
+			var b: Dictionary = track.layout.branches[pb]
+			spots.push_front([float(b.box), float(b.side)])
+		for spot in spots:
+			var at := fposmod(spot[0], track.path.length)
 			var tan := track.path.tangent_at(at)
-			var right := Vector2(-tan.y, tan.x)
+			var right := Vector2(-tan.y, tan.x) * float(spot[1])
 			var pit_size: Vector2 = AssetCatalog.SPECS[_theme.asset("scenery/pit_building")].display_size
-			var p: Vector2 = track.path.point_at(at) + right * (half + 50.0 + pit_size.y * 0.5)
-			if _clear_of_track(p, c, half + 40.0) and _clear_of_box(p, tan, "scenery/pit_building", c, half):
-				var pit := _sprite(self, resolver, "scenery/pit_building", p, tan.angle() + PI)
+			var widen: float = _extra[track.path.index_at(at)] if not _extra.is_empty() else 0.0
+			var p: Vector2 = track.path.point_at(at) + right * (half + widen + 30.0 + pit_size.y * 0.5)
+			if _clear(p, c, half + 40.0) and _clear_of_box(p, tan, "scenery/pit_building", c, half):
+				var pit := _sprite(self, resolver, "scenery/pit_building", p, tan.angle() + (PI if spot[1] > 0.0 else 0.0))
 				pit.z_index = 1
 				_landmarks.append([p, r])
 				break
@@ -129,12 +139,12 @@ func _add_landmarks(track: Track, resolver: AssetResolver, rng: RandomNumberGene
 			if facing:  # boards stand just behind the barrier, text towards the road
 				p = c[i] + right * side * (half + 40.0 + size.y * 0.5)
 				rot = tans[i].angle() + (PI if side > 0.0 else 0.0)
-				if not _clear_of_track(p, c, half + 30.0 + size.y * 0.5 - 2.0) or not _clear_of_box(p, Vector2.from_angle(rot), logical, c, half):
+				if not _clear(p, c, half + 30.0 + size.y * 0.5 - 2.0) or not _clear_of_box(p, Vector2.from_angle(rot), logical, c, half):
 					continue
 			else:
 				p = c[i] + right * side * (half + r + rng.randf_range(40.0, 420.0))
 				rot = rng.randf_range(0, TAU)
-				if not _clear_of_track(p, c, half + r + 24.0):
+				if not _clear(p, c, half + r + 24.0):
 					continue
 			if _overlaps_landmark(p, r if not facing else size.y * 0.5):
 				continue
@@ -203,8 +213,24 @@ func _clear_of_box(p: Vector2, along: Vector2, logical: String, c: PackedVector2
 	var ay := Vector2(-along.y, along.x).normalized() * size.y * 0.5
 	for fx in [-1.0, 0.0, 1.0]:
 		for fy in [-1.0, 0.0, 1.0]:
-			if not _clear_of_track(p + ax * fx + ay * fy, c, half + 14.0):
+			if not _clear(p + ax * fx + ay * fy, c, half + 14.0):
 				return false
+	return true
+
+
+## Branches widen the road (pit lanes, split sections): per centreline sample,
+## how much wider than the plain half width it is on its wider side.
+var _extra := PackedFloat32Array()
+
+
+## Clear of the road by min_distance from the centreline, plus any widening.
+func _clear(p: Vector2, centerline: PackedVector2Array, min_distance: float) -> bool:
+	if _extra.is_empty():
+		return _clear_of_track(p, centerline, min_distance)
+	for i in centerline.size():
+		var d := min_distance + _extra[i]
+		if p.distance_squared_to(centerline[i]) < d * d:
+			return false
 	return true
 
 

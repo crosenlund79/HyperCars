@@ -18,6 +18,8 @@ const STAR_GOLD := "ui/star_gold"
 ## Kill feed / rankings: a permanent elimination, and a collision kill.
 const TOMBSTONE := "ui/tombstone"
 const CRASH := "ui/crash"
+const TICKET := "ui/ticket"
+const PIT_SIGN := "track/pit_sign"
 const STAR_SILVER := "ui/star_silver"
 const STAR_BRONZE := "ui/star_bronze"
 const BUTTON := "ui/button"
@@ -116,6 +118,10 @@ const SPECS := {
 		"notes": "Nine-patch panel; 24 px corners are not stretched (scaled with the texture)."},
 	TOMBSTONE: {"template_size": Vector2i(48, 48), "display_size": Vector2(20, 20),
 		"notes": "Kill feed and rankings: a permanent elimination (DNF) caused by a driver; square, centred, transparent."},
+	PIT_SIGN: {"template_size": Vector2i(128, 64), "display_size": Vector2(96, 48),
+		"notes": "Pit lane entrance sign (PIT + arrow), placed beside the entrance behind the barrier; the arrow points along the driving direction (+X)."},
+	TICKET: {"template_size": Vector2i(48, 48), "display_size": Vector2(20, 20),
+		"notes": "Kill feed: a pit-lane speeding ticket (the driver overrode the pit limiter); square, centred, transparent."},
 	CRASH: {"template_size": Vector2i(48, 48), "display_size": Vector2(20, 20),
 		"notes": "Kill feed: a car put out of the race by collisions (no weapon); square, centred, transparent."},
 	STAR_GOLD: {"template_size": Vector2i(48, 48), "display_size": Vector2(22, 22),

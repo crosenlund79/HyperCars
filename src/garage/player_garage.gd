@@ -24,6 +24,8 @@ var equipped: Array[int] = [W.NONE, W.NONE]
 var races_settled := 0
 var last_position := 0
 var last_prize := 0
+## Pit speeding fines charged at the last settled race ($).
+var last_fine := 0
 ## M6: the car's condition (0 .. 100 %), carried from race to race, and its
 ## armour grade (0 = none). Condition before the last race and after it.
 var condition := 100.0
@@ -191,7 +193,8 @@ func race_pending() -> bool:
 ## there was no race to settle (repeat calls change nothing).
 ## condition_left: the car's condition at the end (%; -1 keeps it unchanged).
 ## laps: the race length (longer races pay more, GarageRules.prize_for).
-func settle_race(position: int, front_left: int, rear_left: int, condition_left: float = -1.0, laps: int = 3) -> int:
+func settle_race(position: int, front_left: int, rear_left: int, condition_left: float = -1.0, laps: int = 3,
+		fine: int = 0) -> int:
 	if not _race_pending:
 		return -1
 	_race_pending = false
@@ -204,7 +207,8 @@ func settle_race(position: int, front_left: int, rear_left: int, condition_left:
 			stock[w] = clampi(left, 0, count(w))
 	last_position = position
 	last_prize = rules.prize_for(position, laps)
-	money += last_prize
+	last_fine = fine
+	money = maxi(0, money + last_prize - fine)  # a pit speeding fine: from the winnings or the balance, never below $0
 	races_settled += 1
 	save()
 	return last_prize

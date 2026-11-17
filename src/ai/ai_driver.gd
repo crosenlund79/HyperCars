@@ -55,6 +55,19 @@ var hazard_avoids := 0
 ## Own line wander (time and phase, per race).
 var _time := 0.0
 var _wander_phase := 0.0
+## Track branches (2026-11-17): the route chosen for each branch (by index,
+## RacingLine.ROUTE_*), the lap each was planned for, and pit stops.
+var route_choice := {}
+var _planned := {}
+var pitting := false
+var _pit_latched := false
+var _override_wanted := false
+var _override_sent := false
+## Statistics: pit stops started, overrides asked, choices per split lane.
+var pit_entries := 0
+var pit_overrides := 0
+var missed_pits := 0
+var route_counts := {}
 
 
 func _init(p_line: RacingLine, p_params: AiParams) -> void:
@@ -95,6 +108,16 @@ func begin_race(seed_value: int) -> void:
 	disruptions = 0
 	impulse_passes = 0
 	_defending = false
+	route_choice = {}
+	_planned = {}
+	pitting = false
+	_pit_latched = false
+	_override_wanted = false
+	_override_sent = false
+	pit_entries = 0
+	pit_overrides = 0
+	missed_pits = 0
+	route_counts = {}
 
 
 ## me: {position, heading, speed, distance, lateral}
@@ -105,6 +128,9 @@ func decide(me: Dictionary, others: Array, delta: float) -> Dictionary:
 	var s: float = me.distance
 	var speed: float = me.speed
 	_time += delta
+	if line.layout != null:
+		_plan_branches(me, others)
+		_update_pit_latch(s, me)
 	var target_lateral := own_line(s)
 	var blocked := false
 	var lift := false
@@ -129,8 +155,8 @@ func decide(me: Dictionary, others: Array, delta: float) -> Dictionary:
 	if not passing and params.defend_distance > 0.0:
 		var chaser := _closing_car_behind(me, others)
 		if not chaser.is_empty():
-			var limit_d := line.half_width_at(s) - params.pass_margin
-			target_lateral = lerpf(target_lateral, clampf(chaser.lateral, -limit_d, limit_d), params.defend_strength)
+			var bd := _room(s)
+			target_lateral = lerpf(target_lateral, clampf(chaser.lateral, bd.x, bd.y), params.defend_strength)
 			blocked = true
 			if not _defending:
 				defends += 1
@@ -159,7 +185,7 @@ func decide(me: Dictionary, others: Array, delta: float) -> Dictionary:
 	if flustered and params.fluster_lift_chance > 0.0 and rng.randf() < params.fluster_lift_chance:
 		lift = true
 
-	var desired_bias := target_lateral - line.offset_at(s)
+	var desired_bias := target_lateral - line.offset_at(s, route_at(s))
 	var rate := params.lane_change_rate if blocked else params.lane_return_rate
 	lane_bias = move_toward(lane_bias, desired_bias, rate * delta)
 
@@ -168,8 +194,10 @@ func decide(me: Dictionary, others: Array, delta: float) -> Dictionary:
 	if flustered:
 		lookahead *= 1.0 - params.fluster_overcorrection
 		deadband *= 1.0 - params.fluster_overcorrection
-	var limit := minf(line.half_width_at(s), line.half_width_at(s + lookahead)) - params.pass_margin
-	var aim_lateral := clampf(line.offset_at(s + lookahead) + lane_bias, -limit, limit)
+	var room_now := _room(s)
+	var room_ahead := _room(s + lookahead)
+	var aim_lateral := clampf(line.offset_at(s + lookahead, route_at(s + lookahead)) + lane_bias,
+		maxf(room_now.x, room_ahead.x), minf(room_now.y, room_ahead.y))
 	var aim := line.point_with_lateral(s + lookahead, aim_lateral)
 	var error := wrapf((aim - me.position).angle() - me.heading, -PI, PI)
 	var steer := 0.0
@@ -177,7 +205,9 @@ func decide(me: Dictionary, others: Array, delta: float) -> Dictionary:
 		steer = signf(error)
 
 	var speed_point := s + speed * params.brake_anticipation
-	var planned := line.speed_at(speed_point)
+	var planned := line.speed_at(speed_point, _speed_route(speed_point))
+	if _pit_latched:
+		planned = minf(planned, _pit_stop_speed(s, me))
 	_update_corner(planned < line.top_speed - 1.0, not _nearest_car_ahead(me, others, true).is_empty())
 	var target_speed := planned * commitment if in_corner else planned
 	if in_corner and _defending:
@@ -191,7 +221,12 @@ func decide(me: Dictionary, others: Array, delta: float) -> Dictionary:
 		if in_corner and disrupted_time > 0.0:
 			target_speed *= params.disrupted_commitment
 	var fire := speed < target_speed and not lift
-	return {"steer": steer, "fire": fire}
+	var out := {"steer": steer, "fire": fire}
+	if _pit_latched and _override_wanted and not _override_sent and me.get("pit", {}).get("in_lane", false):
+		_override_sent = true  # the shared limiter override (no literal double tap)
+		pit_overrides += 1
+		out["pit_override"] = true
+	return out
 
 
 ## Picks this corner's commitment when entering a braking/corner zone.
@@ -240,7 +275,8 @@ func _pass_lateral(me: Dictionary, ahead: Dictionary, others: Array, s: float) -
 			else:
 				pass_side_choice = -_turn_direction(s)
 		var candidate: float = ahead.lateral + pass_side_choice * params.pass_offset
-		if absf(candidate) <= line.half_width_at(s) - params.pass_margin:
+		var room := _room(s)
+		if candidate >= room.x and candidate <= room.y:
 			lateral = candidate
 	if not is_nan(lateral) and params.pass_check_clearance:
 		for o in others:
@@ -310,11 +346,11 @@ func _nearest_car_ahead(me: Dictionary, others: Array, any_lane: bool = false) -
 ## This driver's own line at s: the shared racing line, shifted by the
 ## driver's preferred offset and slow wander, kept inside the road.
 func own_line(s: float) -> float:
-	var lateral := line.offset_at(s) + params.line_offset
+	var lateral := line.offset_at(s, route_at(s)) + params.line_offset
 	if params.line_wander > 0.0:
 		lateral += params.line_wander * sin(TAU * _time / maxf(params.line_wander_period, 0.5) + _wander_phase)
-	var limit := line.half_width_at(s) - params.pass_margin
-	return clampf(lateral, -limit, limit)
+	var room := _room(s)
+	return clampf(lateral, room.x, room.y)
 
 
 ## The nearest wrecked car in this driver's path within its reading distance.
@@ -336,10 +372,11 @@ func _hazard_ahead(me: Dictionary, others: Array, speed: float) -> Dictionary:
 ## closest to where we are. NAN when neither side has room inside the road.
 func choose_pass_lateral(my_lateral: float, other_lateral: float, s: float = NAN) -> float:
 	var options: Array[float] = []
-	var limit := (line.road_half_width if is_nan(s) else line.half_width_at(s)) - params.pass_margin
+	var room := Vector2(-line.road_half_width + params.pass_margin, line.road_half_width - params.pass_margin) \
+		if is_nan(s) else _room(s)
 	for side in [-1.0, 1.0]:
 		var candidate: float = other_lateral + side * params.pass_offset
-		if absf(candidate) <= limit:
+		if candidate >= room.x and candidate <= room.y:
 			options.append(candidate)
 	if options.is_empty():
 		return NAN
@@ -639,3 +676,148 @@ func _hold_slot(ctx: Dictionary, slot: int) -> bool:
 		if float(ctx.rear_ammo) <= per_lap * (laps_left - 1):
 			return true
 	return false
+
+
+# ------------------------------------------------------------- branches
+
+## How far ahead of a branch the route (and a pit stop) is decided (px).
+const PLAN_DISTANCE := 450.0
+
+
+## The route this driver takes at s: its choice in a split, the pit lane when
+## stopping (or already in it), else the racing road.
+func route_at(s: float) -> int:
+	if line.layout == null:
+		return RacingLine.ROUTE_MAIN
+	var k := line.layout.branch_at(s, line.center.length)
+	if k < 0:
+		return RacingLine.ROUTE_MAIN
+	if line.layout.branches[k].kind == "pit":
+		return RacingLine.ROUTE_PIT if (pitting or _pit_latched) else RacingLine.ROUTE_MAIN
+	return route_choice.get(k, RacingLine.ROUTE_MAIN)
+
+
+## The lateral room at s on this driver's route, kept pass_margin inside
+## (the whole road, symmetric, without branches: the old limits exactly).
+func _room(s: float) -> Vector2:
+	var b := line.bounds_at(s, route_at(s))
+	var m := minf(params.pass_margin, maxf(0.0, (b.y - b.x) * 0.5 - 2.0))
+	return Vector2(b.x + m, b.y - m)
+
+
+## Speeds: an overridden pit limiter drives the pit lane at racing speeds.
+func _speed_route(s: float) -> int:
+	var r := route_at(s)
+	return RacingLine.ROUTE_MAIN if r == RacingLine.ROUTE_PIT and _override_sent else r
+
+
+## Decides each branch once per lap, PLAN_DISTANCE before it begins.
+func _plan_branches(me: Dictionary, others: Array) -> void:
+	var length := line.center.length
+	for k in line.layout.branches.size():
+		var b: Dictionary = line.layout.branches[k]
+		var ahead := fposmod(float(b.from) - me.distance, length)
+		if ahead <= 0.0 or ahead > PLAN_DISTANCE + me.speed * 0.6:
+			continue
+		var key := roundi((me.distance + ahead) / length)
+		if _planned.get(k, -999) == key:
+			continue
+		_planned[k] = key
+		if b.kind == "split":
+			route_choice[k] = _choose_split(k, me, others)
+			route_counts[route_choice[k]] = route_counts.get(route_choice[k], 0) + 1
+		else:
+			_plan_pit(me)
+
+
+## A split: the quicker lane, unless traffic or temperament says otherwise.
+func _choose_split(k: int, me: Dictionary, others: Array) -> int:
+	var b: Dictionary = line.layout.branches[k]
+	var length := line.center.length
+	var d := line.layout.divider_at(float(b.from) + float(b.ramp) + TrackLayout.DIVIDER_NOSE + 1.0, length)
+	var mid := (d.x + d.y) * 0.5 if d != Vector2.INF else 0.0
+	var span: float = float(b.to) - me.distance + 300.0
+	var traffic := [0, 0]
+	var chase_lane := -1
+	for o in others:
+		var gap := _gap(me, o)
+		if gap <= 0.0 or gap > span or o.get("wrecked", false):
+			continue
+		var lane := 0 if o.lateral < mid else 1
+		traffic[lane] += 1
+		if gap < 300.0 and chase_lane < 0:
+			chase_lane = lane
+	var best := RacingLine.ROUTE_MAIN
+	var best_score := INF
+	for lane in 2:
+		var route := RacingLine.ROUTE_ALT if lane == 1 else RacingLine.ROUTE_MAIN
+		var score: float = line.route_time(k, route) + params.route_traffic_weight * traffic[lane] \
+			+ rng.randf_range(-1.0, 1.0) * params.route_whim
+		if params.chase_aggression > 0.0 and lane == chase_lane:
+			score -= 0.4  # follows a rival through the section
+		if score < best_score:
+			best_score = score
+			best = route
+	return best
+
+
+## Pit strategy, once per lap before the pit entry: condition, laps to go,
+## temperament (pitting below pit_threshold, earlier in long races; staying
+## out anyway by pit_stay_out_chance); and whether to break the speed limit.
+func _plan_pit(me: Dictionary) -> void:
+	var pit: Dictionary = me.get("pit", {})
+	pitting = false
+	_override_wanted = false
+	if pit.is_empty() or not pit.get("open", false):
+		return
+	var condition: float = pit.get("condition", 1.0)
+	var laps_left: int = pit.get("laps_left", 0)
+	if laps_left < 2:
+		return  # the last lap: nothing to gain
+	var threshold := params.pit_threshold + 0.1 * clampf((laps_left - 3) / 10.0, 0.0, 1.0)
+	if condition >= threshold:
+		return
+	if condition > 0.15 and rng.randf() < params.pit_stay_out_chance:
+		return  # one more lap
+	pitting = true
+	pit_entries += 1
+	var late_fight: bool = int(pit.get("position", 10)) <= 3 and laps_left <= 3
+	var chance := params.pit_speeding * (3.0 if late_fight else 1.0)
+	_override_wanted = rng.randf() < chance
+
+
+## Keeps the pit route from the pit branch's start to its end once stopping.
+func _update_pit_latch(s: float, me: Dictionary) -> void:
+	var k := line.layout.branch_at(s, line.center.length)
+	var in_pit_branch: bool = k >= 0 and line.layout.branches[k].kind == "pit"
+	if in_pit_branch and pitting and not _pit_latched:
+		_pit_latched = true
+		_override_sent = false
+	elif not in_pit_branch and _pit_latched:
+		_pit_latched = false
+		pitting = false
+	elif _pit_latched and not me.get("pit", {}).get("in_lane", false):
+		# missed the entry (pushed wide, blocked): give up this stop and race on
+		var b: Dictionary = line.layout.branches[k]
+		var w := fposmod(s, line.center.length)
+		if w > float(b.from) + float(b.ramp) + TrackLayout.DIVIDER_NOSE + 20.0 and w < float(b.box):
+			_pit_latched = false
+			pitting = false
+			missed_pits += 1
+
+
+## Speed limit for a stop: brake to a standstill at the service box, hold
+## there during service, then drive on.
+func _pit_stop_speed(s: float, me: Dictionary) -> float:
+	var pit: Dictionary = me.get("pit", {})
+	if pit.get("served", false) or not pit.get("open", false):
+		return INF
+	var k := line.layout.pit_branch()
+	var b: Dictionary = line.layout.branches[k]
+	var to_box: float = float(b.box) - fposmod(s, line.center.length)
+	if pit.get("in_box", false) or absf(to_box) < 18.0:
+		return 0.0
+	if to_box < 0.0:
+		return INF  # overshot: carry on (no reversing), no service this time
+	return sqrt(2.0 * line.plan_decel * maxf(0.0, to_box - 10.0))
+

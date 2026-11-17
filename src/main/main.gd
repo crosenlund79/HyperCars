@@ -156,6 +156,15 @@ var jump_view: JumpView = null
 ## shows the host's values). damage_enabled = false is for checks only.
 var damage: DamageWorld
 var damage_rules: DamageRules = preload("res://src/damage/default_damage_rules.tres")
+## Pit lanes: service, limiter and speeding penalties (provisional numbers).
+var pit_rules: PitRules = preload("res://src/race/default_pit_rules.tres")
+## Pit lanes (null when the circuit has none): host-authoritative pit state.
+var pits: PitWorld = null
+## This tick's deliberate limiter overrides requested by each driver.
+var _pit_requests: Dictionary = {}
+## Per car: PitWorld.pack() (host) or the host's snapshot value (client), for
+## the HUD and the client's own speed cap.
+var pit_state := PackedInt32Array()
 var damage_enabled := true
 ## Weapons Hot: weapons stay locked until every car in the race has crossed the
 ## start line for the first time (or weapons_lock_timeout has passed, so a car
@@ -322,7 +331,8 @@ func _ready() -> void:
 		scenery.build(track, resolver, decals)
 	camera.target = car
 	racing_line = RacingLine.new(track.path, track.layout.road_width, driving_params, ai_params,
-		track.half_widths if not track.layout.narrow_sections.is_empty() else PackedFloat32Array())
+		track.half_widths if not track.layout.narrow_sections.is_empty() else PackedFloat32Array(),
+		track.layout, driving_params.max_speed * pit_rules.limiter_share)
 
 	car.racer_id = RaceSession.PLAYER_ID
 	_car_looks.append(_player_look())
@@ -380,8 +390,12 @@ func _ready() -> void:
 		jumps = JumpWorld.new(track.layout, jump_rules, track.path, cars.size())
 	combat = CombatWorld.new(weapon_rules, cars.size(), track.path, track.layout.road_width * 0.5)
 	stats = CombatStats.new(cars.size())
+	if track.layout.pit_branch() >= 0:
+		pits = PitWorld.new(pit_rules, cars.size())
 	if track.layout.has_elevation() or track.layout.has_jumps():
 		combat.layout = track.layout
+	if not track.layout.branches.is_empty():
+		combat.branch_layout = track.layout  # missiles stop at dividers and the widened edges
 	history = RaceHistory.new(rival_ids)
 	hud.setup_history(resolver, history, car_textures, full_names)
 	car_textures[RaceSession.PLAYER_ID] = _player_icon()
@@ -798,6 +812,14 @@ func _apply_loadouts() -> void:
 func _reset_damage() -> void:
 	damage.reset()
 	_impacts.clear()
+	if pits != null:
+		pits.reset()
+		pits.service_enabled = race_mode != "knockout"  # Knockout: no pit service
+		pits.pays_fines.fill(0)
+		if garage != null and not session.spectator:
+			pits.pays_fines[RaceSession.PLAYER_ID] = 1  # garage races: a fine instead of the penalty
+		for c in cars:
+			c.model.speed_cap = INF
 	if garage != null and not session.spectator:
 		damage.set_start(RaceSession.PLAYER_ID, garage.race_condition() / 100.0 * damage_rules.max_condition,
 			garage.armour_reduction())
@@ -923,6 +945,9 @@ func _client_stats() -> void:
 		var e: Dictionary = combat.events[k]
 		if e.kind == "destroyed":
 			stats.on_destroyed(e.car, e.owner, e.type, session.elapsed)
+		elif e.kind == "ticket":
+			stats.on_ticket(e.car, session.elapsed)
+			_ticket_banner(e.car, int(e.get("fine", 0)))
 	_stats_event_index = combat.events.size()
 	_stats_dnf.resize(cars.size())
 	for id in cars.size():
@@ -968,7 +993,8 @@ func _settle_garage() -> void:
 	var me := session.racers[RaceSession.PLAYER_ID]
 	garage.settle_race(0 if me.dnf else me.finish_position,
 		combat.ammo[RaceSession.PLAYER_ID][CombatWorld.FRONT], combat.ammo[RaceSession.PLAYER_ID][CombatWorld.REAR],
-		damage.fraction(RaceSession.PLAYER_ID) * 100.0, session.lap_count())
+		damage.fraction(RaceSession.PLAYER_ID) * 100.0, session.lap_count(),
+		pits.fines[RaceSession.PLAYER_ID] if pits != null else 0)
 
 
 ## Opens the garage between races (garage races only).
@@ -1084,6 +1110,7 @@ func _physics_process(_delta: float) -> void:
 	_update_levels()
 	_update_jumps(Car.FIXED_STEP)
 	_drive_cars(step)
+	_update_pits(step)
 	if combat.enabled:
 		_combat_tick(step)
 		_update_wreck_passes(step)
@@ -1699,6 +1726,7 @@ func _refresh_hud() -> void:
 		combat.weapon_of(me, CombatWorld.REAR), combat.ammo[me][CombatWorld.REAR], combat.wreck_left[me],
 		_cooldown_fraction(CombatWorld.FRONT, me), _cooldown_fraction(CombatWorld.REAR, me))
 	_refresh_condition(hud, me)
+	_refresh_pit(hud, me)
 	hud.set_weapons_locked(combat.enabled and combat.locked and session.state != RaceSession.State.FINISHED)
 	_refresh_watch_panel()
 	if session.state == RaceSession.State.FINISHED and not _watch_active():
@@ -1707,7 +1735,8 @@ func _refresh_hud() -> void:
 		elif championship_round >= 0:
 			hud.show_results(session.standings(), "{confirm}: championship standings")
 		elif garage != null and _garage_settled:
-			hud.show_results(session.standings(), "Prize money: $%d     {confirm}: garage     {history_view}: skip shopping, next race" % garage.last_prize)
+			hud.show_results(session.standings(), ("Prize money: $%d" % garage.last_prize) + ("  -  pit speeding fine $%d" % garage.last_fine if garage.last_fine > 0 else "")
+				+ "     {confirm}: garage     {history_view}: skip shopping, next race")
 		else:
 			hud.show_results(session.standings())
 
@@ -1721,7 +1750,43 @@ func _refresh_player_hud(view_hud: Hud, id: int) -> void:
 		combat.weapon_of(id, CombatWorld.REAR), combat.ammo[id][CombatWorld.REAR], combat.wreck_left[id],
 		_cooldown_fraction(CombatWorld.FRONT, id), _cooldown_fraction(CombatWorld.REAR, id))
 	_refresh_condition(view_hud, id)
+	_refresh_pit(view_hud, id)
 	view_hud.set_weapons_locked(combat.enabled and combat.locked and session.state != RaceSession.State.FINISHED)
+
+
+## A speeding ticket for a human on this computer: one brief banner.
+func _ticket_banner(id: int, fine: int) -> void:
+	if hud == null or not session.human_ids.has(id) or (net != null and id != local_player_id):
+		return
+	var price := ("FINE $%d" % fine) if fine > 0 else ("PENALTY %d s AT THE LIMITER" % roundi(pit_rules.penalty_time))
+	hud.flash_banner("PIT LANE VIOLATION!\nSPEEDING TICKET  -  %s" % price, HyperTheme.RED, 1.6)
+
+
+## The pit line for a human's car: service progress with the repair it brings,
+## the limiter with the override gesture and its price, the override, or the
+## penalty being served.
+func _refresh_pit(view_hud: Hud, id: int) -> void:
+	if pits == null and pit_state.is_empty():
+		return
+	var st := pit_state[id] if id < pit_state.size() else 0
+	var limiter := st & 1 == 1
+	var over := st & 2 == 2
+	var penalty := st & 4 == 4
+	var service := float(st >> 3) / 31.0
+	var in_lane := limiter or over or service > 0.0
+	if service > 0.0:
+		var now := damage.fraction(id) * 100.0
+		var after := minf(100.0, now + pit_rules.repair_points)
+		view_hud.update_pit("PIT SERVICE  -  REPAIRING\nCONDITION: %d%%  ->  %d%%" % [roundi(now), roundi(after)], HyperTheme.GOLD, service)
+	elif limiter:
+		var price := ("FINE $%d" % pit_rules.fine) if pits != null and pits.pays_fines[id] == 1 else ("PENALTY %d s" % roundi(pit_rules.penalty_time))
+		view_hud.update_pit(PlayerControls.fmt("PIT LIMITER  -  %d%%\nDOUBLE-TAP {fire} TO OVERRIDE  -  %s" % [roundi(pit_rules.limiter_share * 100.0), price]))
+	elif over and in_lane:
+		view_hud.update_pit("LIMITER OVERRIDDEN  -  SPEEDING TICKET", HyperTheme.RED)
+	elif penalty:
+		view_hud.update_pit("PIT LANE PENALTY  -  LIMITED", HyperTheme.RED)
+	else:
+		view_hud.update_pit("")
 
 
 ## M6: a HUD's condition row for racer id (own_car: the DNF notice is shown).
@@ -1807,10 +1872,44 @@ func _update_progress() -> void:
 
 ## Every car in the race takes its command for this tick from its DriverInput.
 func _drive_cars(step: float) -> void:
+	_pit_requests.clear()
 	for id in grid_order:
 		var cmd := inputs[id].drive(self, step)
 		cars[id].steer = cmd.steer
 		cars[id].fire = cmd.fire
+		if cmd.get("pit_override", false):
+			_pit_requests[id] = true
+
+
+## Pit lanes, one tick (host): where each car is, the limiter's speed cap,
+## deliberate overrides (a ticket: an event for the feed, the announcer and the
+## network; a fine or a penalty), and service in the box (+condition).
+func _update_pits(step: float) -> void:
+	if pits == null:
+		return
+	var layout := track.layout
+	var length := track.path.length
+	var cap := driving_params.max_speed * pit_rules.limiter_share
+	for id in grid_order:
+		var s: float = progress[id].distance
+		var lat: float = progress[id].lateral
+		var racing := session.state == RaceSession.State.RACING and not session.racers[id].is_done()
+		var lane := racing and cars[id].active and layout.in_pit_lane(s, length, lat)
+		var box := lane and layout.in_service_box(s, length, lat)
+		if lane and _pit_requests.has(id) and pits.request_override(id):
+			var fine := pit_rules.fine if pits.pays_fines[id] == 1 else 0
+			combat.events.append({"kind": "ticket", "car": id, "fine": fine})
+			stats.on_ticket(id, session.elapsed)
+			_ticket_banner(id, fine)
+		var add := pits.step(id, lane, box, cars[id].model.velocity.length(), damage.condition[id],
+			damage_rules.max_condition, damage.is_retired(id) or not racing, step)
+		if add > 0.0:
+			damage.condition[id] = minf(damage_rules.max_condition, damage.condition[id] + add)
+			combat.events.append({"kind": "pit_service", "car": id})
+		cars[id].model.speed_cap = cap if pits.limited(id) else INF
+	pit_state.resize(cars.size())
+	for id in cars.size():
+		pit_state[id] = pits.pack(id)
 
 
 func _on_checkpoint_reached(index: int, body: Node2D) -> void:

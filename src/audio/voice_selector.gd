@@ -120,4 +120,5 @@ func _silence_for(event: int) -> float:
 		VoiceCatalog.Event.RIVAL_OVERTOOK_PLAYER: return params.silence_overtake
 		VoiceCatalog.Event.PLAYER_HIT_WALL: return params.silence_wall
 		VoiceCatalog.Event.WEAPONS_HOT: return 0.0
+		VoiceCatalog.Event.PIT_VIOLATION: return params.silence_pit_violation
 	return 1.0

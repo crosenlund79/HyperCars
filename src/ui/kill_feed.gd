@@ -17,6 +17,7 @@ var _colors := {}
 var _icons := {}
 var _tomb: Texture2D
 var _crash: Texture2D
+var _ticket: Texture2D
 var _box: VBoxContainer
 var _index := 0
 ## Shown rows: [HBoxContainer, seconds shown].
@@ -33,6 +34,7 @@ func setup(p_stats: CombatStats, resolver: AssetResolver, names: Dictionary, col
 	_icons = Hud.weapon_icons(resolver)
 	_tomb = resolver.get_texture(AssetCatalog.TOMBSTONE)
 	_crash = resolver.get_texture(AssetCatalog.CRASH)
+	_ticket = resolver.get_texture(AssetCatalog.TICKET)
 	layer = 11
 	_theme = HyperTheme.build(resolver)
 	_box = VBoxContainer.new()
@@ -92,6 +94,15 @@ func _add(e: Dictionary) -> void:
 		text.append(str(_names.get(e.attacker, "?")))
 	var weapon: int = e.weapon
 	var icon: Texture2D = _crash if weapon == CombatStats.COLLISION else _icons.get(weapon)
+	if weapon == CombatStats.TICKET:  # a pit speeding ticket: the offender only, no victim
+		row.add_child(_icon(_ticket))
+		row.add_child(HyperTheme.label("PIT SPEEDING", 16, HyperTheme.GOLD, 700))
+		panel.set_meta("text", " ".join(text + PackedStringArray(["[ticket]", "PIT SPEEDING"])))
+		_box.add_child(panel)
+		_rows.append([panel, 0.0])
+		while _rows.size() > MAX_ROWS:
+			_rows.pop_front()[0].queue_free()
+		return
 	if weapon == CombatStats.ELIMINATED:
 		var out := HyperTheme.label("OUT", 16, HyperTheme.RED, 700)
 		row.add_child(out)

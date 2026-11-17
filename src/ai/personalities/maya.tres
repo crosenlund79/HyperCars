@@ -25,3 +25,5 @@ hazard_lookahead = 1.0
 hazard_reaction = 0.2
 line_wander = 5.0
 line_offset = -6.0
+pit_speeding = 0.05
+route_traffic_weight = 0.45

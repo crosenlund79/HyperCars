@@ -36,6 +36,16 @@ func drive(race: Node, step: float) -> Dictionary:
 	var me := {"position": cars[id].global_position, "heading": cars[id].model.heading,
 		"speed": cars[id].model.forward_speed(), "distance": progress[id].distance,
 		"lateral": progress[id].lateral}
+	var pits: PitWorld = race.pits
+	if pits != null:  # pit lanes: what the driver knows for its strategy and its stop
+		var r: RacerState = race.session.racers[id]
+		var length: float = race.track.path.length
+		var layout: TrackLayout = race.track.layout
+		me["pit"] = {"open": pits.service_enabled and not race.damage.is_retired(id),
+			"condition": race.damage.fraction(id), "laps_left": r.tracker.lap_count - r.tracker.laps_completed,
+			"position": race.session.position_of(id), "in_lane": pits.in_lane[id] == 1,
+			"in_box": layout.in_service_box(progress[id].distance, length, progress[id].lateral),
+			"served": pits.served[id] == 1}
 	return driver.decide(me, others, step)
 
 

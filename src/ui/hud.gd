@@ -31,6 +31,10 @@ var _rear_label: Label
 var _front_bar: ColorRect
 var _rear_bar: ColorRect
 var _wreck_label: Label
+## Pit lane: limiter / override / penalty / service line and service progress.
+var _pit_box: VBoxContainer
+var _pit_label: Label
+var _pit_bar: ProgressBar
 ## M6 condition row (bar + percentage), damage flash, critical warning and the
 ## big "OUT - DNF" notice.
 var _cond_row: HBoxContainer
@@ -163,6 +167,25 @@ func setup(resolver: AssetResolver) -> void:
 	_wreck_label.position = Vector2(0, 470)
 	_wreck_label.visible = false
 	add_child(_wreck_label)
+	_pit_box = VBoxContainer.new()
+	_pit_box.size = Vector2(1280, 70)
+	_pit_box.position = Vector2(0, 560)
+	_pit_box.alignment = BoxContainer.ALIGNMENT_CENTER
+	_pit_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_pit_box.visible = false
+	add_child(_pit_box)
+	_pit_label = HyperTheme.label("", 20, HyperTheme.GOLD, 700)
+	_pit_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_pit_label.add_theme_constant_override("outline_size", 7)
+	_pit_label.add_theme_color_override("font_outline_color", HyperTheme.OUTLINE)
+	_pit_box.add_child(_pit_label)
+	_pit_bar = ProgressBar.new()
+	_pit_bar.custom_minimum_size = Vector2(260, 10)
+	_pit_bar.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_pit_bar.show_percentage = false
+	_pit_bar.max_value = 1.0
+	_pit_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_pit_box.add_child(_pit_bar)
 	_weapon_textures = weapon_icons(resolver)
 	_tomb_texture = resolver.get_texture(AssetCatalog.TOMBSTONE)
 
@@ -313,6 +336,19 @@ func weapons_locked_shown() -> bool:
 ## M6: the car's condition (0..1). since_hit: seconds since it last took
 ## damage (the bar flashes); critical: low condition (pulsing red with a
 ## warning); retired: out of the race (DNF notice). show = false hides the row.
+## The pit line under the car ("" hides it); progress < 0 hides the bar.
+func update_pit(text: String, color: Color = HyperTheme.GOLD, progress: float = -1.0) -> void:
+	_pit_box.visible = text != "" and not _results_up
+	_pit_label.text = text
+	_pit_label.add_theme_color_override("font_color", color)
+	_pit_bar.visible = progress >= 0.0
+	_pit_bar.value = maxf(progress, 0.0)
+
+
+func pit_text() -> String:
+	return _pit_label.text if _pit_box.visible else ""
+
+
 func update_condition(fraction: float, since_hit: float = 999.0, critical: bool = false, retired: bool = false,
 		show: bool = true, own_car: bool = true) -> void:
 	_cond_row.visible = show
@@ -614,6 +650,7 @@ func configure_player_view(width: float, title: String, index: int = 0, right_ed
 	_message.visible = false
 	_banner.visible = false
 	_wreck_label.size.x = width
+	_pit_box.size.x = width
 	_out_label.size.x = width
 	_out_label.add_theme_font_size_override("font_size", 30)
 	_mode_label.text = title

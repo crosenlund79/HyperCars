@@ -14,6 +14,9 @@ var _front_total := 0
 var _rear_total := 0
 var _front_used := 0
 var _rear_used := 0
+## Pit-limiter override gestures, as a running total (exactly once each).
+var _pit_total := 0
+var _pit_used := 0
 
 
 func _init(p_racer_id: int) -> void:
@@ -25,9 +28,10 @@ func is_human() -> bool:
 
 
 ## One received command. Older ticks than the newest seen are ignored.
-func receive(tick: int, steer: float, fire: bool, front_total: int, rear_total: int) -> void:
+func receive(tick: int, steer: float, fire: bool, front_total: int, rear_total: int, pit_total: int = 0) -> void:
 	if tick <= _tick:
 		return
+	_pit_total = maxi(_pit_total, pit_total)
 	_tick = tick
 	_steer = clampf(steer, -1.0, 1.0)  # shaped / proportional on the client (SteerShaper)
 	_fire = fire
@@ -43,13 +47,16 @@ func last_tick() -> int:
 func begin_race(_seed: int) -> void:
 	_front_used = _front_total
 	_rear_used = _rear_total
+	_pit_used = _pit_total
 
 
 func drive(race: Node, _step: float) -> Dictionary:
 	var car: Car = race.cars[racer_id]
 	if race.session.racers[racer_id].is_finished():
 		return {"steer": 0.0, "fire": car.model.control_mode == CarModel.ControlMode.FIRE_TO_BRAKE}
-	return {"steer": _steer, "fire": _fire}
+	var over := _pit_total > _pit_used  # the host still decides whether it counts (PitWorld)
+	_pit_used = _pit_total
+	return {"steer": _steer, "fire": _fire, "pit_override": over}
 
 
 func discard_pending_shots() -> void:

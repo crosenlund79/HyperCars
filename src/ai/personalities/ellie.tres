@@ -24,3 +24,5 @@ grudge_time = 15.0
 hazard_lookahead = 0.8
 hazard_reaction = 0.22
 line_wander = 8.0
+pit_threshold = 0.38
+route_traffic_weight = 0.4

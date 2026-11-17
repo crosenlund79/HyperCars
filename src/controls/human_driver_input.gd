@@ -7,6 +7,8 @@ extends DriverInput
 var prefix := ""
 ## Steering builds up briefly so taps make small corrections (SteerShaper).
 var shaper := SteerShaper.new()
+## Double-tap the accelerator in the pit lane: override the pit limiter.
+var pit_taps := PitTapDetector.new()
 
 
 func _init(p_racer_id: int, p_prefix: String = "") -> void:
@@ -26,7 +28,11 @@ func drive(race: Node, step: float) -> Dictionary:
 		shaper.reset()
 		return {"steer": 0.0, "fire": car.model.control_mode == CarModel.ControlMode.FIRE_TO_BRAKE}
 	var share := car.model.velocity.length() / maxf(car.model.params.max_speed, 1.0)
-	return {"steer": shaper.step(PlayerControls.steer(prefix), share, step), "fire": PlayerControls.fire_held(prefix)}
+	var fire := PlayerControls.fire_held(prefix)
+	var override := false
+	if race.get("pits") != null:  # (the Battle Royale arena has no pit lane)
+		override = pit_taps.step(fire, race.pits.in_lane[racer_id] == 1, step, race.pit_rules.double_tap_window)
+	return {"steer": shaper.step(PlayerControls.steer(prefix), share, step), "fire": fire, "pit_override": override}
 
 
 ## Joystick Forward / Backwards presses, only while racing and not wrecked.

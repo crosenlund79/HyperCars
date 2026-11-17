@@ -11,8 +11,9 @@ extends RefCounted
 const CAR_FIELDS := 7     # x, y, heading, vx, vy, present, condition
 const RACER_FIELDS := 7   # laps, next checkpoint, progress, finish position, finish time, lap start, dnf
 const JUMP_FIELDS := 5    # car id, seconds in the air (-1 on the ground), lift, jump index, seconds left down
-## Snapshot layout: [tick, state, elapsed, cars, racers, finish order, combat ([] = no weapons), jumps].
-const SIZE := 8
+## Snapshot layout: [tick, state, elapsed, cars, racers, finish order, combat ([] = no weapons), jumps,
+## pit state per car (PitWorld.pack; empty without pit lanes)].
+const SIZE := 9
 
 
 static func capture(race: Node, tick: int) -> Array:
@@ -30,6 +31,7 @@ static func capture(race: Node, tick: int) -> Array:
 	var combat: CombatWorld = race.combat
 	snap.append(capture_combat(combat) if combat.enabled else [])
 	snap.append(capture_jumps(race.jumps))
+	snap.append(PackedInt32Array(race.pit_state) if race.pits != null else PackedInt32Array())
 	return snap
 
 
@@ -111,6 +113,8 @@ static func is_valid(snap: Array, car_count: int, racer_count: int) -> bool:
 		return false
 	if not snap[6] is Array or not snap[7] is PackedFloat32Array or snap[7].size() % JUMP_FIELDS != 0:
 		return false
+	if not snap[8] is PackedInt32Array or (snap[8].size() != 0 and snap[8].size() != car_count):
+		return false
 	for k in range(0, snap[7].size(), JUMP_FIELDS):
 		var id := int(snap[7][k])
 		var j := int(snap[7][k + 3])
@@ -165,6 +169,7 @@ static func apply_race(race: Node, snap: Array) -> void:
 	for id in snap[5]:
 		order.append(id)
 	session.finish_order = order
+	race.pit_state = PackedInt32Array(snap[8])  # the host's pit state (HUD, the client's own limiter)
 
 
 static func apply_combat(combat: CombatWorld, c: Array) -> void:

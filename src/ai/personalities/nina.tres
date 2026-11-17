@@ -27,3 +27,7 @@ hazard_reaction = 0.08
 line_wander = 4.0
 overcommit_chance = 0.03
 overcommit_extra = 0.06
+pit_threshold = 0.3
+pit_stay_out_chance = 0.3
+pit_speeding = 0.03
+route_traffic_weight = 0.6

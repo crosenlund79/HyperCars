@@ -39,11 +39,19 @@ var centerline := PackedVector2Array()
 var checkpoint_samples := PackedInt32Array()
 ## Half the drivable width at each centreline sample (narrow sections).
 var half_widths := PackedFloat32Array()
+## Branches (pit lanes, split sections): the road's half width on either side
+## per sample (equal to half_widths without branches).
+var left_widths := PackedFloat32Array()
+var right_widths := PackedFloat32Array()
 ## Centreline as a measurable path (race progress, AI navigation).
 var path: ClosedPath
 
 
+var _resolver: AssetResolver
+
+
 func build(resolver: AssetResolver, p_theme: TrackTheme = null) -> void:
+	_resolver = resolver
 	theme = p_theme if p_theme != null else TrackTheme.load_variant(1)
 	for child in get_children():
 		child.free()
@@ -52,11 +60,14 @@ func build(resolver: AssetResolver, p_theme: TrackTheme = null) -> void:
 	checkpoint_samples = layout.checkpoint_sample_indices(centerline.size(), centerline)
 	var half := layout.road_width * 0.5
 	half_widths = layout.half_widths(centerline)
+	var sides := layout.side_widths(centerline)
+	left_widths = sides[0]
+	right_widths = sides[1]
 	var left_edge := TrackLayout.offset_line(centerline, -half)
 	var right_edge := TrackLayout.offset_line(centerline, half)
-	if not layout.narrow_sections.is_empty():
-		left_edge = TrackLayout.offset_line_by(centerline, half_widths, -1.0)
-		right_edge = TrackLayout.offset_line_by(centerline, half_widths, 1.0)
+	if not layout.narrow_sections.is_empty() or not layout.branches.is_empty():
+		left_edge = TrackLayout.offset_line_by(centerline, left_widths, -1.0)
+		right_edge = TrackLayout.offset_line_by(centerline, right_widths, 1.0)
 	_build_ground(resolver.get_texture(theme.asset(AssetCatalog.GRASS)))
 	_build_road(resolver.get_texture(theme.asset(AssetCatalog.TARMAC)), left_edge, right_edge)
 	for node_name in ["Ground", "Road", "BridgeDeck"]:  # biome tints (white = unchanged)
@@ -69,6 +80,8 @@ func build(resolver: AssetResolver, p_theme: TrackTheme = null) -> void:
 		_build_bridge_shadow(half + AssetCatalog.SPECS[theme.asset(AssetCatalog.WALL)].display_size.y)
 	if jumps_enabled and layout.has_jumps():
 		_build_jumps(half)
+	if not layout.branches.is_empty():
+		_build_branches(resolver.get_texture(theme.asset(AssetCatalog.WALL)))
 	_build_checkpoints()
 
 
@@ -167,9 +180,9 @@ func _build_walls(texture: Texture2D, half: float, left_edge: PackedVector2Array
 	# Visual barriers sit just outside the collision faces so the car meets their inner edge.
 	for side in [-1.0, 1.0]:
 		var points := TrackLayout.offset_line(centerline, side * (half + wall_width * 0.5))
-		if not layout.narrow_sections.is_empty():
+		if not layout.narrow_sections.is_empty() or not layout.branches.is_empty():
 			var out := PackedFloat32Array()
-			for h in half_widths:
+			for h in (left_widths if side < 0 else right_widths):
 				out.append(h + wall_width * 0.5)
 			points = TrackLayout.offset_line_by(centerline, out, side)
 		var line_name := "Barrier%s" % ("Left" if side < 0 else "Right")
@@ -477,12 +490,146 @@ func _build_checkpoints() -> void:
 		area.collision_layer = 0
 		area.collision_mask = CAR_LAYER
 		area.monitorable = false
-		area.position = t.origin
+		# the gate spans the whole road here, every lane of a branch included
+		var i := checkpoint_samples[c]
+		var lw: float = left_widths[i] if not left_widths.is_empty() else layout.road_width * 0.5
+		var rw: float = right_widths[i] if not right_widths.is_empty() else layout.road_width * 0.5
+		var right := Vector2(-sin(t.get_rotation()), cos(t.get_rotation()))
+		area.position = t.origin + right * (rw - lw) * 0.5
 		area.rotation = t.get_rotation()
 		var shape := RectangleShape2D.new()
-		shape.size = Vector2(CHECKPOINT_DEPTH, layout.road_width + 40.0)
+		shape.size = Vector2(CHECKPOINT_DEPTH, maxf(layout.road_width, lw + rw) + 40.0)
 		var cs := CollisionShape2D.new()
 		cs.shape = shape
 		area.add_child(cs)
 		area.body_entered.connect(func(body: Node2D) -> void: checkpoint_reached.emit(c, body))
 		add_child(area)
+
+
+# ------------------------------------------------------------- branches
+
+const DIVIDER_FILL := Color(0.42, 0.4, 0.37)
+const PIT_MARK := Color(1.0, 0.86, 0.3, 0.9)
+const PIT_LINE := Color(1.0, 1.0, 1.0, 0.75)
+
+
+## Dividers (solid islands, collision on the ground level) and the pit lane's
+## markings: entry / exit lines, the PIT lettering and the service box.
+func _build_branches(wall_tex: Texture2D) -> void:
+	var node := Node2D.new()
+	node.name = "Branches"
+	node.z_index = 0
+	add_child(node)
+	var body := StaticBody2D.new()
+	body.name = "Dividers"
+	body.collision_layer = WALL_LAYER
+	body.collision_mask = 0
+	add_child(body)
+	var wall_width: float = AssetCatalog.SPECS[theme.asset(AssetCatalog.WALL)].display_size.y
+	for k in layout.branches.size():
+		var b: Dictionary = layout.branches[k]
+		var outline := divider_outline(k)
+		if outline.size() < 3:
+			continue
+		var segs := PackedVector2Array()
+		for i in outline.size():
+			segs.append(outline[i])
+			segs.append(outline[(i + 1) % outline.size()])
+		var shape := ConcavePolygonShape2D.new()
+		shape.segments = segs
+		var cs := CollisionShape2D.new()
+		cs.shape = shape
+		body.add_child(cs)
+		var fill := Polygon2D.new()
+		fill.name = "Divider%d" % k
+		fill.polygon = outline
+		fill.color = DIVIDER_FILL * theme.road_tint
+		node.add_child(fill)
+		var edge := _barrier_line("DividerWall%d" % k, outline, true, wall_width * 0.6, wall_tex)
+		node.add_child(edge)
+		if b.kind == "pit":
+			_build_pit_marks(node, b)
+
+
+## Closed outline of branch k's divider (world points), empty if none.
+func divider_outline(k: int) -> PackedVector2Array:
+	var b: Dictionary = layout.branches[k]
+	var left := PackedVector2Array()
+	var right := PackedVector2Array()
+	var s: float = float(b.from) + float(b.ramp)
+	var end: float = float(b.to) - float(b.ramp)
+	while s <= end + 0.01:
+		var d := layout.divider_at(s, path.length)
+		if d != Vector2.INF:
+			var t := path.tangent_at(s)
+			var r := Vector2(-t.y, t.x)
+			left.append(path.point_at(s) + r * d.x)
+			right.append(path.point_at(s) + r * d.y)
+		s += 10.0
+	var out := PackedVector2Array(left)
+	right.reverse()
+	out.append_array(right)
+	return out
+
+
+func _build_pit_marks(node: Node2D, b: Dictionary) -> void:
+	var side := float(b.side)
+	# the PIT sign beside the entrance, behind the barrier on the pit side
+	var sign_tex: Texture2D = _resolver.get_texture(theme.asset(AssetCatalog.PIT_SIGN)) if _resolver != null else null
+	if sign_tex != null:
+		var at: float = float(b.from) - 60.0
+		var st := path.tangent_at(at)
+		var sr := Vector2(-st.y, st.x) * side
+		var sign := Sprite2D.new()
+		sign.name = "PitSign"
+		sign.texture = sign_tex
+		sign.scale = AssetCatalog.scale_for(sign_tex, AssetCatalog.SPECS[theme.asset(AssetCatalog.PIT_SIGN)].display_size)
+		var wall_w: float = AssetCatalog.SPECS[theme.asset(AssetCatalog.WALL)].display_size.y
+		sign.position = path.point_at(at) + sr * (layout.side_widths_at(at, path.length).y if side > 0 else layout.side_widths_at(at, path.length).x) + sr * (wall_w + 34.0)
+		sign.rotation = st.angle()
+		sign.z_index = 2
+		node.add_child(sign)
+	var box: float = b.box
+	var lane_mid := func(s: float) -> float:
+		var d := layout.divider_at(s, path.length)
+		var w := layout.side_widths_at(s, path.length)
+		return ((d.y + w.y) * 0.5) if side > 0 else ((d.x - w.x) * 0.5)
+	# service box: a yellow frame with a white stop bar
+	var half_len: float = float(b.box_length) * 0.5
+	var lane_w: float = float(b.lane)
+	var frame := Line2D.new()
+	frame.name = "ServiceBox"
+	frame.width = 4.0
+	frame.default_color = PIT_MARK
+	frame.closed = true
+	var pts := PackedVector2Array()
+	for corner in [[-1, -1], [1, -1], [1, 1], [-1, 1]]:
+		var s: float = box + corner[0] * half_len
+		var t := path.tangent_at(s)
+		var r := Vector2(-t.y, t.x)
+		pts.append(path.point_at(s) + r * (lane_mid.call(s) + corner[1] * (lane_w * 0.5 - 6.0)))
+	frame.points = pts
+	node.add_child(frame)
+	# PIT lettering on the lane just after the divider's nose, and the limiter lines
+	var start: float = float(b.from) + float(b.ramp) + TrackLayout.DIVIDER_NOSE + 40.0
+	var end: float = float(b.to) - float(b.ramp) - TrackLayout.DIVIDER_NOSE
+	for at in [start - 30.0, end]:
+		var t := path.tangent_at(at)
+		var r := Vector2(-t.y, t.x)
+		var m: float = lane_mid.call(at)
+		var line := Line2D.new()
+		line.width = 6.0
+		line.default_color = PIT_LINE
+		line.points = PackedVector2Array([path.point_at(at) + r * (m - lane_w * 0.5 + 4.0), path.point_at(at) + r * (m + lane_w * 0.5 - 4.0)])
+		node.add_child(line)
+	var label := Label.new()
+	label.name = "PitLettering"
+	label.text = "PIT"
+	label.add_theme_font_size_override("font_size", 30)
+	label.add_theme_color_override("font_color", Color(1, 1, 1, 0.8))
+	var lt := path.tangent_at(start + 40.0)
+	label.position = path.point_at(start + 40.0) + Vector2(-lt.y, lt.x) * lane_mid.call(start + 40.0)
+	label.rotation = lt.angle() + PI * 0.5 * -side
+	label.pivot_offset = Vector2(24, 20)
+	label.position -= label.pivot_offset
+	node.add_child(label)

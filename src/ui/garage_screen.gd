@@ -141,7 +141,8 @@ func refresh() -> void:
 		_last.text = "Starting money. Top five finishers win prize money; longer races pay more."
 	else:
 		_last.text = "Last race: %s   prize $%d   car %d%% -> %d%%" % ["DNF" if garage.last_position <= 0 else _ordinal(garage.last_position),
-			garage.last_prize, roundi(garage.last_condition_before + garage.last_patch), roundi(garage.condition)]
+			garage.last_prize, roundi(garage.last_condition_before + garage.last_patch), roundi(garage.condition)] \
+			+ ("   pit fine $%d" % garage.last_fine if garage.last_fine > 0 else "")
 	_refresh_car()
 	var front := garage.equipped[PlayerGarage.FRONT]
 	var rear := garage.equipped[PlayerGarage.REAR]

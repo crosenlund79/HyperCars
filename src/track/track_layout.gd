@@ -48,6 +48,17 @@ extends Resource
 ## along the centreline; the road tapers from road_width to `width` over
 ## NARROW_TAPER at either end. Empty = the same width everywhere.
 @export var narrow_sections: PackedVector3Array = PackedVector3Array()
+## Optional branches (2026-11-17): stretches where the road divides around a
+## solid divider and rejoins, all in the driving direction. Each Dictionary:
+##   kind "pit": a pit lane beside the racing road (side +1 right / -1 left of
+##     the driving direction): keys from, to (px along the centreline: where
+##     the road starts to widen and where it is back to normal), ramp (widening
+##     length at either end), side, lane (pit lane width), divider (divider
+##     width), box (service box centre, px), box_length.
+##   kind "split": two racing lanes, keys from, to, ramp, lanes [left width,
+##     right width], divider.
+## Lap progress is the centreline projection, so every lane counts the same.
+@export var branches: Array[Dictionary] = []
 ## Display name of the circuit (empty = unnamed; DevLayouts names legacy ones).
 @export var display_name := ""
 
@@ -107,6 +118,204 @@ func validate() -> PackedStringArray:
 		errors.append_array(validate_elevation())
 		errors.append_array(validate_jumps())
 		errors.append_array(validate_narrow_sections())
+		errors.append_array(validate_branches())
+	return errors
+
+
+# ------------------------------------------------------------- branches
+
+## A divider ends in a point over this length (px) at either end.
+const DIVIDER_NOSE := 70.0
+## Room kept between a branch's outer edge and any other stretch of road.
+const BRANCH_CLEARANCE := 80.0
+
+
+## Index of the branch covering arc distance s (from .. to), -1 if none.
+func branch_at(s: float, lap_length: float) -> int:
+	var w := fposmod(s, lap_length)
+	for k in branches.size():
+		var b: Dictionary = branches[k]
+		if w >= float(b.from) and w <= float(b.to):
+			return k
+	return -1
+
+
+## How far the road has opened up at s within branch b (0 .. 1).
+func branch_open(b: Dictionary, s: float, lap_length: float) -> float:
+	var w := fposmod(s, lap_length)
+	var from: float = b.from
+	var to: float = b.to
+	var ramp: float = b.ramp
+	if w <= from or w >= to:
+		return 0.0
+	return smoothstep(0.0, 1.0, clampf(minf(w - from, to - w) / ramp, 0.0, 1.0))
+
+
+## Extra width a pit branch adds on [left, right] when fully open.
+static func branch_extra(b: Dictionary) -> Vector2:
+	var add: float = float(b.divider) + float(b.lane)
+	return Vector2(add, 0.0) if int(b.side) < 0 else Vector2(0.0, add)
+
+
+## Half widths [left, right] of the drivable road at s (narrow sections and
+## branches included).
+func side_widths_at(s: float, lap_length: float) -> Vector2:
+	var h := half_width_at(s, lap_length)
+	var k := branch_at(s, lap_length)
+	if k < 0:
+		return Vector2(h, h)
+	var b: Dictionary = branches[k]
+	var o := branch_open(b, s, lap_length)
+	if b.kind == "pit":
+		return Vector2(h, h) + branch_extra(b) * o
+	var full := (float(b.lanes[0]) + float(b.divider) + float(b.lanes[1])) * 0.5
+	return Vector2.ONE * lerpf(h, maxf(h, full), o)
+
+
+## The divider at s as lateral offsets Vector2(from, to) (negative = left), or
+## Vector2.INF where there is none. It runs where the road is fully open and
+## narrows to a point (its nose) over DIVIDER_NOSE at either end.
+func divider_at(s: float, lap_length: float) -> Vector2:
+	var k := branch_at(s, lap_length)
+	if k < 0:
+		return Vector2.INF
+	var b: Dictionary = branches[k]
+	var w := fposmod(s, lap_length)
+	var start: float = float(b.from) + float(b.ramp)
+	var end: float = float(b.to) - float(b.ramp)
+	if w < start or w > end:
+		return Vector2.INF
+	var full := _divider_full(b, lap_length)
+	var nose := clampf(minf(w - start, end - w) / DIVIDER_NOSE, 0.0, 1.0)
+	var mid := (full.x + full.y) * 0.5
+	var half_w := (full.y - full.x) * 0.5 * nose
+	return Vector2(mid - half_w, mid + half_w)
+
+
+func _divider_full(b: Dictionary, lap_length: float) -> Vector2:
+	var h := half_width_at(float(b.from), lap_length)
+	if b.kind == "pit":
+		return Vector2(h, h + float(b.divider)) if int(b.side) > 0 else Vector2(-h - float(b.divider), -h)
+	var full := (float(b.lanes[0]) + float(b.divider) + float(b.lanes[1])) * 0.5
+	var d0 := -full + float(b.lanes[0])
+	return Vector2(d0, d0 + float(b.divider))
+
+
+## Lateral bounds Vector2(lo, hi) of one route at s: route 0 = the racing
+## road (a split's left lane), route 1 = a split's right lane or the pit lane.
+## Outside branches (and in the ramps, before the divider) the whole road.
+func route_bounds(s: float, lap_length: float, route: int) -> Vector2:
+	var sw := side_widths_at(s, lap_length)
+	var lo := -sw.x
+	var hi := sw.y
+	var k := branch_at(s, lap_length)
+	if k < 0:
+		return Vector2(lo, hi)
+	var b: Dictionary = branches[k]
+	var d := _divider_full(b, lap_length)
+	var o := branch_open(b, s, lap_length)
+	if b.kind == "pit":
+		var h := half_width_at(s, lap_length)
+		if route == 0:  # the racing road never opens up on the pit side
+			return Vector2(lo, h) if int(b.side) > 0 else Vector2(-h, hi)
+		# the pit route moves over steadily along the whole entry ramp (and back
+		# along the exit ramp), not in a late swerve at the divider's nose
+		var w := fposmod(s, lap_length)
+		var lin := clampf(minf(w - float(b.from), float(b.to) - w) / float(b.ramp), 0.0, 1.0)
+		return Vector2(lerpf(-h, d.y, lin), hi) if int(b.side) > 0 else Vector2(lo, lerpf(h, d.x, lin))
+	if route == 0:
+		return Vector2(lo, lerpf(hi, d.x, o))
+	return Vector2(lerpf(lo, d.y, o), hi)
+
+
+## Is a point (arc distance s, lateral offset) inside the pit lane proper (the
+## stretch beside the divider, where the limiter applies)?
+func in_pit_lane(s: float, lap_length: float, lateral: float) -> bool:
+	var k := branch_at(s, lap_length)
+	if k < 0 or branches[k].kind != "pit":
+		return false
+	var d := divider_at(s, lap_length)
+	if d == Vector2.INF:
+		return false
+	var mid := (d.x + d.y) * 0.5
+	return lateral > mid if int(branches[k].side) > 0 else lateral < mid
+
+
+## The pit branch index at s and whether the point is in its service box.
+func in_service_box(s: float, lap_length: float, lateral: float) -> bool:
+	if not in_pit_lane(s, lap_length, lateral):
+		return false
+	var b: Dictionary = branches[branch_at(s, lap_length)]
+	return absf(fposmod(s, lap_length) - float(b.box)) <= float(b.box_length) * 0.5
+
+
+## Is a point off the drivable road or on a divider (missiles stop there)?
+func road_blocked(s: float, lap_length: float, lateral: float) -> bool:
+	var sw := side_widths_at(s, lap_length)
+	if lateral < -sw.x or lateral > sw.y:
+		return true
+	var d := divider_at(s, lap_length)
+	return d != Vector2.INF and lateral > d.x and lateral < d.y
+
+
+## Index of the pit branch (-1 = this circuit has no pit lane).
+func pit_branch() -> int:
+	for k in branches.size():
+		if branches[k].kind == "pit":
+			return k
+	return -1
+
+
+## Problems with the branches (empty when valid): on the ground, within the
+## lap and clear of the grid, away from jumps, crossings, narrow sections, each
+## other and every other stretch of road.
+func validate_branches() -> PackedStringArray:
+	var errors := PackedStringArray()
+	if branches.is_empty():
+		return errors
+	var c := sample_centerline()
+	var path := ClosedPath.new(c)
+	var tans := tangents(c)
+	for k in branches.size():
+		var b: Dictionary = branches[k]
+		var from: float = b.get("from", -1.0)
+		var to: float = b.get("to", -1.0)
+		if not ["pit", "split"].has(b.get("kind", "")):
+			errors.append("branch %d: kind must be pit or split" % k)
+			continue
+		if from < 0.0 or to > path.length - grid_extent() or to - from < 2.0 * float(b.ramp) + 2.0 * DIVIDER_NOSE + 100.0:
+			errors.append("branch %d must lie within the lap, clear of the grid, longer than its ramps" % k)
+		if b.kind == "pit" and (float(b.box) - float(b.box_length) * 0.5 < from + float(b.ramp) + DIVIDER_NOSE
+				or float(b.box) + float(b.box_length) * 0.5 > to - float(b.ramp) - DIVIDER_NOSE):
+			errors.append("branch %d: the service box must lie beside the divider" % k)
+		for m in range(k + 1, branches.size()):
+			if from < float(branches[m].to) and float(branches[m].from) < to:
+				errors.append("branches %d and %d overlap" % [k, m])
+		for n in narrow_sections:
+			if from < n.y + NARROW_TAPER and n.x - NARROW_TAPER < to:
+				errors.append("branch %d overlaps a narrow section" % k)
+		for j in jumps:
+			if from < j.x + j.z + JUMP_RUNWAY and j.x - j.y - JUMP_RUNWAY < to:
+				errors.append("branch %d overlaps a jump" % k)
+		var s := from
+		while s <= to:
+			if level_at(s, path.length) != 0:
+				errors.append("branch %d must be on the ground level" % k)
+				break
+			# the opened road keeps clear of every other stretch of road
+			var sw := side_widths_at(s, path.length)
+			var i := path.index_at(s)
+			var right := Vector2(-tans[i].y, tans[i].x)
+			for edge in [path.point_at(s) - right * sw.x, path.point_at(s) + right * sw.y]:
+				for q in c.size():
+					var ds := absf(wrapf(path.cumulative[q] - s, -path.length * 0.5, path.length * 0.5))
+					if ds > 900.0 and edge.distance_to(c[q]) < road_width * 0.5 + BRANCH_CLEARANCE:
+						errors.append("branch %d at %.0f comes too close to the road at %.0f" % [k, s, path.cumulative[q]])
+						s = to + 1.0
+						break
+				if s > to:
+					break
+			s += sample_spacing * 2.0
 	return errors
 
 
@@ -122,6 +331,18 @@ func half_width_at(s: float, lap_length: float) -> float:
 			var k := smoothstep(0.0, 1.0, clampf(minf(w - n.x, n.y - w) / NARROW_TAPER, 0.0, 1.0))
 			width = minf(width, lerpf(road_width, n.z, k))
 	return width * 0.5
+
+
+## side_widths_at for every centreline sample: [left widths, right widths].
+func side_widths(centerline: PackedVector2Array) -> Array[PackedFloat32Array]:
+	var left := PackedFloat32Array()
+	var right := PackedFloat32Array()
+	var path := ClosedPath.new(centerline)
+	for i in centerline.size():
+		var w := side_widths_at(path.cumulative[i], path.length)
+		left.append(w.x)
+		right.append(w.y)
+	return [left, right]
 
 
 ## half_width_at for every centreline sample.

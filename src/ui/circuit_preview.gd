@@ -28,6 +28,8 @@ var _pts := PackedVector2Array()   # centred, scaled centreline (decimated)
 var _lift := PackedFloat32Array()  # 0..1 height per point
 var _gap := PackedByteArray()       # 1 = in a flyover jump's gap (no road)
 var _trees := PackedVector2Array()
+## Branches from the real geometry: [lane points (preview space), is_pit, box point].
+var _branches: Array = []
 var _radius := 1.0
 ## Fits the plate into the control (set each frame from its size).
 var _zoom := 1.0
@@ -71,6 +73,25 @@ func show_circuit(p_layout: TrackLayout, p_variant: int, p_night: bool) -> void:
 				in_gap = 1
 		_gap.append(in_gap)
 	_radius += 26.0
+	_branches.clear()
+	for k in layout.branches.size():
+		var b: Dictionary = layout.branches[k]
+		var lanes := [1] if b.kind == "pit" else [0, 1]
+		for lane in lanes:
+			var pts := PackedVector2Array()
+			var at: float = b.from
+			while at <= float(b.to) + 0.1:
+				var bd := layout.route_bounds(at, path.length, lane)
+				var t := path.tangent_at(at)
+				var q := path.point_at(at) + Vector2(-t.y, t.x) * (bd.x + bd.y) * 0.5
+				pts.append((q - centre) * scale_k)
+				at += 40.0
+			var box := Vector2.INF
+			if b.kind == "pit":
+				var bb := layout.route_bounds(float(b.box), path.length, 1)
+				var tb := path.tangent_at(float(b.box))
+				box = (path.point_at(float(b.box)) + Vector2(-tb.y, tb.x) * (bb.x + bb.y) * 0.5 - centre) * scale_k
+			_branches.append([pts, b.kind == "pit", box])
 	_trees.clear()
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(layout.resource_path) + variant
@@ -145,6 +166,17 @@ func _draw() -> void:
 	for i in n:
 		if _gap[i] == 1 and _gap[(i - 1 + n) % n] == 0:
 			draw_circle(_project(_pts[i], _lift[i]), 4.0, Color("f0c040"))
+	# pit lanes (thin) and split lanes, from the real geometry; the service box in gold
+	for br in _branches:
+		var pts: PackedVector2Array = br[0]
+		var lw := (3.0 if br[1] else 5.0) * w
+		for i in pts.size() - 1:
+			var a := _project(pts[i])
+			var b := _project(pts[i + 1])
+			draw_line(a, b, _shade(pal.edge), lw + 2.0 * w)
+			draw_line(a, b, _shade(pal.road), lw)
+		if br[1] and br[2] != Vector2.INF:
+			draw_circle(_project(br[2]), 2.6 * w, Color("f0c040"))
 	draw_circle(_project(_pts[0]), 3.5, Color.WHITE)
 	# faceted trees (drawn back to front)
 	var order := Array(_trees)

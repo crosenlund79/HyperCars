@@ -13,8 +13,8 @@ enum Role { HOST, CLIENT }
 enum Msg { WELCOME, HELLO, SETUP, READY, START, SNAP, INPUT, RESULTS, EVENTS, BYE, REJECT, JOINED }
 
 ## Wire protocol version and game build: both must match before a session starts.
-const PROTOCOL := 5  # 3: M6 condition / DNF in snapshots; 4: Weapons Hot lock; 5: J5 jumps
-const GAME_BUILD := "hypercars-r1"
+const PROTOCOL := 6  # 3: M6 condition / DNF in snapshots; 4: Weapons Hot lock; 5: J5 jumps; 6: pit lanes, proportional steering
+const GAME_BUILD := "hypercars-r2"
 
 
 ## Build string exchanged in WELCOME / HELLO. The track layout is not part of
@@ -198,7 +198,9 @@ func client_tick(_step: float) -> void:
 		var cmd := _local_command()
 		_record_prediction()
 		input_tick += 1
-		link.send([Msg.INPUT, input_tick, cmd.steer, cmd.fire, front_total, rear_total], false)
+		if cmd.get("pit_override", false):
+			pit_total += 1
+		link.send([Msg.INPUT, input_tick, cmd.steer, cmd.fire, front_total, rear_total, pit_total], false)
 		_drive_local_car(cmd)
 	_interpolate_cars()
 
@@ -252,6 +254,9 @@ func _drive_local_car(cmd: Dictionary) -> void:
 	if c.collision_mask != walls:
 		c.collision_mask = walls
 	c.active = true
+	# the pit limiter as the host has it (limiter on, or a penalty being served)
+	var st: int = race.pit_state[race.local_player_id] if race.local_player_id < race.pit_state.size() else 0
+	c.model.speed_cap = race.driving_params.max_speed * race.pit_rules.limiter_share if st & 5 != 0 else INF
 	if race.session.racers[race.local_player_id].is_finished():
 		c.steer = 0.0
 		c.fire = c.model.control_mode == CarModel.ControlMode.FIRE_TO_BRAKE
@@ -462,11 +467,21 @@ func _local_command() -> Dictionary:
 		rear_total += 1
 	var car := _local_car()
 	var share := car.model.velocity.length() / maxf(car.model.params.max_speed, 1.0) if car != null else 0.0
-	return {"steer": _shaper.step(PlayerControls.steer(), share, Car.FIXED_STEP), "fire": PlayerControls.fire_held()}
+	var fire := PlayerControls.fire_held()
+	var over := false
+	if car != null and race.track.layout.pit_branch() >= 0:
+		var p: Dictionary = race.track.path.project(car.global_position)
+		over = _pit_taps.step(fire, race.track.layout.in_pit_lane(p.distance, race.track.path.length, p.lateral),
+			Car.FIXED_STEP, race.pit_rules.double_tap_window)
+	return {"steer": _shaper.step(PlayerControls.steer(), share, Car.FIXED_STEP), "fire": fire, "pit_override": over}
 
 
 ## The client's own steering shaping (as for local players), sent as is.
 var _shaper := SteerShaper.new()
+## The client's pit-limiter override gesture, sent as a running total (like
+## weapon presses: exactly once on the host).
+var _pit_taps := PitTapDetector.new()
+var pit_total := 0
 
 
 func _push_snapshot(snap: Array) -> void:
@@ -581,12 +596,13 @@ func _on_message(from: int, msg: Array) -> void:
 	var state: int = race.session.state
 	match msg[0]:
 		Msg.INPUT:
-			if is_host() and valid(msg, [TYPE_INT, TYPE_FLOAT, TYPE_BOOL, TYPE_INT, TYPE_INT]) \
+			if is_host() and valid(msg, [TYPE_INT, TYPE_FLOAT, TYPE_BOOL, TYPE_INT, TYPE_INT, TYPE_INT]) \
 					and state != RaceSession.State.MODE_SELECT:
 				# presses can only grow, and by a plausible amount per message
 				var f := clampi(msg[4], 0, remote_input._front_total + 20)
 				var r := clampi(msg[5], 0, remote_input._rear_total + 20)
-				remote_input.receive(msg[1], msg[2], msg[3], f, r)
+				var p := clampi(msg[6], 0, remote_input._pit_total + 2)
+				remote_input.receive(msg[1], msg[2], msg[3], f, r, p)
 		Msg.READY:
 			if is_host() and valid(msg, [TYPE_BOOL, TYPE_INT]) and state == RaceSession.State.MODE_SELECT \
 					and msg[2] >= 0 and msg[2] <= 1:

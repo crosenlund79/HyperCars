@@ -25,3 +25,5 @@ hazard_lookahead = 0.6
 hazard_reaction = 0.3
 line_wander = 16.0
 line_wander_period = 4.5
+pit_speeding = 0.15
+route_whim = 0.3

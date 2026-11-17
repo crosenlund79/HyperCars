@@ -143,3 +143,14 @@ extends Resource
 @export var line_wander := 0.0
 @export var line_wander_period := 6.0
 
+## Track branches and pit stops (2026-11-17; neutral defaults, see personalities):
+## route choice at a split: noise in seconds, and seconds a car in a lane counts as.
+@export var route_whim := 0.15
+@export var route_traffic_weight := 0.25
+## Pit strategy: pits below this condition (share) with laps to go; chance of
+## staying out one more lap anyway; chance of deliberately overriding the pit
+## limiter on a stop (more when chasing or fighting for the podium late on).
+@export var pit_threshold := 0.35
+@export var pit_stay_out_chance := 0.0
+@export var pit_speeding := 0.02
+

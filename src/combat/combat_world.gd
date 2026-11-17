@@ -33,6 +33,9 @@ var layout: TrackLayout = null
 ## (J3) Cars may also carry `air` (flying over a jump): nothing on the ground
 ## meets them.
 var road_half_width := 75.0
+## Branches (pit lanes, split sections): the layout whose road edges and
+## dividers stop missiles; null = none (then road_half_width / narrow sections).
+var branch_layout: TrackLayout = null
 ## Per car: ammo [front, rear], cooldown, wreck and grace timers, counters.
 var ammo: Array = []
 var cooldown := PackedFloat32Array()
@@ -334,6 +337,8 @@ func _outside_road(p: Dictionary) -> bool:
 		return false
 	var proj := path.project(p.pos, p.get("hint", -1))
 	p["hint"] = proj.index
+	if branch_layout != null:  # widened road, solid dividers (and narrow sections)
+		return branch_layout.road_blocked(proj.distance, path.length, proj.lateral)
 	if layout != null and not layout.narrow_sections.is_empty():
 		return absf(proj.lateral) > layout.half_width_at(proj.distance, path.length)  # narrow sections
 	return absf(proj.lateral) > road_half_width

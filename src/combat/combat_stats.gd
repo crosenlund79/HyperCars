@@ -18,6 +18,8 @@ extends RefCounted
 const COLLISION := -1
 const ELIMINATED := -2
 const RETIRED := -3
+## Feed "weapon" for a pit-lane speeding ticket (no victim, no statistics).
+const TICKET := -4
 ## Seconds a car's last damaging contact counts as the cause of its retirement.
 const ATTRIBUTION_TIME := 4.0
 
@@ -85,6 +87,11 @@ func on_retired(victim: int, time: float, by_weapon: bool) -> void:
 		tombstones[by] += 1
 	feed.append({"attacker": by, "victim": victim, "weapon": COLLISION if by >= 0 else RETIRED,
 		"tombstone": true, "time": time})
+
+
+## A pit-lane speeding ticket: in the feed (offender only), no statistics.
+func on_ticket(offender: int, time: float) -> void:
+	feed.append({"attacker": offender, "victim": -1, "weapon": TICKET, "tombstone": false, "time": time})
 
 
 ## A Knockout elimination by position: in the feed, no statistics.

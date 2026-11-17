@@ -13,6 +13,10 @@ var heading := 0.0
 var velocity := Vector2.ZERO
 ## Extra rotation (rad/s) from being struck by another car; fades quickly.
 var yaw_rate := 0.0
+## Pit limiter (2026-11-17): top speed while set (INF = none). Above it the
+## car slows smoothly (LIMITER_DECEL_SHARE of its braking), never abruptly.
+var speed_cap := INF
+const LIMITER_DECEL_SHARE := 0.6
 
 
 func _init(p_params: DrivingParams = null, p_mode: ControlMode = ControlMode.FIRE_TO_ACCELERATE) -> void:
@@ -59,11 +63,18 @@ func update(delta: float, steer: float, fire: bool) -> void:
 	var fwd := velocity.dot(fwd_dir)
 	var side := velocity.dot(side_dir)
 
-	if is_accelerating(fire):
-		if fwd < params.max_speed:
-			fwd = minf(fwd + params.acceleration * delta, params.max_speed)
+	if fwd > speed_cap:  # the pit limiter (only ever set in a pit lane / penalty): slow down smoothly
+		var accelerating := is_accelerating(fire)
+		var dec := params.brake_deceleration * LIMITER_DECEL_SHARE
+		if not accelerating:
+			dec = maxf(dec, braking_deceleration())  # braking anyway: whichever is stronger
+		fwd = maxf(speed_cap if accelerating else 0.0, fwd - dec * delta)
+	elif is_accelerating(fire):
+		var top := minf(params.max_speed, speed_cap)
+		if fwd < top:
+			fwd = minf(fwd + params.acceleration * delta, top)
 		else:
-			fwd = move_toward(fwd, params.max_speed, braking_deceleration() * delta)
+			fwd = move_toward(fwd, top, braking_deceleration() * delta)
 	else:
 		fwd = move_toward(fwd, 0.0, braking_deceleration() * delta)
 
