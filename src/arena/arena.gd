@@ -20,7 +20,7 @@ func build(resolver: AssetResolver, theme: TrackTheme) -> void:
 	outside.color = theme.ground_tint
 	add_child(outside)
 	var floor := _textured(tarmac, layout.boundary)
-	floor.color = Color(0.86, 0.78, 0.66) * theme.road_tint  # a dusty, worn yard
+	floor.color = Color(0.96, 0.9, 0.8) * theme.road_tint  # a dusty, worn yard
 	add_child(floor)
 	var body := StaticBody2D.new()
 	body.name = "Walls"
@@ -98,9 +98,12 @@ func build(resolver: AssetResolver, theme: TrackTheme) -> void:
 			g.position = Vector2(x, y)
 			g.rotation = 0.0 if y < 0.0 else PI
 			add_child(g)
-	for spot in [[Vector2(-1080, -680), Vector2(-1, -1)], [Vector2(1080, -680), Vector2(1, -1)],
-			[Vector2(-1080, 680), Vector2(-1, 1)], [Vector2(1080, 680), Vector2(1, 1)],
-			[Vector2(0, -890), Vector2(0, -1)], [Vector2(0, 890), Vector2(0, 1)]]:
+	for spot in [[Vector2(-1060, -665), Vector2(-1, -1)], [Vector2(1060, -665), Vector2(1, -1)],
+			[Vector2(-1060, 665), Vector2(-1, 1)], [Vector2(1060, 665), Vector2(1, 1)],
+			[Vector2(0, -838), Vector2(0, -1)], [Vector2(0, 838), Vector2(0, 1)],
+			[Vector2(-560, -838), Vector2(0, -1)], [Vector2(560, -838), Vector2(0, -1)],
+			[Vector2(-560, 838), Vector2(0, 1)], [Vector2(560, 838), Vector2(0, 1)],
+			[Vector2(-1238, 0), Vector2(-1, 0)], [Vector2(1238, 0), Vector2(1, 0)]]:  # on the wall, lighting the yard
 		lamp_spots.append([spot[0], (spot[1] as Vector2).normalized()])
 
 

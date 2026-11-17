@@ -36,8 +36,11 @@ func refresh(points_before: Dictionary, scoring: PackedInt32Array, standings: Ar
 		var r := standings[k]
 		var pts := 0 if r.dnf or k >= scoring.size() else scoring[k]
 		lines.append([r.id, int(points_before.get(r.id, 0)) + pts, pts, r.is_done()])
+	var final := lines.all(func(l: Array) -> bool: return l[3])
+	_title.text = "CHAMPIONSHIP  -  AFTER THIS ROUND" if final else "CHAMPIONSHIP  -  IF IT ENDED NOW"
 	lines.sort_custom(func(a: Array, b: Array) -> bool: return a[1] > b[1] if a[1] != b[1] else a[0] < b[0])
 	for c in _rows.get_children():
+		_rows.remove_child(c)  # (now: the panel's size must not count the old rows)
 		c.queue_free()
 	for k in lines.size():
 		var l: Array = lines[k]

@@ -1340,9 +1340,11 @@ func _watch_applies() -> bool:
 	return watch_enabled and not session.spectator and human_count == 1 and net == null
 
 
-## The local player is done (finished or out) and rivals are still racing.
+## The local player is done (finished or out) and rivals are still racing
+## (also in the frame before the watch has started).
 func _watch_active() -> bool:
-	return _watch_started and not session.all_finished()
+	return (_watch_started or (_watch_applies() and session.state == RaceSession.State.FINISHED)) \
+		and not session.all_finished()
 
 
 ## Celebration countdown, live spectating, the end of the watch; a stuck
@@ -1364,6 +1366,8 @@ func _watch_tick(step: float) -> void:
 			hud.show_caption("%s PLACE - YOU FINISHED!" % Hud.ordinal(me.finish_position).to_upper(),
 				"RACE CONTINUES - WATCH YOUR RIVALS!")
 		hud.set_watch_hint("Fire: watch now      Tab: skip to the results")
+		hud.hide_message()  # nothing of the results before everyone is in
+		hud.set_results_up(false)
 	if session.all_finished():
 		_end_watch()
 		return
@@ -1439,7 +1443,9 @@ func knockout_text() -> String:
 
 ## The provisional championship standings, while watching a championship round.
 func _refresh_watch_panel() -> void:
-	var show := watching and championship_round >= 0 and not championship_scoring.is_empty()
+	# while watching, and with the final results (the standings after this round)
+	var show := championship_round >= 0 and not championship_scoring.is_empty() \
+		and (watching or (session.state == RaceSession.State.FINISHED and session.all_finished() and not session.spectator))
 	if not show:
 		if provisional_panel != null:
 			provisional_panel.visible = false
