@@ -32,11 +32,13 @@ var local_ids: Array[int] = [RaceSession.PLAYER_ID]
 var _squeals: Array[AudioStreamPlayer2D] = []
 var _impacts: Array[AudioStreamPlayer2D] = []
 var _next_impact := 0
-var _music: AudioStreamPlayer
+## The game's music (handed over by the scene, so it never restarts between
+## menus and races); a bare race scene gets its own.
+var music: MusicPlayer
+var _own_music := false
 var _ambience: AudioStreamPlayer
 var _cue: AudioStreamPlayer
 var _resolver: AssetResolver
-var _music_name := ""
 ## Own generator: presentation never touches the global or race random state.
 var _rng := RandomNumberGenerator.new()
 ## Fast simulation: engines and squeal are turned down (sounds are not sped up).
@@ -65,20 +67,23 @@ func setup(cars: Array[Car], resolver: AssetResolver, sound_parent: Node2D) -> v
 	for c in cars:
 		c.wall_hit.connect(func(_n: Vector2, speed: float) -> void: _impact(c, speed, "vehicles/impact_wall"))
 		c.car_hit.connect(func(_o: Car, speed: float) -> void: _impact(c, speed, "vehicles/impact_car"))
-	_music = _player(resolver, "", "Music", -4.0)
+	var shared: Variant = sound_parent.get("music")
+	if shared is MusicPlayer:
+		music = shared
+	else:
+		music = MusicPlayer.new()
+		music.name = "Music"
+		add_child(music)
+		_own_music = true
+	music.resolver = resolver
 	_ambience = _player(resolver, "ambience/ambience", "Effects", -10.0)
 	_cue = _player(resolver, "", "Effects", -2.0)
 	_ambience.play()
 
 
-## "menu" or "race".
+## "menu" or "race" (fades over; the same piece keeps playing).
 func play_music(mood: String) -> void:
-	var logical := "music/music_" + mood
-	if logical == _music_name and _music.playing:
-		return
-	_music_name = logical
-	_music.stream = _resolver.get_audio(logical, true)
-	_music.play()
+	music.play("music/music_" + mood)
 
 
 func play_cue(logical: String) -> void:
@@ -123,7 +128,9 @@ func _exit_tree() -> void:
 	for p in _engines + _loads + _squeals + _impacts:
 		p.stop()
 		p.stream = null
-	for p in [_music, _ambience, _cue]:
+	if _own_music and music != null:
+		music.stop(0.0)
+	for p in [_ambience, _cue]:
 		if p != null:
 			p.stop()
 			p.stream = null

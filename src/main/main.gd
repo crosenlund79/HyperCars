@@ -55,6 +55,9 @@ const LAP_OPTIONS: Array[int] = [3, 7, 20, 50]
 @export_range(2, 16) var fast_multiplier := 4
 ## Scenery, effects and audio. Off = bare race (used to prove they change nothing).
 @export var presentation_enabled := true
+## The game's music player (set by the game root before _ready; null: the
+## race audio makes its own).
+var music: MusicPlayer = null
 ## Esc on the grid asks to leave (set by the title screen).
 @export var allow_exit := false
 @export var weapon_rules: WeaponRules = preload("res://src/combat/default_weapon_rules.tres")

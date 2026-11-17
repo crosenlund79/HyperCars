@@ -35,6 +35,8 @@ var garage_screen: GarageScreen
 ## Achievements (M3.5): one persistent store for the installation, the toast.
 var achievements: AchievementStore
 var toast: AchievementToast
+## The music for the whole session (menus and races hand it over, no restarts).
+var music: MusicPlayer
 ## Championship: the won rival cars (saved), the running championship (null
 ## outside one), its screen, the player's control choice for its rounds, and
 ## the last reward (rival id, -1 none) for tests.
@@ -63,6 +65,11 @@ func _ready() -> void:
 	achievements.unlocked.connect(toast.show_unlock)
 	title = TitleScreen.new()
 	title.name = "Title"
+	music = MusicPlayer.new()
+	music.name = "Music"
+	add_child(music)
+	music.resolver = resolver
+	title.music = music
 	title.achievements = achievements
 	cars = CarCollection.new(cars_path)
 	title.cars = cars
@@ -125,6 +132,7 @@ func start_race(choice: int, with_garage: bool = false, devices: Array[int] = []
 	title.hide_title()
 	race = MAIN_SCENE.instantiate()
 	race.allow_exit = true
+	race.music = music
 	var two := devices.size() == 2 or net != null
 	if net != null:
 		race.human_count = 2
@@ -182,6 +190,7 @@ func start_race(choice: int, with_garage: bool = false, devices: Array[int] = []
 
 func _open_garage() -> void:
 	garage_screen.open()
+	music.play("music/music_menu")
 
 
 func _close_garage(start: bool) -> void:
@@ -219,6 +228,7 @@ func start_battle(choice: int) -> void:
 	b.night = title.night
 	b.player_car = title.player_car if cars.owns(title.player_car) else CarCollection.OWN_CAR
 	b.displaced = cars.owned.duplicate()
+	b.music = music
 	b.base_seed = reward_rng.randi()
 	race = b
 	add_child(b)
@@ -263,6 +273,7 @@ func _on_round_done(order: Array, dnf: Array) -> void:
 	race.queue_free()
 	race = null
 	champ_screen.set_icons(car_icons(player_car))
+	music.play("music/music_menu")
 	var reward := ""
 	var reward_car: Texture2D = null
 	if champ.finished():

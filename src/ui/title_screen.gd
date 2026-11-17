@@ -79,7 +79,9 @@ var _join_panel: JoinPanel
 var lan_panel: LanPanel
 ## Achievement store shown by the ACHIEVEMENTS panel (set before setup; may be null).
 var achievements: AchievementStore
-var _music: AudioStreamPlayer
+## The game's music (set by the game root; a title on its own makes its own).
+var music: MusicPlayer
+var _own_music := false
 var _sfx: AudioStreamPlayer
 var _time := 0.0
 
@@ -206,10 +208,12 @@ func setup(p_resolver: AssetResolver, p_settings: AudioSettings) -> void:
 	footer.position = Vector2(0, 686)
 	root.add_child(footer)
 
-	_music = AudioStreamPlayer.new()
-	_music.bus = "Music"
-	_music.stream = resolver.get_audio("music/music_menu", true)
-	add_child(_music)
+	if music == null:
+		music = MusicPlayer.new()
+		music.name = "Music"
+		add_child(music)
+		_own_music = true
+	music.resolver = resolver
 	_sfx = AudioStreamPlayer.new()
 	_sfx.bus = "Effects"
 	add_child(_sfx)
@@ -223,8 +227,7 @@ func show_title() -> void:
 	_camera.make_current()
 	_ui.visible = true
 	set_process(true)
-	if not _music.playing:
-		_music.play()
+	music.play("music/music_menu")  # (keeps playing when it already is)
 	_show_main()
 
 
@@ -233,13 +236,11 @@ func hide_title() -> void:
 	_ui.visible = false
 	_backdrop.visible = false
 	_camera.enabled = false
-	set_process(false)
-	_music.stop()
+	set_process(false)  # (the music carries on: the race scene takes it over)
 
 
 func stop_audio() -> void:
-	_music.stop()
-	_music.stream = null
+	music.stop(0.0)
 	_sfx.stop()
 	_sfx.stream = null
 

@@ -17,7 +17,7 @@ const GRAPHICS_EXTENSIONS: Array[String] = ["png"]
 const AUDIO_DIR := "audio"
 const AUDIO_FALLBACK_ROOT := "res://assets/audio"
 ## Supported override formats for audio, in lookup order.
-const AUDIO_EXTENSIONS: Array[String] = ["ogg", "wav"]
+const AUDIO_EXTENSIONS: Array[String] = ["ogg", "wav", "mp3"]
 
 var override_root: String
 var _cache: Dictionary = {}
@@ -55,6 +55,14 @@ func get_texture(logical_name: String) -> Texture2D:
 
 
 ## True when a valid user override supplies this graphic (resolves it if needed).
+## True when the user supplies this sound (custom/audio/..., any supported format).
+func has_audio_override(logical_name: String) -> bool:
+	for extension in AUDIO_EXTENSIONS:
+		if FileAccess.file_exists(audio_override_path(logical_name, extension)):
+			return true
+	return false
+
+
 func has_override(logical_name: String) -> bool:
 	get_texture(logical_name)
 	return _overridden.has(logical_name)

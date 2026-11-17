@@ -40,6 +40,8 @@ var night := false
 var player_car := 0
 var displaced: Array[int] = []
 var presentation_enabled := true
+## The game's music player (set by the game root; null: the race audio makes its own).
+var music: MusicPlayer = null
 var base_seed := 0
 ## Tests / demos: the player's car is driven by the arena AI too.
 var player_ai := false
