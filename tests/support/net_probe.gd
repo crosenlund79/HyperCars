@@ -135,7 +135,7 @@ func _tick() -> void:
 	if opts.role == "host":
 		if waiting_next and s.state == RaceSession.State.MODE_SELECT:
 			waiting_next = false
-			Input.action_release(PlayerControls.FIRE)
+			Input.action_release(PlayerControls.CONFIRM)
 		if s.state == RaceSession.State.MODE_SELECT and main.net.can_start():
 			for id in main.grid_order:
 				progress.resize(main.cars.size())
@@ -150,7 +150,7 @@ func _tick() -> void:
 			if races_done < int(opts.races):
 				finished_at = -1
 				waiting_next = true
-				Input.action_press(PlayerControls.FIRE)
+				Input.action_press(PlayerControls.CONFIRM)
 			else:
 				_write({"results": results, "client_shots": main.combat.shots_fired[RaceSession.PLAYER_2_ID]})
 				quit()

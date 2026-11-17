@@ -16,6 +16,7 @@ func after_each() -> void:
 	Engine.time_scale = 1.0
 	Engine.max_physics_steps_per_frame = 8
 	Input.action_release(PlayerControls.FIRE)
+	Input.action_release(PlayerControls.CONFIRM)
 
 
 func _make(humans := 1) -> void:
@@ -108,9 +109,9 @@ func test_tower_and_countdown_step_aside_while_results_are_up() -> void:
 	assert_false(hud._tower_box.visible, "no duplicate ranking beside the results")
 	assert_false(hud._wreck_label.visible, "no countdown over the results")
 	_main.combat.wreck_left[P1] = 0.0
-	Input.action_press(PlayerControls.FIRE)
+	Input.action_press(PlayerControls.CONFIRM)
 	await wait_physics_frames(2)
-	Input.action_release(PlayerControls.FIRE)
+	Input.action_release(PlayerControls.CONFIRM)
 	await wait_process_frames(2)
 	assert_eq(_main.session.state, RaceSession.State.MODE_SELECT, "next race grid")
 	assert_false(hud.results_up())
@@ -143,9 +144,9 @@ func test_consecutive_races_show_fresh_results_and_reverse_the_grid() -> void:
 		assert_eq(_result_names(), _expected_names(), "race %d results match the standings" % (race + 1))
 		assert_eq(_result_names()[0], _main.hud._full_names.get(order[0], "YOU"), "winner on top, not last race's")
 		var expected_grid: Array = _main.session.reversed_grid()
-		Input.action_press(PlayerControls.FIRE)
+		Input.action_press(PlayerControls.CONFIRM)
 		await wait_physics_frames(2)
-		Input.action_release(PlayerControls.FIRE)
+		Input.action_release(PlayerControls.CONFIRM)
 		await wait_process_frames(2)
 		assert_eq(_main.grid_order, expected_grid, "reversed grid after race %d" % (race + 1))
 		assert_false(_main.hud.results_up(), "results gone on the grid")
@@ -165,9 +166,9 @@ func test_split_screen_views_hide_their_overlays_at_the_results() -> void:
 		assert_true(v.hud.results_up())
 		assert_false(v.hud._tower_box.visible, "view tower hidden under the shared results")
 	assert_true(_main.hud._message.visible)
-	Input.action_press(PlayerControls.FIRE)
+	Input.action_press(PlayerControls.CONFIRM)
 	await wait_physics_frames(2)
-	Input.action_release(PlayerControls.FIRE)
+	Input.action_release(PlayerControls.CONFIRM)
 	await wait_process_frames(2)
 	for v in views:
 		assert_true(v.hud._tower_box.visible, "back on the next grid")
