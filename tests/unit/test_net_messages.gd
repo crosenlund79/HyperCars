@@ -68,7 +68,7 @@ func test_remote_presses_fire_exactly_once_despite_duplicates_and_loss() -> void
 		mines += int(w.rear)
 	assert_eq(shots, 2, "lost presses are not lost")
 	assert_eq(mines, 1)
-	assert_eq(r.drive(m, 1.0 / 60.0), {"steer": 0.0, "fire": true}, "newest command drives")
+	assert_eq(r.drive(m, 1.0 / 60.0), {"steer": 0.0, "fire": true, "pit_override": false}, "newest command drives")
 
 
 func test_presses_before_the_start_are_not_carried_into_the_race() -> void:

@@ -22,7 +22,8 @@ func build(track: Track, resolver: AssetResolver, decal_layer: Node2D) -> void:
 	_extra = PackedFloat32Array()
 	if not track.layout.branches.is_empty():
 		for i in track.centerline.size():
-			_extra.append(maxf(0.0, maxf(track.left_widths[i], track.right_widths[i]) - track.layout.road_width * 0.5) + 24.0)
+			var widen := maxf(track.left_widths[i], track.right_widths[i]) - track.layout.road_width * 0.5
+			_extra.append(widen + 24.0 if widen > 0.5 else 0.0)  # (a margin only where the road really widens)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = SEED
 	var c := track.centerline

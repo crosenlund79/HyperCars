@@ -11,9 +11,12 @@ extends GutTest
 ## values are in git history). Each set still isolates its feature: damage=0
 ## lock=0 contact=0 / lock=0 contact=0 / everything on.
 
+## Re-recorded 2026-11-17 for the human (race-mode) probes only: the approved
+## steering precision change ramps the scripted player's key steering. Spectator
+## hashes, pit lanes, split sections and lighting change nothing here.
 const FINGERPRINTS := {
-	"mode=race ticks=3600 weapons=0": "1764d045b2762671878451d21125e3f2",
-	"mode=race ticks=3600 weapons=1 style=1": "90b44401d8d4814d9b3f03c33a997ce0",
+	"mode=race ticks=3600 weapons=0": "3d35204f54580c909e3f004940c57f6d",
+	"mode=race ticks=3600 weapons=1 style=1": "fbfb18498bdb9b46746fb19b45670412",
 	"mode=spectate ticks=4800 weapons=1": "2dd9c7be3970ab58f4f5baba17fd47ae",
 	"mode=spectate ticks=4800 weapons=1 style=1": "f717ec515bc834f4cd8643835a6e4b22",
 }
@@ -21,8 +24,8 @@ const FINGERPRINTS := {
 
 ## Recorded at M6 (damage on; the hash also covers every car's condition and DNF).
 const M6_FINGERPRINTS := {
-	"mode=race ticks=3600 weapons=0": "6b574664e7f9d59d9328e0e175526fb7",
-	"mode=race ticks=3600 weapons=1 style=1": "0f3fecf7139c3ac5ca1e8c95b2b0ad51",
+	"mode=race ticks=3600 weapons=0": "b37dc17e55f7edd48e25368fda14154c",
+	"mode=race ticks=3600 weapons=1 style=1": "3bd67c0513e860850b9bba0ec9006b12",
 	"mode=spectate ticks=4800 weapons=1": "c4fae0ca26f56e647c504cc4d00e6292",
 	"mode=spectate ticks=4800 weapons=1 style=1": "c8f7fe36390d437f20b4b1883d6d0472",
 }
@@ -32,8 +35,8 @@ const M6_FINGERPRINTS := {
 ## everything on. Both change races on purpose (the start is calmer, contacts
 ## turn cars); with lock=0 contact=0 the M6 values above still hold.
 const CURRENT_FINGERPRINTS := {
-	"mode=race ticks=3600 weapons=0": "e3d5e2e36335c3cf173d2353fe43b5e7",
-	"mode=race ticks=3600 weapons=1 style=1": "335a8293777efbb507272b654fdd807b",
+	"mode=race ticks=3600 weapons=0": "205080edcda1cc16b76e34ce49e603d1",
+	"mode=race ticks=3600 weapons=1 style=1": "837f985f9a93d44472f30d242debce36",
 	"mode=spectate ticks=4800 weapons=1": "f8f130a0feef918c9befd871df1264d8",
 	"mode=spectate ticks=4800 weapons=1 style=1": "010b09a86e20fa81a311654ed3c9fb5a",
 }

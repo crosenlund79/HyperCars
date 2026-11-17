@@ -7,7 +7,10 @@ const MAIN_SCENE := preload("res://src/main/main.tscn")
 ## Probe hashes of commit 18fb978 (M3 combat + lighting pilot), weapons ON.
 ## Classic must reproduce them exactly. Update only for an approved gameplay change.
 ## Re-recorded 2026-11-16 (race experience: rival lines and ammo pacing change races).
-const M3_CLASSIC_RACE_HASH := "8911a59caa05d9745a47b76c03d34478"
+## Re-recorded 2026-11-17 for the human (race-mode) probes only: the approved
+## steering precision change ramps the scripted player's key steering. Spectator
+## hashes, pit lanes, split sections and lighting change nothing here.
+const M3_CLASSIC_RACE_HASH := "12b2a9c37c7154d68d29b640309aaf5c"
 const M3_CLASSIC_SPECTATE_HASH := "19ce0eec7cfc8e9b0bb18e4032b63b41"
 
 var _main: Node2D

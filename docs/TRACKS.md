@@ -121,10 +121,13 @@ divider (table, rules and AI behaviour: `docs/PIT_LANES.md`). Kestrel Ridge's sp
 on the west loop straight (equal lanes); Larkspur Ring's runs through a bend (tight
 84 px inside or wide 112 px outside); Ravenhook's has a wide left and a narrow right
 lane. Laps, positions and timing are unchanged by the lane taken (centreline
-progress); checkpoint gates span every lane. The fingerprints above predate the
-branches: races on these circuits now differ (pit stops, route choice), so the table
-is historical; the regression fingerprints in `tests/integration/` that use these
-circuits were re-recorded (git history keeps the old values).
+progress); checkpoint gates span every lane. The Kestrel fingerprints above predate the
+branches: races on these circuits now differ (pit stops, route choice), so that table
+is historical. The pinned regression probes (`test_multiplayer_regression.gd`,
+`test_combat_race.gd`, `test_tactical_race.gd`) run on the legacy test circuit,
+which has no branches: their spectator hashes are unchanged, and only the
+race-mode hashes (a scripted human player) were re-recorded, because of the
+approved steering change (verified: identical to the steering-only commit).
 
 ## Layout features (for future circuits)
 

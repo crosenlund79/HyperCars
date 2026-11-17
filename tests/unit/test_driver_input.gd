@@ -60,7 +60,10 @@ func test_human_input_reads_its_own_prefixed_actions() -> void:
 	Input.action_press("t1_steer_right")
 	Input.action_press("t1_fire")
 	var cmd := h.drive(_main, 1.0 / 60.0)
-	assert_eq(cmd, {"steer": 1.0, "fire": true})
+	assert_gt(cmd.steer, 0.0, "steering right (key steering ramps in: test_steering.gd)")
+	for k in 10:
+		cmd = h.drive(_main, 1.0 / 60.0)
+	assert_eq(cmd, {"steer": 1.0, "fire": true, "pit_override": false})
 	Input.action_press(PlayerControls.STEER_LEFT)
 	assert_eq(h.drive(_main, 1.0 / 60.0).steer, 1.0, "default actions do not leak into a prefixed player")
 	Input.action_release(PlayerControls.STEER_LEFT)
@@ -73,7 +76,7 @@ func test_finished_human_brakes_without_control() -> void:
 		for i in range(1, cps):
 			_main.session.checkpoint_reached(i, 0)
 		_main.session.checkpoint_reached(0, 0)
-	assert_eq(_main.inputs[0].drive(_main, 1.0 / 60.0), {"steer": 0.0, "fire": false})
+	assert_eq(_main.inputs[0].drive(_main, 1.0 / 60.0), {"steer": 0.0, "fire": false, "pit_override": false})
 	assert_eq(_main.inputs[0].weapons(_main, 1.0 / 60.0, []), {"front": false, "rear": false})
 
 
