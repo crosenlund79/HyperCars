@@ -577,12 +577,13 @@ func divider_outline(k: int) -> PackedVector2Array:
 var bay_frames: Array[Line2D] = []
 
 
-## Short barrier stubs between neighbouring bays, from the outer wall a third
-## of the way into the apron (they separate the bays without blocking the turn in).
+## Short barrier stubs between neighbouring bays, at the outer wall (the back
+## 16 % of the apron): they mark the bays without catching a car that turns in
+## or rolls along the apron.
 func _build_bay_stubs(node: Node2D, body: StaticBody2D, b: Dictionary, wall_width: float, wall_tex: Texture2D) -> void:
 	var side := float(b.side)
 	var strip := layout.bay_strip(b, path.length)
-	var depth: float = float(b.bay_depth) * 0.36
+	var depth: float = float(b.bay_depth) * 0.16
 	for k in TrackLayout.bay_count(b) - 1:
 		var at := (TrackLayout.bay_centre(b, k) + TrackLayout.bay_centre(b, k + 1)) * 0.5
 		var t := path.tangent_at(at)
