@@ -61,16 +61,18 @@ func test_grids_reverse_the_last_result() -> void:
 	assert_eq(grid[0], order[-1])
 
 
-func test_finishes_after_three_rounds() -> void:
-	var c := Championship.new(CUP)
-	for k in 3:
-		assert_false(c.finished())
-		assert_eq(c.next_round().layout, CUP.layouts[k])
-		c.record(_order([0]), [])
-	assert_true(c.finished())
-	assert_eq(c.champion(), 0)
-	c.record(_order([1]), [])
-	assert_eq(c.results.size(), 3, "no fourth round")
+func test_finishes_after_the_last_round() -> void:
+	for rounds in ChampionshipSchedule.LENGTHS:
+		var sched := CUP.with_length(rounds)
+		var c := Championship.new(sched)
+		for k in rounds:
+			assert_false(c.finished())
+			assert_eq(c.next_round().layout, sched.layouts[k])
+			c.record(_order([0]), [])
+		assert_true(c.finished())
+		assert_eq(c.champion(), 0)
+		c.record(_order([1]), [])
+		assert_eq(c.results.size(), rounds, "no extra round")
 
 
 func test_schedules_rotate_and_cover_all_circuits() -> void:
@@ -79,19 +81,32 @@ func test_schedules_rotate_and_cover_all_circuits() -> void:
 	assert_ne(a.resource_path, b.resource_path, "the next championship races other combinations")
 	assert_eq(ChampionshipSchedule.for_run(2).resource_path, a.resource_path)
 	for s: ChampionshipSchedule in [a, b]:
-		assert_eq(s.round_count(), 3)
-		var seen := {}
-		for i in 3:
+		assert_eq(s.round_count(), 6, "a six-round season")
+		var circuits := {}
+		var environments := {}
+		var nights := 0
+		for i in 6:
 			var r: Dictionary = s.get_round(i)
-			seen[r.layout] = true
+			circuits[r.layout] = true
+			environments[r.variant] = true
+			nights += 1 if r.night else 0
 			assert_true(DevLayouts.PLAYER_LAYOUTS.has(r.layout))
-			assert_true(r.variant >= 1 and r.variant <= 3)
-		assert_eq(seen.size(), 3, "one round on each original circuit")
-	var nights := 0
-	for i in 3:
-		if a.get_round(i).night:
-			nights += 1
-	assert_true(nights > 0 and nights < 3, "day and night rounds")
+			assert_true(r.variant >= 1 and r.variant <= TrackTheme.VARIANT_COUNT)
+			assert_eq(r.final, i == 5, "only the last round is the final")
+		assert_eq(circuits.size(), DevLayouts.PLAYER_LAYOUTS.size(), "every original circuit")
+		assert_eq(environments.size(), TrackTheme.VARIANT_COUNT, "all five environments")
+		assert_true(nights > 0 and nights < 6, "day and night rounds")
+		assert_gt(s.get_round(5).laps, s.get_round(0).laps, "a longer final")
+		# the three-round version: three distinct circuits, ending with the same final
+		var short := s.with_length(3)
+		assert_eq(short.round_count(), 3)
+		var short_circuits := {}
+		for i in 3:
+			short_circuits[short.get_round(i).layout] = true
+		assert_eq(short_circuits.size(), 3, "%s short: one round per circuit" % s.title)
+		assert_eq(short.get_round(2), s.get_round(5), "the short version ends with the final")
+		assert_eq(s.with_length(6), s)
+		assert_string_contains(s.describe(), "FINAL 6:")
 
 
 func test_collection_unlocks_each_rival_once_and_persists() -> void:

@@ -5,7 +5,8 @@
 [resource]
 script = ExtResource("1")
 title = "HyperCars Cup"
-layouts = PackedStringArray("kestrel_ridge", "larkspur_ring", "ravenhook")
-variants = PackedInt32Array(1, 2, 3)
-nights = Array[bool]([false, true, true])
-laps = PackedInt32Array(3, 3, 3)
+layouts = PackedStringArray("kestrel_ridge", "larkspur_ring", "ravenhook", "larkspur_ring", "ravenhook", "kestrel_ridge")
+variants = PackedInt32Array(1, 2, 5, 3, 4, 4)
+nights = Array[bool]([false, false, false, true, false, true])
+laps = PackedInt32Array(3, 3, 3, 3, 3, 7)
+short_rounds = PackedInt32Array(1, 2, 5)

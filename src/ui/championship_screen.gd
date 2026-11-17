@@ -174,13 +174,13 @@ func show_standings(champ: Championship, reward: String = "", reward_car: Textur
 		_abandon.visible = false
 	else:
 		var r := champ.next_round()
-		_next_title.text = "NEXT:  ROUND %d OF %d" % [done_rounds + 1, champ.schedule.round_count()]
+		_next_title.text = ("NEXT:  THE GRAND FINAL  -  ROUND %d OF %d" if r.get("final", false) else "NEXT:  ROUND %d OF %d") % [done_rounds + 1, champ.schedule.round_count()]
 		_next_text.text = ChampionshipScreen.round_text(r)
 		_preview.visible = true
 		_preview.show_circuit(DevLayouts.load_layout(r.layout), r.variant, r.night)
 		_reward.visible = false
 		_reward_car.visible = false
-		_continue.text = "START ROUND %d" % (done_rounds + 1)
+		_continue.text = "START THE FINAL" if r.get("final", false) else "START ROUND %d" % (done_rounds + 1)
 		_abandon.visible = true
 	_hint.text = "Enter / Esc: main menu" if _final else "Enter: next round      Esc: abandon the championship"
 	_confirming = false

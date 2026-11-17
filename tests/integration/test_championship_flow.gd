@@ -17,10 +17,12 @@ func before_each() -> void:
 	game.cars_path = CARS
 	add_child_autofree(game)
 	await wait_frames(3)
+	game.title.championship_rounds = 3  # the short version keeps these flows quick
 
 
 func after_each() -> void:
 	Input.action_release(PlayerControls.FIRE)
+	Input.action_release(PlayerControls.CONFIRM)
 	Input.action_release(PlayerControls.HISTORY_VIEW)
 	Engine.physics_ticks_per_second = 60
 	Engine.time_scale = 1.0
@@ -66,7 +68,7 @@ func _win_round() -> void:
 
 
 func test_three_rounds_follow_the_schedule_and_reward_the_champion() -> void:
-	var schedule: ChampionshipSchedule = game.title.championship
+	var schedule: ChampionshipSchedule = game.title.championship.with_length(3)
 	game.start_championship(0)
 	for k in 3:
 		await _wait_race()
@@ -125,6 +127,43 @@ func test_leaving_a_round_abandons_the_championship() -> void:
 	assert_null(game.champ)
 	assert_null(game.race)
 	assert_eq(CarCollection.new(CARS).owned.size(), 0, "nothing won")
+
+
+## The full season: six rounds, the last one billed as the grand final.
+func test_six_round_season_ends_with_the_grand_final() -> void:
+	game.title.championship_rounds = 6
+	var schedule: ChampionshipSchedule = game.title.championship
+	game.start_championship(0)
+	await _wait_race()
+	assert_eq(game.champ.schedule.round_count(), 6)
+	assert_string_contains(game.race.championship_label, "ROUND 1 OF 6")
+	for k in 4:
+		game.champ.record([1, 2, 3, 4, 5, 6, 7, 8, 9, 0], [])
+	game.race.championship_round_done.emit([1, 2, 3, 4, 5, 6, 7, 8, 9, 0], [])
+	await wait_frames(30)
+	assert_true(game.champ_screen.visible)
+	assert_string_contains(game.champ_screen._next_title.text, "GRAND FINAL")
+	assert_eq(game.champ_screen._continue.text, "START THE FINAL")
+	game._next_round()
+	await _wait_race()
+	var r := schedule.get_round(5)
+	assert_eq(DevLayouts.id_of(game.race.layout_override), r.layout, "the final's circuit")
+	assert_eq(game.race.track_variant, r.variant)
+	assert_eq(game.race.night, r.night)
+	assert_string_contains(game.race.championship_label, "GRAND FINAL")
+
+
+func test_rounds_option_is_saved() -> void:
+	game.title._open_setup("championship")
+	assert_true(game.title._rounds_button.visible)
+	var before: int = game.title.championship_rounds
+	game.title._cycle_rounds()
+	assert_ne(game.title.championship_rounds, before)
+	assert_string_contains(game.title._setup_note.text, "FINAL %d:" % game.title.championship_rounds)
+	var cfg := ConfigFile.new()
+	cfg.load(game.title.settings.path)
+	assert_eq(int(cfg.get_value("game", "championship_rounds", 0)), game.title.championship_rounds)
+	game.title._cycle_rounds()
 
 
 func test_a_lost_championship_gives_nothing() -> void:

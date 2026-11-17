@@ -40,6 +40,7 @@ var control_choice := 0
 var _control_button: Button
 var player_car := 0
 var _car_button: Button
+var _rounds_button: Button
 ## The car collection (won rival cars); set by the game before setup.
 var cars: CarCollection
 ## GO RACING!: the modes, and the shared race setup (mode: "quick",
@@ -53,6 +54,8 @@ var _preview: CircuitPreview
 var setup_mode := "quick"
 ## Championship schedule shown on the setup screen (set by the game).
 var championship: ChampionshipSchedule
+## Championship length: 6 rounds (the whole schedule) or the 3-round version (saved).
+var championship_rounds := 6
 signal quit_requested
 
 const TRACK_SCRIPT := preload("res://src/track/track.gd")
@@ -305,6 +308,7 @@ func _build_setup(root: Control) -> void:
 	_style_button = _setup_row("COMBAT", func(_d: int = 1) -> void: _toggle_style())
 	_control_button = _setup_row("CONTROL", _cycle_control)
 	_car_button = _setup_row("CAR", _cycle_car)
+	_rounds_button = _setup_row("ROUNDS", _cycle_rounds)
 	var go := Button.new()
 	go.text = "START"
 	go.custom_minimum_size = Vector2(520, 46)
@@ -349,7 +353,7 @@ func _open_setup(mode: String) -> void:
 	setup_mode = mode
 	var titles := {"quick": "QUICK RACE  -  standard weapons", "garage": "GARAGE RACE  -  prize money, your own weapons",
 		"spectate": "SPECTATE  -  the nine rivals race", "multi": "MULTIPLAYER  -  two players",
-		"championship": "CHAMPIONSHIP  -  three rounds", "knockout": "KNOCKOUT  -  last place out every lap",
+		"championship": "CHAMPIONSHIP", "knockout": "KNOCKOUT  -  last place out every lap",
 		"battle": "BATTLE ROYALE  -  last car standing"}
 	_setup_title.text = titles.get(mode, mode.to_upper())
 	var champ := mode == "championship"
@@ -362,6 +366,8 @@ func _open_setup(mode: String) -> void:
 	_style_button.visible = not battle
 	_control_button.visible = mode != "spectate"
 	_car_button.visible = mode != "spectate" and mode != "multi"
+	_rounds_button.visible = champ
+	_update_rounds_button()
 	_refresh_preview()
 	_show_only(_setup)
 	_setup.reset_size()
@@ -388,9 +394,10 @@ func _refresh_preview() -> void:
 	_setup_note.remove_theme_color_override("font_color")
 	_preview.visible = setup_mode != "battle"
 	if setup_mode == "championship" and championship != null:
-		var r := championship.get_round(0)
+		var sched := championship.with_length(championship_rounds)
+		var r := sched.get_round(0)
 		_preview.show_circuit(DevLayouts.load_layout(r.layout), r.variant, r.night)
-		_setup_note.text = championship.describe()
+		_setup_note.text = sched.describe()
 		var keeps := keeps_text()
 		if keeps != "":
 			_setup_note.text = keeps + "\n\n" + _setup_note.text
@@ -522,6 +529,22 @@ func _update_style_button() -> void:
 	_style_button.text = "COMBAT:  %s" % WeaponRules.style_name(combat_style)
 
 
+func _cycle_rounds(_dir: int = 1) -> void:
+	_sfx_play("ui/ui_select")
+	championship_rounds = 3 if championship_rounds == 6 else 6
+	_update_rounds_button()
+	_refresh_preview()
+	var cfg := ConfigFile.new()
+	cfg.load(settings.path)
+	cfg.set_value("game", "championship_rounds", championship_rounds)
+	cfg.save(settings.path)
+
+
+func _update_rounds_button() -> void:
+	if _rounds_button != null:
+		_rounds_button.text = "ROUNDS:  %d%s" % [championship_rounds, "  (FULL SEASON)" if championship_rounds == 6 else "  (SHORT)"]
+
+
 func _cycle_track(dir: int = 1) -> void:
 	_sfx_play("ui/ui_select")
 	track_variant = posmod(track_variant - 1 + dir, TrackTheme.VARIANT_COUNT) + 1
@@ -575,6 +598,7 @@ func _load_weapons_pref() -> void:
 		var saved := int(cfg.get_value("game", "laps", 3))
 		laps = saved if [3, 7, 20, 50].has(saved) else 3
 		combat_style = clampi(int(cfg.get_value("game", "combat_style", 0)), 0, 1)
+		championship_rounds = 3 if int(cfg.get_value("game", "championship_rounds", 6)) == 3 else 6
 		night = bool(cfg.get_value("game", "night", false))
 		control_choice = clampi(int(cfg.get_value("game", "control", 0)), 0, 1)
 		player_car = clampi(int(cfg.get_value("game", "player_car", 0)), 0, 9)

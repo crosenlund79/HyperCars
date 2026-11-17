@@ -1,6 +1,6 @@
 class_name ChampionshipSchedule
 extends Resource
-## One championship: its rounds (circuit, biome, time of day, laps) and the
+## One championship: its rounds (circuit, environment, time of day, laps) and the
 ## points per finishing position. Configurable as resources
 ## (src/championship/*.tres); the game rotates through the schedules listed in
 ## SCHEDULES, so later championships race different combinations.
@@ -11,13 +11,19 @@ const SCHEDULES: Array[String] = [
 ]
 
 @export var title := "HyperCars Cup"
-## Per round: DevLayouts id, biome (theme variant 1..3), night, laps.
+## Per round: DevLayouts id, environment (theme variant 1..5), night, laps.
+## The last round is the final.
 @export var layouts: PackedStringArray = PackedStringArray()
 @export var variants: PackedInt32Array = PackedInt32Array()
 @export var nights: Array[bool] = []
 @export var laps: PackedInt32Array = PackedInt32Array()
 ## Points for 1st, 2nd, ...; positions beyond the list and DNFs score nothing.
 @export var points: PackedInt32Array = PackedInt32Array([25, 18, 15, 12, 10, 8, 6, 4, 2, 1])
+## The rounds of the short (three-round) version, in order; it ends with the final.
+@export var short_rounds: PackedInt32Array = PackedInt32Array()
+
+## Championship lengths offered on the setup screen.
+const LENGTHS: Array[int] = [6, 3]
 
 
 func round_count() -> int:
@@ -25,7 +31,29 @@ func round_count() -> int:
 
 
 func get_round(i: int) -> Dictionary:
-	return {"layout": layouts[i], "variant": variants[i], "night": nights[i], "laps": laps[i]}
+	return {"layout": layouts[i], "variant": variants[i], "night": nights[i], "laps": laps[i],
+		"final": i == round_count() - 1 and round_count() > 1}
+
+
+## This schedule with only the short version's rounds (itself when it has no
+## short version or is already that short).
+func shortened() -> ChampionshipSchedule:
+	if short_rounds.is_empty() or short_rounds.size() >= round_count():
+		return self
+	var s := ChampionshipSchedule.new()
+	s.title = title
+	s.points = points
+	for i in short_rounds:
+		s.layouts.append(layouts[i])
+		s.variants.append(variants[i])
+		s.nights.append(nights[i])
+		s.laps.append(laps[i])
+	return s
+
+
+## The schedule at a chosen length (6 = the whole schedule, 3 = the short one).
+func with_length(rounds: int) -> ChampionshipSchedule:
+	return shortened() if rounds < round_count() else self
 
 
 func points_for(position: int) -> int:
@@ -37,7 +65,7 @@ func describe() -> String:
 	var lines := PackedStringArray([title.to_upper()])
 	for i in round_count():
 		var r: Dictionary = get_round(i)
-		lines.append("Round %d:  %s  -  %s, %s, %d laps" % [i + 1, DevLayouts.display_name(r.layout),
+		lines.append("%s %d:  %s  -  %s, %s, %d laps" % ["FINAL" if r.final else "Round", i + 1, DevLayouts.display_name(r.layout),
 			TrackTheme.load_variant(r.variant).display_name, "night" if r.night else "day", r.laps])
 	return "\n".join(lines)
 

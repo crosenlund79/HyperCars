@@ -164,7 +164,7 @@ func start_race(choice: int, with_garage: bool = false, devices: Array[int] = []
 		race.championship_grid = champ.next_grid()
 		race.championship_points = champ.points.duplicate()
 		race.championship_scoring = champ.schedule.points
-		race.championship_label = "ROUND %d OF %d" % [champ.round_index() + 1, champ.schedule.round_count()]
+		race.championship_label = ("GRAND FINAL  -  ROUND %d OF %d" if round.get("final", false) else "ROUND %d OF %d") % [champ.round_index() + 1, champ.schedule.round_count()]
 		if cars.stake > 0:
 			race.championship_label += "  -  FOR KEEPS: %s'S CAR" % RivalRoster.short_name(cars.stake).to_upper()
 			race.forfeit_warning = "Leaving forfeits the championship: %s takes the car back." % RivalRoster.short_name(cars.stake)
@@ -251,11 +251,11 @@ func _restart_battle(choice: int) -> void:
 
 # ---------------------------------------------------------------- Championship
 
-## Starts a three-round championship with the title's next schedule.
+## Starts a championship (six rounds, or the three-round version) with the title's next schedule.
 func start_championship(choice: int) -> void:
 	if race != null or _starting or champ != null:
 		return
-	champ = Championship.new(title.championship)
+	champ = Championship.new(title.championship.with_length(title.championship_rounds))
 	_champ_choice = choice
 	last_reward = -1
 	last_lost = 0
@@ -265,7 +265,7 @@ func start_championship(choice: int) -> void:
 	start_race(choice, false, [], null, -1, "", false, champ.next_round())
 
 
-## A round's result (Fire on the results): record it and show the standings.
+## A round's result (Enter on the results): record it and show the standings.
 func _on_round_done(order: Array, dnf: Array) -> void:
 	if champ == null or race == null:
 		return
