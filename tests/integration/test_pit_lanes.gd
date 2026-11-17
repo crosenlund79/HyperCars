@@ -269,3 +269,36 @@ func test_knockout_has_no_pit_service() -> void:
 	_main.start_race()
 	await wait_physics_frames(3)
 	assert_false(_main.pits.service_enabled)
+
+
+func test_a_patient_rival_waits_for_a_bay_and_takes_it_when_freed() -> void:
+	await _make()
+	_main.set_weapons_enabled(false)
+	_main.set_lap_count(4)
+	_main.set_menu_choice(2)
+	_main.start_race()
+	await wait_physics_frames(3)
+	_park_others([1, 2, 3, 4])  # rival 1 is Victor (pit_patience 5 s)
+	for k in 3:
+		_park_in_bay(k + 2, k)
+		_main.damage.condition[k + 2] = 100.0  # parked, not being serviced: they never leave on their own
+		_main.pits.bay_owner[k] = k + 2  # (held, as if each had stopped there for service)
+	_main.damage.condition[1] = 20.0
+	var t: Track = _main.track
+	var b: Dictionary = t.layout.branches[t.layout.pit_branch()]
+	_main.cars[1].active = true
+	_main.cars[1].place(Transform2D(t.path.tangent_at(float(b.from) - 400.0).angle(), t.path.point_at(float(b.from) - 400.0)))
+	_main.progress[1].reset(_main.cars[1].global_position)
+	_main.drivers[1].pitting = true
+	_main.drivers[1].pit_entries += 1
+	await wait_until(func() -> bool: return _main.drivers[1].pit_waits > 0, 15.0)
+	assert_eq(_main.drivers[1].pit_waits, 1, "Victor waits short of the bays")
+	assert_lt(_main.cars[1].model.velocity.length(), 20.0, "stopped, waiting")
+	# PIT 2 comes free: its occupant drives off the bays
+	_main.cars[3].place(Transform2D(0.0, Vector2(-9000, -12000)))
+	_main.progress[3].reset(_main.cars[3].global_position)
+	_main.cars[3].active = false
+	await wait_until(func() -> bool: return _main.pits.stops[1] >= 1, 20.0)
+	assert_eq(_main.pits.stops[1], 1, "it took the freed bay and was serviced")
+	assert_eq(_main.drivers[1].pit_abandons, 0)
+	assert_almost_eq(_main.damage.condition[1], 50.0, 0.5)
