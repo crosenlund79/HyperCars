@@ -134,8 +134,18 @@ func _assert_jump_race(r: Array, label: String) -> void:
 		return
 	var host: Dictionary = r[0].results[0]
 	var client: Dictionary = r[1].results[0]
-	for k in ["order", "times", "positions", "condition", "ammo", "dnf", "destroyed", "takeoffs", "falls"]:
+	for k in ["order", "times", "positions", "condition", "ammo", "dnf", "destroyed"]:
 		assert_eq(client[k], host[k], "%s: %s agree" % [label, k])
+	# jump outcomes: every car exactly; the client's own car may show one
+	# predicted takeoff / fall more that the host corrected (contacts are not
+	# predicted on the client), never fewer
+	var me := str(RaceSession.PLAYER_2_ID)
+	for k in ["takeoffs", "falls"]:
+		for id in host[k]:
+			if id != me:
+				assert_eq(client[k].get(id, 0.0), host[k][id], "%s: %s of car %s agree" % [label, k, id])
+		var extra: float = client[k].get(me, 0.0) - host[k].get(me, 0.0)
+		assert_true(extra >= 0.0 and extra <= 1.0, "%s: own-car %s %s vs host %s" % [label, k, client[k].get(me, 0.0), host[k].get(me, 0.0)])
 	assert_gt(int(host.falls.get(str(RaceSession.PLAYER_2_ID), 0)), 0, label + ": the client's car fell in")
 	assert_lt(host.condition[RaceSession.PLAYER_2_ID], 100.0, label + ": the fall damaged it")
 

@@ -654,11 +654,11 @@ func show_results(standings: Array[RacerState], footer: String = "Fire to race a
 		"RESULTS  -  %s" % Hud.laps_text(laps), 34, HyperTheme.GOLD, 700)))
 	# One row per car (same columns as before); the HUD's own human rows get a
 	# box in their identity colour, other humans their colour.
+	if stats != null:  # column heads above the rows (not a row itself)
+		_message_box.add_child(_stats_header(20))
 	var rows := VBoxContainer.new()
 	rows.add_theme_constant_override("separation", 0)
 	_message_box.add_child(rows)
-	if stats != null:
-		rows.add_child(_stats_header(20))
 	var names: Array[Label] = []
 	var winner_time := standings[0].finish_time if not standings.is_empty() and standings[0].is_finished() else -1.0
 	for i in standings.size():

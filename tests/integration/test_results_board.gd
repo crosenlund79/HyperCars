@@ -42,8 +42,11 @@ func _result_names() -> Array:
 	var rows: Array = _main.hud._message_box.find_children("*", "HBoxContainer", true, false)
 	for row in rows:
 		var labels: Array = row.find_children("*", "Label", false, false)
-		if labels.size() >= 2:
-			out.append(labels[labels.size() - 2].text)
+		if labels.size() < 2 or labels[-1].text == "D":
+			continue  # (the TOMBSTONE | K | D column heads)
+		# name, then the time, then (when shown) TOMBSTONE, K and D
+		var stats_cols := 3 if _main.hud.stats != null else 0
+		out.append(labels[labels.size() - 2 - stats_cols].text)
 	return out
 
 
