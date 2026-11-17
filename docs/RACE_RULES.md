@@ -64,6 +64,59 @@ Greta (0.9) and Nina (0.85) are calculated.
   (Rocco 0.3 for 30 s, Nina 0.2 for 25 s, Greta 0.04 for 10 s). Targeting only; it
   fades, and nobody leaves the racing line to chase.
 
+## Race variety, rival balance and attrition (2026-11-17)
+
+**Race variety.** The game gives every new race scene (and every Battle Royale) its
+own AI seed from a session seed, so sessions no longer replay the same rival
+decisions. `--seed=N` (after `--`) reproduces a whole session. The rivals' first grid
+(a new race, the first spectator race, championship round 1) is shuffled from that
+seed, with the player still last. Race scenes built directly (tests, probes,
+fingerprints) keep seed 1991 and id order; couch and network grids keep their
+rotation rule.
+
+**Rocco's dominance came from the grid, not his personality.** The fixed first grid
+always put him second, behind cautious Victor; he then led, stayed out of trouble and
+won.
+
+| Armed AI races, 3 laps, rotating circuits / environments / styles | Rocco wins |
+|---|---|
+| Fixed first grid, seeds 11–30 (35 races) | 22 (63 %) |
+| Fixed first grid, seeds 101–112 (28 races) | 22 (79 %); he took 18 % damage against 43–75 % for the others |
+| Shuffled grids, seeds 201–212 (29 races) | 9 (31 %); next Ellie 6, Nina 4 |
+| Shuffled grids, with a milder Rocco (more wasted shots, higher firing bar, more over-commitment), 36 races | 11 (31 %): no difference |
+
+His personality is therefore unchanged: he remains the most dangerous rival, with
+reckless spectacular wins and failures. Grid position decides a lot: 0 wins in 8 from
+8th place, 4 in 10 from the front two slots.
+
+**Attrition.**
+
+Same seeds, circuits and shuffled grids, 3 laps armed, 12 races per environment:
+
+| Environment | DNF / race | Damage / race | Contact damage | Destructions |
+|---|---|---|---|---|
+| Green Valley | 0.58 | 475 | 97 | 22.2 |
+| The Raceway | 0.67 | 450 | 91 | 21.0 |
+| Tabletop Mayhem | 0.58 | 453 | 96 | 20.7 |
+
+The earlier "higher attrition on The Raceway / Tabletop" (Big Refinement report) was
+a small-sample artefact: one race per combination, seed 1991, fixed grid. It does not
+reproduce. Damage comes about 60 % from weapon destructions and 20 % from car
+contacts; barriers contribute almost nothing (impacts stay under the damage
+threshold), and it is the same on circuits with and without jumps.
+
+**Long races.**
+
+| Laps | Rivals retired per race | Destructions per race |
+|---|---|---|
+| 3 | 0.6 of 9 | 22 |
+| 7 | 2.7 | — |
+| 20 | 3–5 (3 races) | about 38 (ammunition pacing keeps the rate down) |
+
+Damage accumulates and nothing repairs during a race, as in the original. No circuit,
+environment or driving defect is involved, so the damage rules are unchanged. Whether
+long armed races should retire fewer cars is left to the playtest (BACKLOG).
+
 ## Environments
 
 The ENVIRONMENT option (renamed from BIOME on 2026-11-17, and from TRACK before that).
@@ -97,9 +150,8 @@ circuit's own.
 - No Guns lap times are about 3 % faster on The Raceway and 1–2 % faster on Tabletop
   Mayhem than on Green Valley, and about 4 % slower on Winter.
 - Every rival finishes in every environment without weapons.
-- With weapons, barrier and contact damage is about 35–45 % higher on The Raceway and
-  Tabletop, because cars hit at higher speeds and respawned cars re-accelerate into
-  traffic. Retirements went from about 1 in 9 races to 1–2 per race there.
+- With weapons, attrition is the same as on Green Valley (controlled comparison
+  above; an earlier small sample suggested otherwise).
 - AI driving needs no environment-specific tuning: racing lines and speed profiles come
   from the scaled parameters. Weather is a light particle layer (`src/presentation/weather_view.gd`) that never
 hides the cars. Values provisional in `src/track/themes/variant_N.tres`.

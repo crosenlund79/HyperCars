@@ -16,7 +16,7 @@ rear), quantity limited only by money. The numbers are HyperCars choices.
 | Item | Value |
 |---|---|
 | Start | $300, 5 front missiles and 5 mines owned and equipped |
-| Prizes, 1st–5th | $550 / 400 / 300 / 200 / 125 |
+| Prizes, 1st–5th | $550 / 400 / 300 / 200 / 125 (3 laps), multiplied by race length: ×1 / ×2 / ×3 / ×5 for 3 / 7 / 20 / 50 laps (`prize_scale_by_laps`) |
 | Prizes, 6th–10th and DNF | nothing |
 | Front / rear missile | $40 per round |
 | Homing missile | $90 per round |
@@ -42,7 +42,8 @@ Armour is kept for the career and never sold back.
 
 - Ammunition: the garage player races with their own rounds; race-length ammunition
   scaling applies only to everyone else.
-- Prizes do not depend on race length.
+- Longer races pay more, by the multiplier above. Repairs and rounds grow with the
+  race, while one race never needs more than a full $200 rebuild.
 - A finished race is settled once: prize, rounds left, condition. Leaving before the
   flag pays nothing, uses no rounds and causes no damage.
 
@@ -52,6 +53,38 @@ Money, rounds, equipped weapons, condition, armour and race count are saved in
 `user://garage.cfg` after every change. Nothing is written while a race is running, so
 quitting mid-race equals leaving the race. **NEW GARAGE** (a second press confirms) on
 the garage setup screen starts over.
+
+## Review 2026-11-17 (pre-playtest): long races and saving
+
+**Measured:** nine armed 7-lap races (three circuits × Green Valley / The Raceway /
+Tabletop Mayhem), 81 car-races. Mean wear was 69 % per car, against about 55 % at
+3 laps. Rounds used rose to 4–6 front and 7–9 rear. 2.7 rivals retired per race.
+
+**Ten-race model at 7 laps, before the change** (prizes as for 3 laps):
+
+| Driver | Money | Rounds | Condition |
+|---|---|---|---|
+| Strong (P1–2) | $1684 | 10 | 100 % |
+| Average (P3–6) | $4 | 0.6 | 23 % (3 laps: 68 %) |
+
+**Prize multiplier for 7 laps, modelled:**
+
+| Multiplier | Average driver: money / rounds / condition |
+|---|---|
+| ×1.5 | $20 / 1.9 / 33 % |
+| ×1.75 | $60 / 3.0 / 42 % |
+| ×2.0 | $141 / 4.4 / 55 % (close to the 3-lap balance) |
+
+**Change:** prizes now scale with race length: ×2 for 7 laps (measured). ×3 for 20 and
+×5 for 50 laps are conservative extrapolations, not measured garage sessions; the
+playtest should confirm them.
+
+**Unchanged:** the 3-lap values from the earlier review, prices, top five only, and
+DNF pays nothing. Poor finishers (P6+) still earn nothing (manual rule); the 50 %
+patch-up keeps them racing.
+
+**Save / load:** the career is saved only between races, so money and rounds cannot
+be duplicated (tested).
 
 ## Review 2026-11-17 (Big Refinement)
 

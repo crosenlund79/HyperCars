@@ -190,7 +190,8 @@ func race_pending() -> bool:
 ## equipped weapons. Applies once per begun race; returns the prize, or -1 if
 ## there was no race to settle (repeat calls change nothing).
 ## condition_left: the car's condition at the end (%; -1 keeps it unchanged).
-func settle_race(position: int, front_left: int, rear_left: int, condition_left: float = -1.0) -> int:
+## laps: the race length (longer races pay more, GarageRules.prize_for).
+func settle_race(position: int, front_left: int, rear_left: int, condition_left: float = -1.0, laps: int = 3) -> int:
 	if not _race_pending:
 		return -1
 	_race_pending = false
@@ -202,7 +203,7 @@ func settle_race(position: int, front_left: int, rear_left: int, condition_left:
 			var left := front_left if slot == FRONT else rear_left
 			stock[w] = clampi(left, 0, count(w))
 	last_position = position
-	last_prize = rules.prize_for(position)
+	last_prize = rules.prize_for(position, laps)
 	money += last_prize
 	races_settled += 1
 	save()

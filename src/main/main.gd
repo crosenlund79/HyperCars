@@ -968,7 +968,7 @@ func _settle_garage() -> void:
 	var me := session.racers[RaceSession.PLAYER_ID]
 	garage.settle_race(0 if me.dnf else me.finish_position,
 		combat.ammo[RaceSession.PLAYER_ID][CombatWorld.FRONT], combat.ammo[RaceSession.PLAYER_ID][CombatWorld.REAR],
-		damage.fraction(RaceSession.PLAYER_ID) * 100.0)
+		damage.fraction(RaceSession.PLAYER_ID) * 100.0, session.lap_count())
 
 
 ## Opens the garage between races (garage races only).

@@ -59,9 +59,18 @@ func sell_price(w: int) -> int:
 	return 0 if p <= 0 else maxi(1, int(floor(p * sell_fraction)))
 
 
-## Prize for a 1-based finishing position (0 = not classified).
-func prize_for(position: int) -> int:
-	return prize_money[position - 1] if position >= 1 and position <= prize_money.size() else 0
+## Prize multiplier by race length (laps): a longer race costs more repairs and
+## rounds for the same result (2026-11-17 review, docs/ECONOMY.md; 7 laps
+## measured, 20 / 50 extrapolated). Lengths not listed pay x1.
+@export var prize_scale_by_laps: Dictionary = {3: 1.0, 7: 2.0, 20: 3.0, 50: 5.0}
+
+
+## Prize for a 1-based finishing position (0 = not classified) in a race of
+## this many laps.
+func prize_for(position: int, laps: int = 3) -> int:
+	if position < 1 or position > prize_money.size():
+		return 0
+	return int(round(prize_money[position - 1] * float(prize_scale_by_laps.get(laps, 1.0))))
 
 
 ## Price of repairing `points` of condition (whole points; at least 1 per point started).

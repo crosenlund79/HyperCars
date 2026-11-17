@@ -138,7 +138,7 @@ func _unhandled_input(event: InputEvent) -> void:
 func refresh() -> void:
 	_money.text = "$ %d" % garage.money
 	if garage.races_settled == 0:
-		_last.text = "Starting money. Top five finishers win prize money."
+		_last.text = "Starting money. Top five finishers win prize money; longer races pay more."
 	else:
 		_last.text = "Last race: %s   prize $%d   car %d%% -> %d%%" % ["DNF" if garage.last_position <= 0 else _ordinal(garage.last_position),
 			garage.last_prize, roundi(garage.last_condition_before + garage.last_patch), roundi(garage.condition)]

@@ -240,3 +240,17 @@ func test_broken_save_is_clamped_and_reset_starts_over() -> void:
 	assert_eq(fresh.races_settled, 0)
 	assert_eq(fresh.condition, 100.0)
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE))
+
+
+## Longer garage races pay more: the same result costs more repairs and
+## rounds over 7 / 20 / 50 laps (review 2026-11-17).
+func test_prize_scales_with_race_length() -> void:
+	assert_eq(_rules.prize_for(1, 3), 550)
+	assert_eq(_rules.prize_for(1, 7), 1100)
+	assert_eq(_rules.prize_for(3, 20), 900)
+	assert_eq(_rules.prize_for(5, 50), 625)
+	assert_eq(_rules.prize_for(6, 50), 0, "still the top five only")
+	assert_eq(_rules.prize_for(2, 5), _rules.prize_for(2), "other lengths pay x1")
+	var g := PlayerGarage.new(_rules)
+	g.begin_race()
+	assert_eq(g.settle_race(2, 0, 0, -1.0, 7), 800)

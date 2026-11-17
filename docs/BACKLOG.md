@@ -76,12 +76,14 @@ Record only observations found during approved work. An item here is **not** per
 
 
 ## From the Big Refinement (2026-11-17), not acted on
-- Damage attrition on the faster environments: with weapons, barrier and contact damage
-  is about 35–45 % higher on The Raceway and Tabletop Mayhem, with 1–2 retirements per
-  3-lap race (none without weapons). Possible tuning: impact thresholds relative to top
-  speed. That is a damage-rule change, so it needs approval.
-- Long armed races (7+ laps) can end with several retirements (e.g. 4 of 9 on The
-  Raceway, 7 laps), as before this run.
+- Long armed races retire many rivals (measured 2026-11-17: 0.6 / 2.7 / about 4 of 9
+  at 3 / 7 / 20 laps). This is a consequence of cumulative damage, not a defect.
+  Possible tuning after the playtest: weapon damage per hit relative to race length
+  (`docs/RACE_RULES.md`).
+- Rocco still wins about 31 % of armed AI races with shuffled grids (next about
+  17–19 %). His personality was left unchanged (a milder variant made no difference);
+  the playtest decides whether that is right for "Mad Dog".
+- Garage prize multipliers for 20 / 50 laps (×3 / ×5) are extrapolated, not measured.
 - Poor finishers (P6+) earn nothing in garage races (top five only, as in the manual).
   The 50 % free patch-up keeps them racing; consolation money would be a design
   decision.
