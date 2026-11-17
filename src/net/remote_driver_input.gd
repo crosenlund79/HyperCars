@@ -29,7 +29,7 @@ func receive(tick: int, steer: float, fire: bool, front_total: int, rear_total: 
 	if tick <= _tick:
 		return
 	_tick = tick
-	_steer = clampf(roundf(steer), -1.0, 1.0)
+	_steer = clampf(steer, -1.0, 1.0)  # shaped / proportional on the client (SteerShaper)
 	_fire = fire
 	_front_total = maxi(_front_total, front_total)
 	_rear_total = maxi(_rear_total, rear_total)

@@ -142,8 +142,6 @@ static func ensure_actions() -> void:
 		InputMap.action_add_event("ui_cancel", _joy_button(JOY_BUTTON_B))
 
 
-## Digital steering like a joystick: -1, 0 or +1. prefix selects a player's
-## own actions ("" = the default single-player actions).
 ## The player's current binding for an action, for on-screen hints: the first
 ## keyboard key and the first controller input, e.g. "Enter / Start".
 ## Couch players' own actions show their own device's half.
@@ -186,10 +184,30 @@ static func pad_short(e: InputEvent) -> String:
 	return "?"
 
 
+## Steering input -1 .. +1: keys and d-pad give a full -1 / 0 / +1; a stick
+## is proportional (past STEER_DEADZONE, with a gentle response curve so small
+## movements make small corrections and a full tilt is full lock). prefix
+## selects a player's own actions ("" = the default single-player actions).
 static func steer(prefix: String = "") -> float:
-	var left := Input.is_action_pressed(prefix + STEER_LEFT)
-	var right := Input.is_action_pressed(prefix + STEER_RIGHT)
-	return float(int(right) - int(left))
+	return _axis(prefix + STEER_RIGHT) - _axis(prefix + STEER_LEFT)
+
+
+## Stick steering below this tilt is ignored; the curve's exponent.
+const STEER_DEADZONE := 0.2
+const STEER_CURVE := 1.5
+
+
+static func _axis(action: String) -> float:
+	if not InputMap.has_action(action):
+		return 0.0
+	var raw := Input.get_action_raw_strength(action)
+	if raw <= 0.0:
+		raw = Input.get_action_strength(action)  # Input.action_press (scripts) sets only this
+	if raw <= 0.0:
+		return 0.0
+	if raw >= 0.999:
+		return 1.0  # keys, d-pad, a full tilt
+	return pow(clampf((raw - STEER_DEADZONE) / (1.0 - STEER_DEADZONE), 0.0, 1.0), STEER_CURVE)
 
 
 static func fire_held(prefix: String = "") -> bool:

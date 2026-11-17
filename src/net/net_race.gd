@@ -460,7 +460,13 @@ func _local_command() -> Dictionary:
 		front_total += 1
 	if Input.is_action_just_pressed(PlayerControls.FIRE_REAR):
 		rear_total += 1
-	return {"steer": PlayerControls.steer(), "fire": PlayerControls.fire_held()}
+	var car := _local_car()
+	var share := car.model.velocity.length() / maxf(car.model.params.max_speed, 1.0) if car != null else 0.0
+	return {"steer": _shaper.step(PlayerControls.steer(), share, Car.FIXED_STEP), "fire": PlayerControls.fire_held()}
+
+
+## The client's own steering shaping (as for local players), sent as is.
+var _shaper := SteerShaper.new()
 
 
 func _push_snapshot(snap: Array) -> void:

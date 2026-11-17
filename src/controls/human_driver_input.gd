@@ -5,6 +5,8 @@ extends DriverInput
 ## (e.g. "p2_", see PlayerControls.ensure_player_actions).
 
 var prefix := ""
+## Steering builds up briefly so taps make small corrections (SteerShaper).
+var shaper := SteerShaper.new()
 
 
 func _init(p_racer_id: int, p_prefix: String = "") -> void:
@@ -18,11 +20,13 @@ func is_human() -> bool:
 
 ## While racing: the player's joystick. After this driver's flag the player has
 ## no control and the car brakes to a stop.
-func drive(race: Node, _step: float) -> Dictionary:
+func drive(race: Node, step: float) -> Dictionary:
 	var car: Car = race.cars[racer_id]
 	if race.session.racers[racer_id].is_finished() or race.menu_open:  # menu open: brake, no steering
+		shaper.reset()
 		return {"steer": 0.0, "fire": car.model.control_mode == CarModel.ControlMode.FIRE_TO_BRAKE}
-	return {"steer": PlayerControls.steer(prefix), "fire": PlayerControls.fire_held(prefix)}
+	var share := car.model.velocity.length() / maxf(car.model.params.max_speed, 1.0)
+	return {"steer": shaper.step(PlayerControls.steer(prefix), share, step), "fire": PlayerControls.fire_held(prefix)}
 
 
 ## Joystick Forward / Backwards presses, only while racing and not wrecked.
