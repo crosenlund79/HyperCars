@@ -10,6 +10,9 @@ const TILT := 0.5
 const LIFT := 16.0
 const PLATE_SIDES := 18
 const SPIN := 0.22  # rad/s
+## Pit lanes and split lanes are drawn this much further from the centreline
+## than they really are, so they read at preview size.
+const BRANCH_SPREAD := 3.0
 
 ## Environment palettes (variant -> colours): plate top, plate side, road, barrier, trees.
 const PALETTES := {
@@ -83,14 +86,14 @@ func show_circuit(p_layout: TrackLayout, p_variant: int, p_night: bool) -> void:
 			while at <= float(b.to) + 0.1:
 				var bd := layout.route_bounds(at, path.length, lane)
 				var t := path.tangent_at(at)
-				var q := path.point_at(at) + Vector2(-t.y, t.x) * (bd.x + bd.y) * 0.5
+				var q := path.point_at(at) + Vector2(-t.y, t.x) * (bd.x + bd.y) * 0.5 * BRANCH_SPREAD
 				pts.append((q - centre) * scale_k)
 				at += 40.0
 			var box := Vector2.INF
 			if b.kind == "pit":
 				var bb := layout.route_bounds(float(b.box), path.length, 1)
 				var tb := path.tangent_at(float(b.box))
-				box = (path.point_at(float(b.box)) + Vector2(-tb.y, tb.x) * (bb.x + bb.y) * 0.5 - centre) * scale_k
+				box = (path.point_at(float(b.box)) + Vector2(-tb.y, tb.x) * (bb.x + bb.y) * 0.5 * BRANCH_SPREAD - centre) * scale_k
 			_branches.append([pts, b.kind == "pit", box])
 	_trees.clear()
 	var rng := RandomNumberGenerator.new()
@@ -173,7 +176,7 @@ func _draw() -> void:
 		for i in pts.size() - 1:
 			var a := _project(pts[i])
 			var b := _project(pts[i + 1])
-			draw_line(a, b, _shade(pal.edge), lw + 2.0 * w)
+			draw_line(a, b, _shade(Color("f0c040") if br[1] else pal.edge), lw + 2.0 * w)
 			draw_line(a, b, _shade(pal.road), lw)
 		if br[1] and br[2] != Vector2.INF:
 			draw_circle(_project(br[2]), 2.6 * w, Color("f0c040"))
