@@ -169,8 +169,9 @@ cheap glow sprites (`docs/PIT_LANES.md`, Vehicle lights).
 
 ## Pit lanes, split sections and pit violations
 
-Free pit service (+30 condition), the 50 % pit limiter, the double-tap override with
-its speeding ticket, and the split sections: `docs/PIT_LANES.md`.
+Free pit service (+30 condition) in three service bays, the 50 % pit limiter and its
+free double-tap override, pit-area collision tickets, and the split sections:
+`docs/PIT_LANES.md`.
 
 ## Fingerprints
 
