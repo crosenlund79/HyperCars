@@ -298,7 +298,7 @@ func _build_setup(root: Control) -> void:
 	_setup_rows.add_theme_constant_override("separation", 6)
 	left.add_child(_setup_rows)
 	_layout_button = _setup_row("CIRCUIT", _cycle_layout)
-	_track_button = _setup_row("BIOME", _cycle_track)
+	_track_button = _setup_row("ENVIRONMENT", _cycle_track)
 	_time_button = _setup_row("TIME", _cycle_time)
 	_laps_button = _setup_row("LAPS", _cycle_laps)
 	_weapons_button = _setup_row("WEAPONS", func(_d: int = 1) -> void: _toggle_weapons())
@@ -404,7 +404,9 @@ func _refresh_preview() -> void:
 	_preview.show_circuit(chosen if chosen != null else LAYOUT, track_variant, night)
 	var theme := TrackTheme.load_variant(track_variant)
 	var feel := {1: "Baseline grip, clear skies.", 2: "Rain: wet road, a little less grip and response.",
-		3: "Snow: lower grip, longer braking, more sliding."}
+		3: "Snow: lower grip, longer braking, more sliding.",
+		4: "Professional circuit: a little more grip and top speed.",
+		5: "Toy cars on a desk: much quicker acceleration."}
 	_setup_note.text = "%s  -  %s, %s\n%s" % [DevLayouts.display_name(layout_id), theme.display_name,
 		"night" if night else "day", feel.get(track_variant, "")]
 
@@ -555,7 +557,7 @@ func _update_layout_button() -> void:
 
 
 func _update_track_button() -> void:
-	_track_button.text = "BIOME:  %s" % TrackTheme.load_variant(track_variant).display_name.to_upper()
+	_track_button.text = "ENVIRONMENT:  %s" % TrackTheme.load_variant(track_variant).display_name.to_upper()
 
 
 func _update_laps_button() -> void:

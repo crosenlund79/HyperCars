@@ -18,6 +18,7 @@ var _theme: TrackTheme
 ## decals go on the road under the cars; props sit on the grass.
 func build(track: Track, resolver: AssetResolver, decal_layer: Node2D) -> void:
 	_theme = track.theme if track.theme != null else TrackTheme.load_variant(1)
+	_landmarks.clear()
 	var rng := RandomNumberGenerator.new()
 	rng.seed = SEED
 	var c := track.centerline
@@ -40,27 +41,29 @@ func build(track: Track, resolver: AssetResolver, decal_layer: Node2D) -> void:
 	# Grandstands along the main straight, on the outside, crowd facing the track.
 	var start_dir := tans[0]
 	var start_out := -Vector2(-start_dir.y, start_dir.x)  # outside of a clockwise lap = left
-	for k in [-2, -1, 0, 1, 2]:
+	for k in ([-2, -1, 0, 1, 2] if _theme.grandstands else []):
 		var s := fposmod(k * 320.0 + 160.0, track.path.length)
 		var p := track.path.point_at(s) + start_out * (half + 150.0)
 		if _clear_of_track(p, c, half + 90.0):
 			var st := _sprite(self, resolver, AssetCatalog.GRANDSTAND, p, start_dir.angle())
 			st.z_index = 1
+			_landmarks.append([p, _radius(AssetCatalog.GRANDSTAND)])
 	# Props scattered around the circuit, clear of the barriers.
 	var kinds := []
 	for k in _theme.scenery.size():
 		kinds.append([_theme.scenery[k], _theme.scenery_weights[k], _theme.scenery_sway[k]])
 	var placed := 0
 	var attempts := 0
-	while placed < 140 and attempts < 2000:
+	_add_landmarks(track, resolver, rng, c, tans, half)
+	while placed < _theme.scenery_count and attempts < 2000:
 		attempts += 1
 		var i := rng.randi_range(0, n - 1)
 		var right := Vector2(-tans[i].y, tans[i].x)
 		var side := -1.0 if rng.randf() < 0.5 else 1.0
 		var p := c[i] + right * side * (half + rng.randf_range(CLEARANCE + 30.0, 520.0)) + Vector2(rng.randf_range(-40, 40), rng.randf_range(-40, 40))
-		if not _clear_of_track(p, c, half + CLEARANCE + 30.0):
-			continue
 		var kind: Array = _pick(kinds, rng)
+		if not _clear_of_track(p, c, half + maxf(CLEARANCE, _radius(kind[0])) + 30.0) or _overlaps_landmark(p, _radius(kind[0])):
+			continue
 		var spr := _sprite(self, resolver, kind[0], p, rng.randf_range(0, TAU))
 		var scale_jitter := rng.randf_range(0.8, 1.2)
 		spr.scale *= scale_jitter
@@ -70,6 +73,8 @@ func build(track: Track, resolver: AssetResolver, decal_layer: Node2D) -> void:
 			spr.set_meta("base_rot", spr.rotation)
 			_sway.append(spr)
 		placed += 1
+	if _theme.kerbs:
+		_add_kerbs(track, resolver, decal_layer, c, tans, curvature)
 	# Tyre stacks and waving flags on the outside of the corners.
 	for i in n:
 		if curvature[i] > 0.45 and i % 11 == 0:
@@ -82,6 +87,114 @@ func build(track: Track, resolver: AssetResolver, decal_layer: Node2D) -> void:
 				var fp := p + tans[i] * 50.0 + outside * 10.0
 				if _clear_of_track(fp, c, half + 45.0):
 					_flags.append(_flag(resolver, fp))
+
+
+## Big environment props (The Raceway's boards and pit building, Tabletop
+## Mayhem's giant pencils, cards and paperclips): each keeps its whole display
+## size clear of every road and of the other landmarks, so nothing hides the
+## road or looks like a barrier that is not there.
+var _landmarks: Array = []  # [position, radius]
+
+
+func _add_landmarks(track: Track, resolver: AssetResolver, rng: RandomNumberGenerator, c: PackedVector2Array, tans: PackedVector2Array, half: float) -> void:
+	var n := c.size()
+	if _theme.pit_building:
+		var r := _radius("scenery/pit_building")
+		for s in [600.0, 900.0, 300.0, 1200.0]:
+			var at := fposmod(-s, track.path.length)
+			var tan := track.path.tangent_at(at)
+			var right := Vector2(-tan.y, tan.x)
+			var pit_size: Vector2 = AssetCatalog.SPECS[_theme.asset("scenery/pit_building")].display_size
+			var p: Vector2 = track.path.point_at(at) + right * (half + 50.0 + pit_size.y * 0.5)
+			if _clear_of_track(p, c, half + 40.0) and _clear_of_box(p, tan, "scenery/pit_building", c, half):
+				var pit := _sprite(self, resolver, "scenery/pit_building", p, tan.angle() + PI)
+				pit.z_index = 1
+				_landmarks.append([p, r])
+				break
+	for k in _theme.landmarks.size():
+		var logical: String = _theme.landmarks[k]
+		var facing: bool = k < _theme.landmark_facing.size() and _theme.landmark_facing[k]
+		var want: int = _theme.landmark_counts[k] if k < _theme.landmark_counts.size() else 4
+		var r := _radius(logical)
+		var size: Vector2 = AssetCatalog.SPECS[_theme.asset(logical)].display_size
+		var done := 0
+		var tries := 0
+		while done < want and tries < 600:
+			tries += 1
+			var i := rng.randi_range(0, n - 1)
+			var right := Vector2(-tans[i].y, tans[i].x)
+			var side := -1.0 if rng.randf() < 0.5 else 1.0
+			var p: Vector2
+			var rot: float
+			if facing:  # boards stand just behind the barrier, text towards the road
+				p = c[i] + right * side * (half + 40.0 + size.y * 0.5)
+				rot = tans[i].angle() + (PI if side > 0.0 else 0.0)
+				if not _clear_of_track(p, c, half + 30.0 + size.y * 0.5 - 2.0) or not _clear_of_box(p, Vector2.from_angle(rot), logical, c, half):
+					continue
+			else:
+				p = c[i] + right * side * (half + r + rng.randf_range(40.0, 420.0))
+				rot = rng.randf_range(0, TAU)
+				if not _clear_of_track(p, c, half + r + 24.0):
+					continue
+			if _overlaps_landmark(p, r if not facing else size.y * 0.5):
+				continue
+			var spr := _sprite(self, resolver, logical, p, rot)
+			spr.z_index = 1
+			_landmarks.append([p, r if not facing else size.x * 0.5])
+			done += 1
+
+
+## Kerbs (decals) along the road edges where the circuit turns.
+func _add_kerbs(track: Track, resolver: AssetResolver, decal_layer: Node2D, c: PackedVector2Array, tans: PackedVector2Array, curvature: PackedFloat32Array) -> void:
+	var n := c.size()
+	var halves := track.half_widths
+	for i in n:
+		if curvature[i] < 0.3:
+			continue
+		var right := Vector2(-tans[i].y, tans[i].x)
+		var h: float = halves[i] if i < halves.size() else track.layout.road_width * 0.5
+		for side in [-1.0, 1.0]:
+			_sprite(decal_layer, resolver, "decals/kerb", c[i] + right * side * (h - 7.0), tans[i].angle())
+			_kerb_count += 1
+
+
+var _kerb_count := 0
+
+
+func kerb_count() -> int:
+	return _kerb_count
+
+
+func landmark_count() -> int:
+	return _landmarks.size()
+
+
+## Radius that keeps the whole prop clear (half its display diagonal).
+func _radius(logical: String) -> float:
+	var key := _theme.asset(logical)
+	if not AssetCatalog.SPECS.has(key):
+		return 0.0
+	var size: Vector2 = AssetCatalog.SPECS[key].display_size
+	return size.length() * 0.5
+
+
+func _overlaps_landmark(p: Vector2, r: float) -> bool:
+	for l in _landmarks:
+		if p.distance_to(l[0]) < r + l[1] + 16.0:
+			return true
+	return false
+
+
+## A rotated rectangular prop: every corner and edge midpoint clear of the road.
+func _clear_of_box(p: Vector2, along: Vector2, logical: String, c: PackedVector2Array, half: float) -> bool:
+	var size: Vector2 = AssetCatalog.SPECS[_theme.asset(logical)].display_size
+	var ax := along.normalized() * size.x * 0.5
+	var ay := Vector2(-along.y, along.x).normalized() * size.y * 0.5
+	for fx in [-1.0, 0.0, 1.0]:
+		for fy in [-1.0, 0.0, 1.0]:
+			if not _clear_of_track(p + ax * fx + ay * fy, c, half + 14.0):
+				return false
+	return true
 
 
 func _process(delta: float) -> void:

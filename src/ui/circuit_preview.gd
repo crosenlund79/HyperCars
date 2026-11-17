@@ -1,21 +1,23 @@
 class_name CircuitPreview
 extends Control
 ## A small rotating diorama of a circuit for the race setup screen: a
-## low-poly plate in the biome's colours with the real centreline on it,
+## low-poly plate in the environment's colours with the real centreline on it,
 ## bridges lifted on pillars, the jump's gap left open, the start line and a
 ## few faceted trees. Procedural 2.5D (tilted projection, custom drawing); no
-## 3D scene, no artwork. Rebuilt whenever the circuit, biome or time changes.
+## 3D scene, no artwork. Rebuilt whenever the circuit, environment or time changes.
 
 const TILT := 0.5
 const LIFT := 16.0
 const PLATE_SIDES := 18
 const SPIN := 0.22  # rad/s
 
-## Biome palettes (variant -> colours): plate top, plate side, road, barrier, trees.
+## Environment palettes (variant -> colours): plate top, plate side, road, barrier, trees.
 const PALETTES := {
 	1: {"top": Color("6f9a52"), "side": Color("46623a"), "road": Color("707177"), "edge": Color("c84a3a"), "tree": Color("3f7a3a"), "tip": Color("5d9a4f")},
 	2: {"top": Color("86724f"), "side": Color("5a4b35"), "road": Color("5b5e68"), "edge": Color("bfae92"), "tree": Color("7a4f6f"), "tip": Color("a2709a")},
 	3: {"top": Color("e6edf5"), "side": Color("9fb0c6"), "road": Color("6d7684"), "edge": Color("3a64a8"), "tree": Color("2f5d4a"), "tip": Color("f4f8ff")},
+	4: {"top": Color("5f9a4e"), "side": Color("3c5f34"), "road": Color("4a4c54"), "edge": Color("d8423a"), "edge2": Color("f2efe8"), "tree": Color("8a8f9a"), "tip": Color("f6f4dc"), "props": "flood"},
+	5: {"top": Color("b47c48"), "side": Color("7a5030"), "road": Color("5e6380"), "edge": Color("e8c068"), "tree": Color("f4c234"), "tip": Color("e88c9c"), "props": "desk"},
 }
 
 var angle := 0.0
@@ -38,7 +40,7 @@ func _ready() -> void:
 
 func show_circuit(p_layout: TrackLayout, p_variant: int, p_night: bool) -> void:
 	layout = p_layout
-	variant = clampi(p_variant, 1, 3)
+	variant = clampi(p_variant, 1, PALETTES.size())
 	night = p_night
 	var c := layout.sample_centerline()
 	var path := ClosedPath.new(c)
@@ -136,7 +138,8 @@ func _draw() -> void:
 			if raised and i % 2 == 0 and _lift[i] > 0.5:
 				draw_line(_project(_pts[i]), a, _shade(pal.side), 3.0 * w)
 			draw_line(a + Vector2(0, 2 * w), b + Vector2(0, 2 * w), _shade(pal.side), 9.0 * w)
-			draw_line(a, b, _shade(pal.edge), 9.0 * w)
+			var edge: Color = pal.edge if not pal.has("edge2") or (i / 2) % 2 == 0 else pal.edge2
+			draw_line(a, b, _shade(edge), 9.0 * w)
 			draw_line(a, b, _shade(pal.road), 6.0 * w)
 	# the jump's gap edges and the start line
 	for i in n:
@@ -146,13 +149,31 @@ func _draw() -> void:
 	# faceted trees (drawn back to front)
 	var order := Array(_trees)
 	order.sort_custom(func(a: Vector2, b: Vector2) -> bool: return _project(a).y < _project(b).y)
-	for p in order:
+	var props: String = pal.get("props", "trees")
+	for k in order.size():
+		var p: Vector2 = order[k]
 		var base := _project(p)
+		if props == "flood":  # floodlight masts with a bright lamp bank
+			draw_line(base, base - Vector2(0, 22 * w), _shade(pal.tree), 2.0 * w)
+			draw_rect(Rect2(base - Vector2(5 * w, 26 * w), Vector2(10 * w, 5 * w)), _shade(pal.tip))
+			continue
+		if props == "desk":  # giant pencils and dice
+			if k % 2 == 0:
+				var d := Vector2(14, -4) * w
+				draw_line(base - d, base + d, _shade(Color("7a5030")), 7.0 * w)
+				draw_line(base - d, base + d, _shade(pal.tree), 5.0 * w)
+				draw_circle(base + d, 2.6 * w, _shade(pal.tip))
+			else:
+				draw_rect(Rect2(base - Vector2(5, 10) * w, Vector2(10, 10) * w), _shade(Color("f6f4ec")))
+				draw_rect(Rect2(base - Vector2(5, 10) * w, Vector2(10, 10) * w), _shade(Color("3a3440")), false, 1.0)
+				draw_circle(base - Vector2(0, 5) * w, 1.3 * w, _shade(Color("3a3440")))
+			continue
 		var tip := base - Vector2(0, 16 * w)
 		draw_colored_polygon(PackedVector2Array([base + Vector2(-6 * w, 0), tip, base + Vector2(6 * w, 0)]), _shade(pal.tree))
 		draw_colored_polygon(PackedVector2Array([base, tip, base + Vector2(6 * w, 0)]), _shade(pal.tree).darkened(0.25))
 		draw_circle(tip + Vector2(0, 2 * w), 1.6 * w, _shade(pal.tip))
-	if night:  # a few warm lamps along the road
-		for i in range(0, n, maxi(1, n / 7)):
-			draw_circle(_project(_pts[i], _lift[i]) + Vector2(0, -3), 2.4, Color(1.0, 0.82, 0.45))
-			draw_circle(_project(_pts[i], _lift[i]) + Vector2(0, -3), 6.0, Color(1.0, 0.82, 0.45, 0.18))
+	if night:  # a few lamps along the road (cool floodlights on The Raceway)
+		var lamp := Color(0.9, 0.95, 1.0) if variant == 4 else Color(1.0, 0.82, 0.45)
+		for i in range(0, n, maxi(1, n / (12 if variant == 4 else 7))):
+			draw_circle(_project(_pts[i], _lift[i]) + Vector2(0, -3), 2.4, lamp)
+			draw_circle(_project(_pts[i], _lift[i]) + Vector2(0, -3), 6.0, Color(lamp, 0.18))

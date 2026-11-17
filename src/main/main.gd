@@ -62,7 +62,7 @@ var music: MusicPlayer = null
 @export var allow_exit := false
 @export var weapon_rules: WeaponRules = preload("res://src/combat/default_weapon_rules.tres")
 ## Track theme variant (1 = baseline). Visual only; set before the scene starts.
-@export_range(1, 3) var track_variant := 1
+@export_range(1, 5) var track_variant := 1
 var track_theme: TrackTheme
 var hud_track_name := ""
 ## Track layout for this race scene (null = the classic circuit). The game

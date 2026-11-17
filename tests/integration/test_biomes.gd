@@ -34,6 +34,46 @@ func test_biome_handling() -> void:
 		assert_eq(c.model.params, winter.driving_params, "identical physics for every car")
 
 
+## The Raceway: +5 % top speed and grip; Tabletop Mayhem: +28 % acceleration;
+## everything else the baseline, identical for every car (AI and human).
+func test_new_environment_handling_and_top_speed() -> void:
+	var base: DrivingParams = load("res://src/driving/default_driving_params.tres")
+	var raceway: Node2D = await _race(4)
+	assert_almost_eq(raceway.driving_params.max_speed, base.max_speed * 1.05, 0.001)
+	assert_almost_eq(raceway.driving_params.grip, base.grip * 1.05, 0.001)
+	assert_eq(raceway.driving_params.acceleration, base.acceleration)
+	assert_eq(raceway.driving_params.brake_deceleration, base.brake_deceleration)
+	assert_eq(raceway.driving_params.turn_rate_degrees, base.turn_rate_degrees)
+	var table: Node2D = await _race(5)
+	assert_almost_eq(table.driving_params.acceleration, base.acceleration * 1.28, 0.001)
+	for prop in ["max_speed", "grip", "brake_deceleration", "turn_rate_degrees"]:
+		assert_eq(table.driving_params.get(prop), base.get(prop), "Tabletop %s unchanged" % prop)
+	for m in [raceway, table]:
+		for c in m.cars:
+			assert_eq(c.model.params, m.driving_params, "identical physics for every car")
+	# Flat out on a straight: the Raceway car really goes faster; the Tabletop
+	# car gets there sooner.
+	var reach := {}
+	var top := {}
+	for v in [1, 4, 5]:
+		var p := TrackTheme.load_variant(v).driving(base)
+		var model := CarModel.new(p)
+		var t := 0
+		while model.forward_speed() < base.max_speed * 0.95 and t < 2000:
+			model.update(1.0 / 60.0, 0.0, true)
+			model.integrate(1.0 / 60.0)
+			t += 1
+		reach[v] = t
+		for k in 600:
+			model.update(1.0 / 60.0, 0.0, true)
+			model.integrate(1.0 / 60.0)
+		top[v] = model.forward_speed()
+	assert_almost_eq(top[4], base.max_speed * 1.05, 1.0, "Raceway top speed")
+	assert_almost_eq(top[1], base.max_speed, 1.0)
+	assert_almost_eq(top[5], base.max_speed, 1.0, "Tabletop top speed unchanged")
+	assert_lt(reach[5], reach[1] * 0.85, "Tabletop accelerates much sooner")
+
+
 func test_night_never_changes_physics() -> void:
 	var day: Node2D = await _race(3, false)
 	var night: Node2D = await _race(3, true)

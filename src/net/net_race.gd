@@ -14,7 +14,7 @@ enum Msg { WELCOME, HELLO, SETUP, READY, START, SNAP, INPUT, RESULTS, EVENTS, BY
 
 ## Wire protocol version and game build: both must match before a session starts.
 const PROTOCOL := 5  # 3: M6 condition / DNF in snapshots; 4: Weapons Hot lock; 5: J5 jumps
-const GAME_BUILD := "hypercars-j5"
+const GAME_BUILD := "hypercars-r1"
 
 
 ## Build string exchanged in WELCOME / HELLO. The track layout is not part of

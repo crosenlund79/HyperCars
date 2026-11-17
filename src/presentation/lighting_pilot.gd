@@ -31,6 +31,7 @@ var _cursor := 0
 
 var lamp_color := LAMP_COLOR
 var lamp_energy := 1.15
+var lamp_count := LAMP_COUNT
 var headlight_energy := 0.95
 
 
@@ -43,6 +44,7 @@ func setup(track: Track, cars: Array[Car], combat: CombatWorld, resolver: AssetR
 		ambient = theme.night_ambient
 		lamp_color = theme.lamp_color
 		lamp_energy = theme.lamp_energy
+		lamp_count = theme.lamp_count
 		headlight_energy = theme.headlight_energy
 	_ambient = CanvasModulate.new()
 	_ambient.color = ambient
@@ -118,7 +120,7 @@ func _process(delta: float) -> void:
 		_flashes[k].energy = 1.6 * (1.0 - _flash_age[k])
 
 
-## Ten lamps: on the outside of the sharpest corners and along the main straight.
+## The environment's lamps (ten by default): on the outside of the sharpest corners and along the main straight.
 func _place_lamps(track: Track, resolver: AssetResolver, tex: Texture2D) -> void:
 	var c := track.centerline
 	var n := c.size()
@@ -130,7 +132,7 @@ func _place_lamps(track: Track, resolver: AssetResolver, tex: Texture2D) -> void
 	spots.sort_custom(func(a: Array, b: Array) -> bool: return a[0] > b[0])
 	var chosen: Array[int] = [0]
 	for s in spots:
-		if chosen.size() >= LAMP_COUNT:
+		if chosen.size() >= lamp_count:
 			break
 		var ok := true
 		for j in chosen:

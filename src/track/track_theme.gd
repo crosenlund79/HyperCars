@@ -1,6 +1,6 @@
 class_name TrackTheme
 extends Resource
-## One biome (theme variant) of a circuit (Variant 1, 2, 3 ...): artwork, a
+## One environment (theme variant) of a circuit (Variant 1, 2, 3 ...): artwork, a
 ## few colour tints, weather, the night mood, and (2026-11) modest handling
 ## differences for every car alike (grip, response, braking). The layout,
 ## collision and race rules are identical for every variant. Internal names stay generic ("variant_N"); only display_name is
@@ -11,7 +11,7 @@ extends Resource
 ## variant only provides what it changes. Variant 1 is the baseline and uses
 ## the shared assets directly.
 
-const VARIANT_COUNT := 3
+const VARIANT_COUNT := 5
 const PATH := "res://src/track/themes/variant_%d.tres"
 
 @export_range(1, 9) var variant := 1
@@ -31,6 +31,23 @@ const PATH := "res://src/track/themes/variant_%d.tres"
 @export var acceleration_scale := 1.0
 @export var turn_scale := 1.0
 @export var brake_scale := 1.0
+## Top speed for every car (2026-11, The Raceway): 1 = the approved baseline.
+@export var max_speed_scale := 1.0
+## How many scattered props (scenery); landmarks: extra environment-only props
+## (variant logical names such as "scenery/pencil"), how many of each, and
+## whether each one faces the track (advertising boards) or lies at any angle.
+## Every prop keeps its whole display size clear of the road.
+@export var scenery_count := 140
+@export var landmarks: Array[String] = []
+@export var landmark_counts: Array[int] = []
+@export var landmark_facing: Array[bool] = []
+## Red / white kerbs on the corners and a pit building on the main straight.
+@export var kerbs := false
+@export var pit_building := false
+## Grandstands with crowds along the main straight.
+@export var grandstands := true
+## Night: how many trackside lamps (floodlights on The Raceway).
+@export var lamp_count := 10
 ## Look: tints over the ground and road artwork (white = unchanged), weather
 ## ("", "rain" or "snow"), and the night mood (ambient tint, lamp colour and
 ## strength, headlight strength).
@@ -48,11 +65,12 @@ func asset(logical: String) -> String:
 	return AssetCatalog.themed(logical, variant)
 
 
-## The driving parameters on this biome (the same object when nothing changes).
+## The driving parameters in this environment (the same object when nothing changes).
 func driving(base: DrivingParams) -> DrivingParams:
-	if grip_scale == 1.0 and acceleration_scale == 1.0 and turn_scale == 1.0 and brake_scale == 1.0:
+	if grip_scale == 1.0 and acceleration_scale == 1.0 and turn_scale == 1.0 and brake_scale == 1.0 and max_speed_scale == 1.0:
 		return base
 	var p := base.duplicate() as DrivingParams
+	p.max_speed = base.max_speed * max_speed_scale
 	p.grip = base.grip * grip_scale
 	p.acceleration = base.acceleration * acceleration_scale
 	p.turn_rate_degrees = base.turn_rate_degrees * turn_scale

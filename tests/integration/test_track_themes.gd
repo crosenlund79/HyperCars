@@ -23,8 +23,12 @@ func test_three_generic_variants() -> void:
 		assert_eq(t.scenery_sway.size(), t.scenery.size())
 		for logical in t.scenery:
 			assert_true(AssetCatalog.SPECS.has(t.asset(logical)), "variant %d prop %s" % [n, logical])
-	assert_eq(names.size(), 3, "distinct display names")
-	assert_eq(TrackTheme.load_variant(99).variant, 3, "clamped")
+	assert_eq(names.size(), 5, "distinct display names")
+	assert_eq(TrackTheme.load_variant(99).variant, 5, "clamped")
+	for k in range(1, 6):
+		var t := TrackTheme.load_variant(k)
+		for logical in t.landmarks:
+			assert_true(AssetCatalog.SPECS.has(t.asset(logical)), "variant %d landmark %s" % [k, logical])
 
 
 func test_variant_assets_fall_back_to_shared_ones() -> void:
@@ -37,7 +41,7 @@ func test_variant_assets_fall_back_to_shared_ones() -> void:
 
 func test_variant_assets_keep_the_shared_contract_and_load() -> void:
 	var r := AssetResolver.new("user://no_overrides_here")
-	for v in [2, 3]:
+	for v in [2, 3, 4, 5]:
 		for base in ["track/grass", "track/tarmac", "track/wall"]:
 			var key := AssetCatalog.themed(base, v)
 			assert_ne(key, base)
@@ -85,7 +89,7 @@ func test_biomes_change_races_deterministically() -> void:
 	var args := ["mode=race", "ticks=1800", "weapons=1"]
 	var base := ProbeRunner.run(PackedStringArray(args + ["theme=1"]))
 	assert_eq(base.length(), 32, base)
-	for v in ["2", "3"]:
+	for v in ["2", "3", "4", "5"]:
 		var a := ProbeRunner.run(PackedStringArray(args + ["theme=" + v]))
 		assert_ne(a, base, "biome %s handles differently" % v)
 		assert_eq(ProbeRunner.run(PackedStringArray(args + ["theme=" + v])), a, "biome %s deterministic" % v)
@@ -106,6 +110,38 @@ func test_variant_props_stay_clear_of_the_track() -> void:
 	assert_gt(m.scenery.sway_count(), 0, "tall props sway")
 
 
+## The Raceway and Tabletop Mayhem: big props (boards, pit building, giant
+## pencils, cards, paperclips) keep their whole display size off every road.
+func test_new_environment_landmarks_stay_off_the_road() -> void:
+	for layout_id in DevLayouts.PLAYER_LAYOUTS:
+		for v in [4, 5]:
+			var m: Node2D = MAIN_SCENE.instantiate()
+			m.track_variant = v
+			m.use_command_line_layout = false
+			m.layout_override = DevLayouts.load_layout(layout_id)
+			add_child_autofree(m)
+			await wait_physics_frames(1)
+			var theme: TrackTheme = m.track.theme
+			var half_max := 0.0
+			for h in m.track.half_widths:
+				half_max = maxf(half_max, h)
+			assert_gt(m.scenery.landmark_count(), 10, "%s / %d landmarks" % [layout_id, v])
+			for s in m.scenery.get_children():
+				if not (s is Sprite2D):
+					continue
+				var size: Vector2 = s.texture.get_size() * s.scale
+				# every corner of the sprite stays off the road surface
+				for fx in [-0.5, 0.5]:
+					for fy in [-0.5, 0.5]:
+						var corner: Vector2 = s.position + Vector2(size.x * fx, size.y * fy).rotated(s.rotation)
+						assert_true(TrackScenery._clear_of_track(corner, m.track.centerline, half_max - 2.0),
+							"%s / %d: %s at %s overlaps the road" % [layout_id, v, s.texture.resource_path, s.position])
+			if theme.kerbs:
+				assert_gt(m.scenery.kerb_count(), 20, "kerbs on the corners")
+			m.queue_free()
+			await wait_physics_frames(1)
+
+
 func test_title_cycles_and_remembers_the_track() -> void:
 	var settings := AudioSettings.new(SETTINGS)
 	var title := TitleScreen.new()
@@ -117,8 +153,8 @@ func test_title_cycles_and_remembers_the_track() -> void:
 	assert_eq(title.track_variant, 2)
 	var track: Track = title._backdrop.get_child(0)
 	assert_eq(track.theme.variant, 2, "backdrop shows the chosen variant")
-	title._cycle_track()
-	title._cycle_track()
+	for k in TrackTheme.VARIANT_COUNT - 1:
+		title._cycle_track()
 	assert_eq(title.track_variant, 1, "wraps")
 	title._cycle_track()
 	var again := TitleScreen.new()
