@@ -145,7 +145,7 @@ func test_ramming_a_car_in_its_bay_tickets_the_rammer_not_the_victim() -> void:
 	var t: Track = _main.track
 	var b: Dictionary = t.layout.branches[t.layout.pit_branch()]
 	var strip := t.layout.bay_strip(b, t.path.length)
-	var s := TrackLayout.bay_centre(b, 1) - 150.0
+	var s := TrackLayout.bay_centre(b, 1) - 170.0  # (hard enough to shove the parked car into the wall)
 	var tan := t.path.tangent_at(s)
 	var pos := t.path.point_at(s) + Vector2(-tan.y, tan.x) * (strip.x + strip.y) * 0.5
 	_main.car.place(Transform2D(tan.angle(), pos))
@@ -155,9 +155,9 @@ func test_ramming_a_car_in_its_bay_tickets_the_rammer_not_the_victim() -> void:
 	_main.car.model.speed_cap = INF
 	_main.car.model.velocity = tan * 300.0
 	_main.inputs[P] = Ram.new()
-	await wait_physics_frames(40)
+	await wait_physics_frames(120)
 	assert_eq(_main.pits.tickets[P], 1, "the rammer: one ticket for one incident")
-	assert_eq(_main.pits.tickets[4], 0, "never the stationary victim")
+	assert_eq(_main.pits.tickets[4], 0, "never the stationary victim, not even for being shoved into a wall")
 	await wait_process_frames(3)
 	assert_true(_main.kill_feed.lines().has("YOU [ticket] PIT COLLISION"), str(_main.kill_feed.lines()))
 	assert_eq(_main.stats.line(P), [0, 0, 0], "no kills, deaths or tombstones")

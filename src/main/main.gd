@@ -167,6 +167,9 @@ var _pit_requests: Dictionary = {}
 var pit_state := PackedInt32Array()
 ## Each car's velocity before the latest physics step (pit collision blame).
 var _pit_vel := PackedVector2Array()
+## Seconds a car that was driven into stays blameless (pushed into a wall, a
+## bay or another car by the culprit).
+var _pit_shoved := PackedFloat32Array()
 ## A car must be closing on the other at this speed (px/s) to be to blame.
 const PIT_BLAME_SPEED := 40.0
 var damage_enabled := true
@@ -400,6 +403,7 @@ func _ready() -> void:
 	if track.layout.pit_branch() >= 0:
 		pits = PitWorld.new(pit_rules, cars.size(), TrackLayout.bay_count(track.layout.branches[track.layout.pit_branch()]))
 		_pit_vel.resize(cars.size())
+		_pit_shoved.resize(cars.size())
 	if track.layout.has_elevation() or track.layout.has_jumps():
 		combat.layout = track.layout
 	if not track.layout.branches.is_empty():
@@ -1789,16 +1793,18 @@ func _refresh_player_hud(view_hud: Hud, id: int) -> void:
 func _pit_collisions() -> void:
 	if pits == null or session.state != RaceSession.State.RACING:
 		return
+	var culprits: Array[int] = []
+	for imp in _impacts:  # car contacts first: whoever was driven into is blameless for what follows
+		if imp[1] >= 0 and imp[2] >= damage_rules.car_threshold:
+			var c := _pit_blame(imp[0], imp[1])
+			if c >= 0:
+				_pit_shoved[imp[1] if c == imp[0] else imp[0]] = pit_rules.incident_gap
+				culprits.append(c)
 	for imp in _impacts:
-		var id: int = imp[0]
-		var other: int = imp[1]
-		var culprit := -1
-		if other < 0:
-			if imp[2] >= damage_rules.wall_threshold:
-				culprit = id
-		elif imp[2] >= damage_rules.car_threshold:
-			culprit = _pit_blame(id, other)
-		if culprit < 0 or pits.in_lane[culprit] == 0 or session.racers[culprit].is_done() or damage.is_retired(culprit):
+		if imp[1] < 0 and imp[2] >= damage_rules.wall_threshold and _pit_shoved[imp[0]] <= 0.0:
+			culprits.append(imp[0])
+	for culprit in culprits:
+		if pits.in_lane[culprit] == 0 or _pit_shoved[culprit] > 0.0 or session.racers[culprit].is_done() or damage.is_retired(culprit):
 			continue
 		var fine := pits.collision(culprit)
 		if fine > 0:
@@ -1979,6 +1985,7 @@ func _update_pits(step: float) -> void:
 		if lane and _pit_requests.has(id):
 			pits.request_override(id)  # (allowed: no ticket for speeding)
 		_pit_vel[id] = cars[id].model.velocity  # (before this tick's contacts: who drove into whom)
+		_pit_shoved[id] = maxf(0.0, _pit_shoved[id] - step)
 		var add := pits.step(id, lane, bay, cars[id].model.velocity.length(), damage.condition[id],
 			damage_rules.max_condition, damage.is_retired(id) or not racing, step)
 		if add > 0.0:
