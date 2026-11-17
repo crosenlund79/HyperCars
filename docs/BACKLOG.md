@@ -91,3 +91,8 @@ Record only observations found during approved work. An item here is **not** per
   would need more assets.
 - MP3 overrides loop with a generic 0.25 s crossfade. Per-file loop points could be read
   from a sidecar file.
+| 2026-11-17 | Pit lanes: rivals plan more stops than they make in long armed races (e.g. 8 of 20 on Ravenhook, 50 laps); mostly entries aborted after a shove before the divider, or retirements first. Navigation itself is clean after the stay-in-your-lane fix. | Endurance / pit lanes |
+| 2026-11-17 | Pit rules are provisional (+30, 6 s, 50 % limiter, $150 / 3 s): they have not been calibrated by playtest. The original Super Cars II has no pit lanes, so this is a HyperCars addition. | Endurance / pit lanes |
+| 2026-11-17 | Spectators see a rival's pit service only as the car standing in the box; there is no pit line for the followed rival. | Endurance / presentation |
+| 2026-11-17 | Night with DYNAMIC VEHICLE LIGHTS on costs about 13 % frame rate against the old single glow under software rendering; not measured on a real GPU. | Lighting performance |
+| 2026-11-17 | The ticket banner shows on the shared HUD in couch races (not per view); the pit line is per view. | Endurance / couch |
