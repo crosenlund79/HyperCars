@@ -153,4 +153,7 @@ extends Resource
 @export var pit_threshold := 0.35
 @export var pit_stay_out_chance := 0.0
 @export var pit_speeding := 0.02
+## Seconds a driver waits before the bays when all are taken, before giving up
+## the stop and driving on (0 = never waits).
+@export var pit_patience := 2.0
 

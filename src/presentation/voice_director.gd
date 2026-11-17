@@ -130,7 +130,7 @@ func _collect_destructions() -> void:
 			_pending.append({"event": VoiceCatalog.Event.PLAYER_DESTROYED, "speaker": VoiceCatalog.ANNOUNCER})
 		elif e.kind == "unlock":  # Weapons Hot (also when spectating: a race announcement)
 			_pending.append({"event": VoiceCatalog.Event.WEAPONS_HOT, "speaker": VoiceCatalog.ANNOUNCER})
-		elif e.kind == "ticket":  # a pit-lane speeding ticket (anyone's: once per ticket)
+		elif e.kind == "ticket":  # a pit-lane collision ticket (anyone's: once per ticket)
 			_pending.append({"event": VoiceCatalog.Event.PIT_VIOLATION, "speaker": VoiceCatalog.ANNOUNCER})
 	_event_index = events.size()
 

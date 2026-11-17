@@ -1,8 +1,10 @@
 extends GutTest
 ## Pit lanes and split sections in the race scene: every legal route counts
-## laps; a rival really drives into the box, stops and gets +30; a human's
-## double tap gives one ticket (feed, HUD, announcer) without K / D; Knockout
-## has no service; the limiter holds the car in the lane.
+## laps; a rival really drives into a bay, stops and gets +30; a human's
+## double tap overrides the limiter for free; ramming a car in its bay
+## tickets the rammer (feed, no K / D), never the victim; harmless touches and
+## racing-road contacts are free; three bays serve three cars and a fourth
+## never squeezes in or jams the lane; Knockout has no service.
 
 const MAIN_SCENE := preload("res://src/main/main.tscn")
 const P := RaceSession.PLAYER_ID
@@ -69,37 +71,179 @@ func test_rival_pit_stop_repairs_thirty_points() -> void:
 	assert_true(events.any(func(e: Dictionary) -> bool: return e.kind == "pit_service" and e.car == 1))
 
 
-func test_double_tap_override_gives_one_ticket_in_the_feed_without_statistics() -> void:
+func test_double_tap_override_is_free() -> void:
 	await _make("kestrel_ridge", "race", true)
 	_main.set_weapons_enabled(false)
 	_main.start_race()
 	await wait_physics_frames(3)
 	var b: Dictionary = _main.track.layout.branches[_main.track.layout.pit_branch()]
-	_place_in_lane(float(b.box) - 150.0, 1)
+	_place_in_lane(float(b.from) + float(b.ramp) + 120.0, 1)
 	await wait_physics_frames(10)  # (progress follows a teleport over a few ticks)
 	await wait_process_frames(2)
 	assert_true(_main.pits.limiter_on(P), "the limiter engaged in the pit lane")
 	assert_string_contains(_main.hud.pit_text(), "PIT LIMITER")
 	assert_string_contains(_main.hud.pit_text(), PlayerControls.key_text(PlayerControls.FIRE), "the configured accelerator")
+	assert_lt(_main.car.model.speed_cap, INF)
 	for k in 2:
 		Input.action_press(PlayerControls.FIRE)
 		await wait_physics_frames(3)
 		Input.action_release(PlayerControls.FIRE)
 		await wait_physics_frames(3)
-	assert_eq(_main.pits.tickets[P], 1, "one ticket")
 	assert_false(_main.pits.limiter_on(P), "limiter overridden")
 	assert_eq(_main.car.model.speed_cap, INF, "full speed rules again")
-	var tickets: Array = _main.combat.events.filter(func(e: Dictionary) -> bool: return e.kind == "ticket")
-	assert_eq(tickets.size(), 1, "one ticket event")
+	await wait_process_frames(2)
+	assert_string_contains(_main.hud.pit_text(), "LIMITER OFF")
+	assert_eq(_main.pits.tickets[P], 0, "no ticket for speeding")
+	assert_eq(_main.combat.events.filter(func(e: Dictionary) -> bool: return e.kind == "ticket").size(), 0)
+	assert_eq(_main.kill_feed.lines().size(), 0, "nothing in the feed")
+
+
+## A rival parked in a service bay; returns its id.
+func _park_in_bay(id: int, bay: int) -> void:
+	var t: Track = _main.track
+	var b: Dictionary = t.layout.branches[t.layout.pit_branch()]
+	var strip := t.layout.bay_strip(b, t.path.length)
+	var s := TrackLayout.bay_centre(b, bay)
+	var tan := t.path.tangent_at(s)
+	var pos := t.path.point_at(s) + Vector2(-tan.y, tan.x) * (strip.x + strip.y) * 0.5
+	var c: Car = _main.cars[id]
+	c.place(Transform2D(tan.angle(), pos))
+	c.model.velocity = Vector2.ZERO
+	_main.progress[id].reset(pos)
+	_main.inputs[id] = Hold.new()
+
+
+class Hold extends DriverInput:
+	func drive(_race: Node, _step: float) -> Dictionary:
+		return {"steer": 0.0, "fire": false}
+
+
+class Ram extends DriverInput:
+	var steer := 0.0
+	func drive(_race: Node, _step: float) -> Dictionary:
+		return {"steer": steer, "fire": true}
+
+
+func _park_others(except: Array) -> void:
+	for id in range(1, 10):
+		if except.has(id):
+			continue
+		_main.cars[id].active = false
+		_main.cars[id].place(Transform2D(0.0, Vector2(-9000 - id * 300, -9000)))
+		_main.progress[id].reset(_main.cars[id].global_position)
+
+
+func test_ramming_a_car_in_its_bay_tickets_the_rammer_not_the_victim() -> void:
+	await _make("kestrel_ridge", "race", true)
+	_main.set_weapons_enabled(false)
+	_main.start_race()
+	await wait_physics_frames(3)
+	_park_others([4])
+	_park_in_bay(4, 1)
+	await wait_physics_frames(4)
+	# the player drives straight into the parked car along the bays at speed
+	var t: Track = _main.track
+	var b: Dictionary = t.layout.branches[t.layout.pit_branch()]
+	var strip := t.layout.bay_strip(b, t.path.length)
+	var s := TrackLayout.bay_centre(b, 1) - 150.0
+	var tan := t.path.tangent_at(s)
+	var pos := t.path.point_at(s) + Vector2(-tan.y, tan.x) * (strip.x + strip.y) * 0.5
+	_main.car.place(Transform2D(tan.angle(), pos))
+	_main.progress[P].reset(pos)
+	_main.pits.in_lane[P] = 1
+	_main.pits.overridden[P] = 1  # (speeding is allowed)
+	_main.car.model.speed_cap = INF
+	_main.car.model.velocity = tan * 300.0
+	_main.inputs[P] = Ram.new()
+	await wait_physics_frames(40)
+	assert_eq(_main.pits.tickets[P], 1, "the rammer: one ticket for one incident")
+	assert_eq(_main.pits.tickets[4], 0, "never the stationary victim")
 	await wait_process_frames(3)
-	assert_true(_main.kill_feed.lines().has("YOU [ticket] PIT SPEEDING"), str(_main.kill_feed.lines()))
+	assert_true(_main.kill_feed.lines().has("YOU [ticket] PIT COLLISION"), str(_main.kill_feed.lines()))
 	assert_eq(_main.stats.line(P), [0, 0, 0], "no kills, deaths or tombstones")
-	for k in 3:  # more taps in the same traversal: nothing more
-		Input.action_press(PlayerControls.FIRE)
-		await wait_physics_frames(2)
-		Input.action_release(PlayerControls.FIRE)
-		await wait_physics_frames(2)
-	assert_eq(_main.pits.tickets[P], 1, "never charged twice")
+
+
+func test_harmless_touches_and_racing_road_contacts_are_free() -> void:
+	await _make()
+	_main.set_weapons_enabled(false)
+	_main.start_race()
+	await wait_physics_frames(3)
+	_park_others([4])
+	_park_in_bay(4, 1)
+	await wait_physics_frames(4)
+	# a gentle nudge into the parked car (well below the damage threshold)
+	var t: Track = _main.track
+	var b: Dictionary = t.layout.branches[t.layout.pit_branch()]
+	var strip := t.layout.bay_strip(b, t.path.length)
+	var s := TrackLayout.bay_centre(b, 1) - 70.0
+	var tan := t.path.tangent_at(s)
+	var pos := t.path.point_at(s) + Vector2(-tan.y, tan.x) * (strip.x + strip.y) * 0.5
+	_main.car.place(Transform2D(tan.angle(), pos))
+	_main.progress[P].reset(pos)
+	_main.car.model.velocity = tan * 60.0
+	_main.inputs[P] = Hold.new()
+	await wait_physics_frames(40)
+	assert_eq(_main.pits.tickets[P], 0, "a harmless touch is free")
+	# a hard hit on the racing road beside the pit lane: not a pit violation
+	var on_road := t.path.point_at(s) + Vector2(-tan.y, tan.x) * -30.0
+	_main.cars[4].place(Transform2D(tan.angle(), on_road + tan * 120.0))
+	_main.progress[4].reset(on_road + tan * 120.0)
+	_main.car.place(Transform2D(tan.angle(), on_road))
+	_main.progress[P].reset(on_road)
+	_main.car.model.velocity = tan * 320.0
+	_main.inputs[P] = Ram.new()
+	await wait_physics_frames(40)
+	assert_eq(_main.pits.tickets[P], 0, "contacts on the racing road never count")
+	assert_eq(_main.pits.tickets[4], 0)
+
+
+func test_three_rivals_service_together_and_a_fourth_finds_the_pit_full() -> void:
+	await _make()
+	_main.set_weapons_enabled(false)
+	_main.set_lap_count(4)
+	_main.set_menu_choice(2)
+	_main.start_race()
+	await wait_physics_frames(3)
+	# three rivals hold the bays (low condition: still to be serviced)
+	_park_others([1, 2, 3, 4])
+	for k in 3:
+		_park_in_bay(k + 1, k)
+		_main.damage.condition[k + 1] = 30.0
+	await wait_physics_frames(20)
+	assert_eq(_main.pits.bay_owner, PackedInt32Array([1, 2, 3]), "one car per bay, all three at once")
+	await wait_physics_frames(60)
+	for id in [1, 2, 3]:
+		assert_gt(_main.pits.service[id], 0.0, "rival %d is being serviced" % id)
+	# a fourth damaged rival arrives: no free bay, it never gets serviced while they are all held
+	_main.damage.condition[4] = 15.0
+	var t: Track = _main.track
+	var b: Dictionary = t.layout.branches[t.layout.pit_branch()]
+	_main.cars[4].active = true
+	_main.cars[4].place(Transform2D(t.path.tangent_at(float(b.from) - 400.0).angle(), t.path.point_at(float(b.from) - 400.0)))
+	_main.progress[4].reset(_main.cars[4].global_position)
+	_main.inputs[4] = AiDriverInput.new(4, _main.drivers[4])
+	_main.drivers[4].pitting = true
+	_main.drivers[4].pit_entries += 1
+	await wait_physics_frames(30)
+	assert_eq(_main.pits.free_bays(4), 0, "full")
+	assert_eq(_main.pits.bay_of(4), -1)
+	await wait_until(func() -> bool: return _main.pits.in_lane[4] == 1, 10.0)
+	await wait_physics_frames(60)
+	assert_eq(_main.pits.bay_of(4), -1, "never a fourth car in the bays")
+	assert_eq(_main.pits.stops[4], 0)
+	# the three are done and drive out; the fourth either took a freed bay or gave up and drove on: never stuck
+	await wait_until(func() -> bool: return _main.pits.in_lane[4] == 0, 40.0)
+	assert_eq(_main.pits.in_lane[4], 0, "the fourth car left the pit lane (no jam)")
+	for id in [1, 2, 3]:
+		assert_eq(_main.pits.stops[id], 1, "rival %d was serviced" % id)
+	assert_gt(_main.drivers[4].pit_abandons + _main.pits.stops[4], 0, "it gave up the stop (or got a bay)")
+	# the serviced rivals race on again: out of their bays, along the through-lane, back on the track
+	for id in [1, 2, 3]:
+		_main.inputs[id] = AiDriverInput.new(id, _main.drivers[id])
+	await wait_until(func() -> bool: return [1, 2, 3].all(func(id: int) -> bool: return _main.pits.in_lane[id] == 0), 30.0)
+	for id in [1, 2, 3]:
+		assert_eq(_main.pits.in_lane[id], 0, "rival %d merged back onto the track" % id)
+	assert_eq(_main.pits.bay_owner, PackedInt32Array([-1, -1, -1]), "every bay free again")
 
 
 func test_held_accelerator_through_the_entry_never_overrides() -> void:

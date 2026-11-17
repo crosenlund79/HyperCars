@@ -94,10 +94,10 @@ func _add(e: Dictionary) -> void:
 		text.append(str(_names.get(e.attacker, "?")))
 	var weapon: int = e.weapon
 	var icon: Texture2D = _crash if weapon == CombatStats.COLLISION else _icons.get(weapon)
-	if weapon == CombatStats.TICKET:  # a pit speeding ticket: the offender only, no victim
+	if weapon == CombatStats.TICKET:  # a pit collision ticket: the offender only, no victim
 		row.add_child(_icon(_ticket))
-		row.add_child(HyperTheme.label("PIT SPEEDING", 16, HyperTheme.GOLD, 700))
-		panel.set_meta("text", " ".join(text + PackedStringArray(["[ticket]", "PIT SPEEDING"])))
+		row.add_child(HyperTheme.label("PIT COLLISION", 16, HyperTheme.GOLD, 700))
+		panel.set_meta("text", " ".join(text + PackedStringArray(["[ticket]", "PIT COLLISION"])))
 		_box.add_child(panel)
 		_rows.append([panel, 0.0])
 		while _rows.size() > MAX_ROWS:

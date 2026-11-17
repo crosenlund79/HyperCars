@@ -27,7 +27,7 @@ extends Resource
 @export var silence_destroyed := 0.35
 @export var silence_overtake := 0.55
 @export var silence_wall := 2.2
-## A pit-lane speeding ticket: usually announced (it is rare).
+## A pit-lane collision ticket: usually announced (it is rare).
 @export var silence_pit_violation := 0.2
 ## Each line already spoken in the last minute adds this much silence weight.
 @export var chatter_silence := 0.25

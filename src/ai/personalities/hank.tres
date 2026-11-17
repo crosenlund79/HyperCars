@@ -28,3 +28,4 @@ hazard_reaction = 0.3
 line_wander = 6.0
 pit_threshold = 0.32
 route_traffic_weight = 0.15
+pit_patience = 4.0

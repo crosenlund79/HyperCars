@@ -29,4 +29,5 @@ overcommit_chance = 0.02
 overcommit_extra = 0.05
 pit_threshold = 0.4
 pit_speeding = 0.0
+pit_patience = 5.0
 route_whim = 0.05

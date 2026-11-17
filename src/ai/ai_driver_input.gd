@@ -44,9 +44,29 @@ func drive(race: Node, step: float) -> Dictionary:
 		me["pit"] = {"open": pits.service_enabled and not race.damage.is_retired(id),
 			"condition": race.damage.fraction(id), "laps_left": r.tracker.lap_count - r.tracker.laps_completed,
 			"position": race.session.position_of(id), "in_lane": pits.in_lane[id] == 1,
-			"in_box": layout.in_service_box(progress[id].distance, length, progress[id].lateral),
+			"in_bay": layout.bay_at(progress[id].distance, length, progress[id].lateral),
 			"served": pits.served[id] == 1}
+		me.pit["bay"] = _choose_bay(pits, layout, fposmod(progress[id].distance, length))
+		if not driver.wants_bay(me):
+			pits.release_reservation(id)
+			me.pit["bay"] = -1
 	return driver.decide(me, others, step)
+
+
+## The service bay this rival heads for: the one it holds, else one it may
+## use that is still far enough ahead to turn into (host-authoritative
+## reservation, -1 when every bay is taken).
+func _choose_bay(pits: PitWorld, layout: TrackLayout, w: float) -> int:
+	var held := pits.bay_of(racer_id)
+	if held >= 0:
+		return held
+	if not driver.pitting:
+		return -1
+	var b: Dictionary = layout.branches[layout.pit_branch()]
+	var usable: Array[bool] = []
+	for k in pits.bay_count():
+		usable.append(TrackLayout.bay_centre(b, k) - w > 140.0 or pits.bay_reserved[k] == racer_id)
+	return pits.reserve_bay(racer_id, usable)
 
 
 func weapons(race: Node, step: float, _states: Array) -> Dictionary:

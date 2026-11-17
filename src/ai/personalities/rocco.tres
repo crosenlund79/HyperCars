@@ -33,5 +33,6 @@ defend_strength = 0.5
 pit_threshold = 0.18
 pit_stay_out_chance = 0.25
 pit_speeding = 0.35
+pit_patience = 0.0
 route_whim = 0.25
 route_traffic_weight = 0.1

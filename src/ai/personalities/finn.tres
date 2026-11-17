@@ -26,4 +26,5 @@ line_wander_period = 4.0
 pass_side = 2
 route_whim = 0.9
 pit_speeding = 0.1
+pit_patience = 1.0
 pit_stay_out_chance = 0.15

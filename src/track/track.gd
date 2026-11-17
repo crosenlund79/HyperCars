@@ -549,6 +549,7 @@ func _build_branches(wall_tex: Texture2D) -> void:
 		node.add_child(edge)
 		if b.kind == "pit":
 			_build_pit_marks(node, b)
+			_build_bay_stubs(node, body, b, wall_width, wall_tex)
 
 
 ## Closed outline of branch k's divider (world points), empty if none.
@@ -572,6 +573,31 @@ func divider_outline(k: int) -> PackedVector2Array:
 	return out
 
 
+## The pit's service bay frames (PIT 1, 2, 3), for occupancy colours.
+var bay_frames: Array[Line2D] = []
+
+
+## Short barrier stubs between neighbouring bays, from the outer wall a third
+## of the way into the apron (they separate the bays without blocking the turn in).
+func _build_bay_stubs(node: Node2D, body: StaticBody2D, b: Dictionary, wall_width: float, wall_tex: Texture2D) -> void:
+	var side := float(b.side)
+	var strip := layout.bay_strip(b, path.length)
+	var depth: float = float(b.bay_depth) * 0.36
+	for k in TrackLayout.bay_count(b) - 1:
+		var at := (TrackLayout.bay_centre(b, k) + TrackLayout.bay_centre(b, k + 1)) * 0.5
+		var t := path.tangent_at(at)
+		var r := Vector2(-t.y, t.x)
+		var outer := path.point_at(at) + r * strip.y
+		var inner := path.point_at(at) + r * (strip.y - depth * side)
+		var shape := SegmentShape2D.new()
+		shape.a = outer
+		shape.b = inner
+		var cs := CollisionShape2D.new()
+		cs.shape = shape
+		body.add_child(cs)
+		node.add_child(_barrier_line("BayStub%d" % (k + 1), PackedVector2Array([outer, inner]), false, wall_width * 0.6, wall_tex))
+
+
 func _build_pit_marks(node: Node2D, b: Dictionary) -> void:
 	var side := float(b.side)
 	# the PIT sign beside the entrance, behind the barrier on the pit side
@@ -589,27 +615,42 @@ func _build_pit_marks(node: Node2D, b: Dictionary) -> void:
 		sign.rotation = st.angle()
 		sign.z_index = 2
 		node.add_child(sign)
-	var box: float = b.box
-	var lane_mid := func(s: float) -> float:
-		var d := layout.divider_at(s, path.length)
-		var w := layout.side_widths_at(s, path.length)
-		return ((d.y + w.y) * 0.5) if side > 0 else ((d.x - w.x) * 0.5)
-	# service box: a yellow frame with a white stop bar
-	var half_len: float = float(b.box_length) * 0.5
 	var lane_w: float = float(b.lane)
-	var frame := Line2D.new()
-	frame.name = "ServiceBox"
-	frame.width = 4.0
-	frame.default_color = PIT_MARK
-	frame.closed = true
-	var pts := PackedVector2Array()
-	for corner in [[-1, -1], [1, -1], [1, 1], [-1, 1]]:
-		var s: float = box + corner[0] * half_len
-		var t := path.tangent_at(s)
-		var r := Vector2(-t.y, t.x)
-		pts.append(path.point_at(s) + r * (lane_mid.call(s) + corner[1] * (lane_w * 0.5 - 6.0)))
-	frame.points = pts
-	node.add_child(frame)
+	var lane_mid := func(s: float) -> float:  # the middle of the through-lane
+		var d := layout.divider_at(s, path.length)
+		return (d.y + lane_w * 0.5) if side > 0 else (d.x - lane_w * 0.5)
+	# the service bays: numbered frames on the apron beside the through-lane
+	var half_len: float = float(b.box_length) * 0.5
+	var strip := layout.bay_strip(b, path.length)
+	bay_frames.clear()
+	for k in TrackLayout.bay_count(b):
+		var c := TrackLayout.bay_centre(b, k)
+		var frame := Line2D.new()
+		frame.name = "ServiceBay%d" % (k + 1)
+		frame.width = 4.0
+		frame.default_color = PIT_MARK
+		frame.closed = true
+		var pts := PackedVector2Array()
+		for corner in [[-1, 0], [1, 0], [1, 1], [-1, 1]]:
+			var s: float = c + corner[0] * (half_len - 3.0)
+			var t := path.tangent_at(s)
+			var r := Vector2(-t.y, t.x)
+			pts.append(path.point_at(s) + r * lerpf(strip.x + 2.0 * side, strip.y - 6.0 * side, corner[1]))
+		frame.points = pts
+		node.add_child(frame)
+		bay_frames.append(frame)
+		var num := Label.new()
+		num.name = "BayNumber%d" % (k + 1)
+		num.text = "PIT %d" % (k + 1)
+		num.add_theme_font_size_override("font_size", 18)
+		num.add_theme_color_override("font_color", Color(1, 1, 1, 0.85))
+		num.size = Vector2(64, 24)
+		num.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		num.pivot_offset = num.size * 0.5
+		var ct := path.tangent_at(c)
+		num.position = path.point_at(c) + Vector2(-ct.y, ct.x) * (strip.y - 14.0 * side) - num.pivot_offset
+		num.rotation = ct.angle()
+		node.add_child(num)
 	# PIT lettering on the lane just after the divider's nose, and the limiter lines
 	var start: float = float(b.from) + float(b.ramp) + TrackLayout.DIVIDER_NOSE + 40.0
 	var end: float = float(b.to) - float(b.ramp) - TrackLayout.DIVIDER_NOSE

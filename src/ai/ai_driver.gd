@@ -68,6 +68,13 @@ var pit_entries := 0
 var pit_overrides := 0
 var missed_pits := 0
 var route_counts := {}
+## Service bays: seconds of patience left while every bay is taken, and
+## whether this stop was given up (drives through). Statistics: waits begun
+## and stops given up.
+var _wait_left := 0.0
+var _gave_up := false
+var pit_waits := 0
+var pit_abandons := 0
 
 
 func _init(p_line: RacingLine, p_params: AiParams) -> void:
@@ -118,6 +125,10 @@ func begin_race(seed_value: int) -> void:
 	pit_overrides = 0
 	missed_pits = 0
 	route_counts = {}
+	_wait_left = 0.0
+	_gave_up = false
+	pit_waits = 0
+	pit_abandons = 0
 
 
 ## me: {position, heading, speed, distance, lateral}
@@ -199,6 +210,9 @@ func decide(me: Dictionary, others: Array, delta: float) -> Dictionary:
 	var room_ahead := _room(s + lookahead)
 	var aim_lateral := clampf(line.offset_at(s + lookahead, route_at(s + lookahead)) + lane_bias,
 		maxf(room_now.x, room_ahead.x), minf(room_now.y, room_ahead.y))
+	var bay_aim := _bay_aim(s + lookahead, me)  # turning into (or out of) its service bay
+	if not is_nan(bay_aim):
+		aim_lateral = bay_aim
 	var aim := line.point_with_lateral(s + lookahead, aim_lateral)
 	var error := wrapf((aim - me.position).angle() - me.heading, -PI, PI)
 	var steer := 0.0
@@ -208,7 +222,7 @@ func decide(me: Dictionary, others: Array, delta: float) -> Dictionary:
 	var speed_point := s + speed * params.brake_anticipation
 	var planned := line.speed_at(speed_point, _speed_route(speed_point))
 	if _pit_latched:
-		planned = minf(planned, _pit_stop_speed(s, me))
+		planned = minf(planned, _pit_stop_speed(s, me, delta))
 	_update_corner(planned < line.top_speed - 1.0, not _nearest_car_ahead(me, others, true).is_empty())
 	var target_speed := planned * commitment if in_corner else planned
 	if in_corner and _defending:
@@ -707,6 +721,11 @@ func route_at(s: float) -> int:
 ## (the whole road, symmetric, without branches: the old limits exactly).
 func _room(s: float) -> Vector2:
 	var b := line.bounds_at(s, route_at(s))
+	if route_at(s) == RacingLine.ROUTE_PIT:  # beside the bays: their apron is room too (passing a stopped car)
+		var pb: Dictionary = line.layout.branches[line.layout.pit_branch()]
+		var apron := TrackLayout.bay_apron(pb, fposmod(s, line.center.length))
+		if apron > 0.0:
+			b = Vector2(b.x - apron, b.y) if int(pb.side) < 0 else Vector2(b.x, b.y + apron)
 	var m := minf(params.pass_margin, maxf(0.0, (b.y - b.x) * 0.5 - 2.0))
 	return Vector2(b.x + m, b.y - m)
 
@@ -799,6 +818,8 @@ func _update_pit_latch(s: float, me: Dictionary) -> void:
 	if in_pit_branch and pitting and not _pit_latched:
 		_pit_latched = true
 		_override_sent = false
+		_gave_up = false
+		_wait_left = params.pit_patience
 	elif not in_pit_branch and _pit_latched:
 		_pit_latched = false
 		pitting = false
@@ -831,18 +852,56 @@ func _update_beside(s: float, me: Dictionary) -> void:
 	_beside_lane = 1 if float(me.lateral) > (d.x + d.y) * 0.5 else 0
 
 
-## Speed limit for a stop: brake to a standstill at the service box, hold
-## there during service, then drive on.
-func _pit_stop_speed(s: float, me: Dictionary) -> float:
+## Wants a service bay on this pass: stopping, not yet served, not given up.
+func wants_bay(me: Dictionary) -> bool:
 	var pit: Dictionary = me.get("pit", {})
-	if pit.get("served", false) or not pit.get("open", false):
+	return _pit_latched and pitting and not _gave_up and pit.get("open", false) and not pit.get("served", false)
+
+
+## Speed limit for a stop: brake to a standstill in its service bay, hold there
+## during service, then drive on. With every bay taken: wait short of the bays
+## (personality: pit_patience) for one to come free, else give up the stop.
+## An overriding driver brakes late for its bay (it may arrive too fast).
+func _pit_stop_speed(s: float, me: Dictionary, delta: float) -> float:
+	if not wants_bay(me):
 		return INF
-	var k := line.layout.pit_branch()
-	var b: Dictionary = line.layout.branches[k]
-	var to_box: float = float(b.box) - fposmod(s, line.center.length)
-	if pit.get("in_box", false) or absf(to_box) < 18.0:
+	var pit: Dictionary = me.get("pit", {})
+	var b: Dictionary = line.layout.branches[line.layout.pit_branch()]
+	var w := fposmod(s, line.center.length)
+	var decel := line.plan_decel * (1.35 if _override_sent else 1.0)
+	var bay: int = pit.get("bay", -1)
+	if bay < 0:  # every bay taken: wait before them, or drive on
+		var stop_at := TrackLayout.bay_span(b).x - TrackLayout.BAY_TAPER - 30.0
+		if _wait_left <= 0.0 or w > stop_at + 20.0:
+			_gave_up = true
+			pit_abandons += 1
+			return INF
+		if float(me.speed) < 20.0:
+			if is_equal_approx(_wait_left, params.pit_patience):
+				pit_waits += 1
+			_wait_left -= delta
+		return sqrt(2.0 * decel * maxf(0.0, stop_at - w))
+	var to_bay: float = TrackLayout.bay_centre(b, bay) - w
+	if int(pit.get("in_bay", -1)) == bay and absf(to_bay) < float(b.box_length) * 0.3:
 		return 0.0
-	if to_box < 0.0:
+	if to_bay < -float(b.box_length) * 0.3:
 		return INF  # overshot: carry on (no reversing), no service this time
-	return sqrt(2.0 * line.plan_decel * maxf(0.0, to_box - 10.0))
+	return sqrt(2.0 * decel * maxf(0.0, to_bay - 6.0))
+
+
+## Aim lateral offset at arc distance s for a driver turning into its bay
+## (NAN = follow the route): from the through-lane into the bay over the
+## last stretch before it, and straight out again once served.
+func _bay_aim(s: float, me: Dictionary) -> float:
+	if line.layout == null or not wants_bay(me):
+		return NAN
+	var bay: int = me.get("pit", {}).get("bay", -1)
+	if bay < 0:
+		return NAN
+	var b: Dictionary = line.layout.branches[line.layout.pit_branch()]
+	var strip := line.layout.bay_strip(b, line.center.length)
+	var through := strip.x - float(b.lane) * 0.5 * signf(float(b.side))
+	var c := TrackLayout.bay_centre(b, bay)
+	var t := smoothstep(c - 240.0, c - 70.0, fposmod(s, line.center.length))
+	return lerpf(through, (strip.x + strip.y) * 0.5, t)
 

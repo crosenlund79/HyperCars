@@ -163,27 +163,27 @@ func test_no_overtake_lines_from_the_start_or_a_whole_ai_race_order_shuffle_with
 
 # --- one voice, memory, silence ---
 
-## A rival speeding in the pit lane: one ticket, the announcer's "Pit lane
-## violation" once (however long it keeps asking to override).
-func test_pit_speeding_ticket_says_pit_lane_violation_once() -> void:
+## A rival overrides the limiter (free: nothing said), then rams a car stopped
+## in the pit lane: one collision ticket, the announcer's "Pit lane
+## violation" once (the recording names no offence, so it fits collisions).
+func test_pit_collision_ticket_says_pit_lane_violation_once() -> void:
 	await _make(true, 1, false, "kestrel_ridge")
 	await _wait_out_start()
-	_park_rivals([3])
+	_park_rivals([3, 5])
 	await wait_physics_frames(2)
 	var layout: TrackLayout = _main.track.layout
 	var b: Dictionary = layout.branches[layout.pit_branch()]
-	var s := float(b.box) - 200.0
+	var s := float(b.box) - 260.0
 	var bd := layout.route_bounds(s, _main.track.path.length, 1)
 	var lat := (bd.x + bd.y) * 0.5
-	var tan: Vector2 = _main.track.path.tangent_at(s)
-	var c: Car = _main.cars[3]
-	c.place(Transform2D(tan.angle(), _main.track.path.point_at(s) + Vector2(-tan.y, tan.x) * lat))
-	c.model.velocity = tan * 150.0
-	c.active = true
-	_main.progress[3].reset(c.global_position)
-	_main.inputs[3] = Speeder.new()
+	_place(5, s + 260.0, 0.0, lat, Drive.new(false))
+	_place(3, s, 150.0, lat, Speeder.new())
+	await wait_physics_frames(20)
+	assert_true(_main.pits.overridden[3] == 1, "the limiter overridden")
+	assert_eq(_lines, [], "speeding alone: no ticket, nothing said")
 	await wait_seconds(1.5)
-	assert_eq(_main.pits.tickets[3], 1, "one ticket")
+	assert_eq(_main.pits.tickets[3], 1, "one collision ticket")
+	assert_eq(_main.pits.tickets[5], 0, "not the stopped car")
 	assert_eq(_lines, ["announcer_pit_violation"], "the announcer, once")
 
 

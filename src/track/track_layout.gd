@@ -53,8 +53,12 @@ extends Resource
 ##   kind "pit": a pit lane beside the racing road (side +1 right / -1 left of
 ##     the driving direction): keys from, to (px along the centreline: where
 ##     the road starts to widen and where it is back to normal), ramp (widening
-##     length at either end), side, lane (pit lane width), divider (divider
-##     width), box (service box centre, px), box_length.
+##     length at either end), side, lane (the through-lane width), divider
+##     (divider width), box (centre of the middle service bay, px), box_length
+##     (one bay's length), bays (service bays side by side along the lane),
+##     bay_depth (how far the bays reach beyond the through-lane), bay_gap
+##     (between two bays). The bays sit on an apron that bulges out of the
+##     outer edge around them (BAY_TAPER at either end).
 ##   kind "split": two racing lanes, keys from, to, ramp, lanes [left width,
 ##     right width], divider.
 ## Lap progress is the centreline projection, so every lane counts the same.
@@ -126,6 +130,8 @@ func validate() -> PackedStringArray:
 
 ## A divider ends in a point over this length (px) at either end.
 const DIVIDER_NOSE := 70.0
+## The bay apron widens out of the pit lane over this length (px) at either end.
+const BAY_TAPER := 70.0
 ## Room kept between a branch's outer edge and any other stretch of road.
 const BRANCH_CLEARANCE := 80.0
 
@@ -157,6 +163,44 @@ static func branch_extra(b: Dictionary) -> Vector2:
 	return Vector2(add, 0.0) if int(b.side) < 0 else Vector2(0.0, add)
 
 
+## Service bays of a pit branch: their count (0 = none).
+static func bay_count(b: Dictionary) -> int:
+	return int(b.get("bays", 0))
+
+
+## Arc-distance centre of service bay k (0-based; PIT 1 = k 0, nearest the entry).
+static func bay_centre(b: Dictionary, k: int) -> float:
+	var n := bay_count(b)
+	return float(b.box) + (k - (n - 1) * 0.5) * (float(b.box_length) + float(b.get("bay_gap", 0.0)))
+
+
+## Arc span Vector2(start, end) of the bay apron (all bays, without tapers).
+static func bay_span(b: Dictionary) -> Vector2:
+	var n := bay_count(b)
+	var half: float = float(b.box_length) * 0.5
+	return Vector2(bay_centre(b, 0) - half, bay_centre(b, n - 1) + half)
+
+
+## How deep the bay apron is at arc distance w within pit branch b (0 .. bay_depth).
+static func bay_apron(b: Dictionary, w: float) -> float:
+	if bay_count(b) == 0:
+		return 0.0
+	var span := bay_span(b)
+	var o := clampf(minf(w - (span.x - BAY_TAPER), (span.y + BAY_TAPER) - w) / BAY_TAPER, 0.0, 1.0)
+	return float(b.bay_depth) * smoothstep(0.0, 1.0, o)
+
+
+## Lateral offsets Vector2(inner, outer) of the bays' strip (beyond the
+## through-lane, towards the outer wall), signed like any lateral offset.
+func bay_strip(b: Dictionary, lap_length: float) -> Vector2:
+	var d := _divider_full(b, lap_length)
+	var lane: float = b.lane
+	var depth: float = b.get("bay_depth", 0.0)
+	if int(b.side) > 0:
+		return Vector2(d.y + lane, d.y + lane + depth)
+	return Vector2(d.x - lane, d.x - lane - depth)
+
+
 ## Half widths [left, right] of the drivable road at s (narrow sections and
 ## branches included).
 func side_widths_at(s: float, lap_length: float) -> Vector2:
@@ -167,7 +211,8 @@ func side_widths_at(s: float, lap_length: float) -> Vector2:
 	var b: Dictionary = branches[k]
 	var o := branch_open(b, s, lap_length)
 	if b.kind == "pit":
-		return Vector2(h, h) + branch_extra(b) * o
+		var apron := bay_apron(b, fposmod(s, lap_length))
+		return Vector2(h, h) + branch_extra(b) * o + (Vector2(apron, 0.0) if int(b.side) < 0 else Vector2(0.0, apron))
 	var full := (float(b.lanes[0]) + float(b.divider) + float(b.lanes[1])) * 0.5
 	return Vector2.ONE * lerpf(h, maxf(h, full), o)
 
@@ -220,9 +265,12 @@ func route_bounds(s: float, lap_length: float, route: int) -> Vector2:
 			return Vector2(lo, h) if int(b.side) > 0 else Vector2(-h, hi)
 		# the pit route moves over steadily along the whole entry ramp (and back
 		# along the exit ramp), not in a late swerve at the divider's nose
+		# (the through-lane: the bay apron beyond it is for stopping, not driving past)
 		var w := fposmod(s, lap_length)
 		var lin := clampf(minf(w - float(b.from), float(b.to) - w) / float(b.ramp), 0.0, 1.0)
-		return Vector2(lerpf(-h, d.y, lin), hi) if int(b.side) > 0 else Vector2(lo, lerpf(h, d.x, lin))
+		var through := h + float(b.divider) + float(b.lane)
+		return Vector2(lerpf(-h, d.y, lin), minf(hi, through)) if int(b.side) > 0 \
+			else Vector2(maxf(lo, -through), lerpf(h, d.x, lin))
 	if route == 0:
 		return Vector2(lo, lerpf(hi, d.x, o))
 	return Vector2(lerpf(lo, d.y, o), hi)
@@ -241,12 +289,27 @@ func in_pit_lane(s: float, lap_length: float, lateral: float) -> bool:
 	return lateral > mid if int(branches[k].side) > 0 else lateral < mid
 
 
-## The pit branch index at s and whether the point is in its service box.
-func in_service_box(s: float, lap_length: float, lateral: float) -> bool:
+## The service bay (0-based) a point is in, -1 if none: within the bay's
+## length and with its centre a quarter of the way into the bay (so a car
+## stopped in it is clear of the through-lane).
+func bay_at(s: float, lap_length: float, lateral: float) -> int:
 	if not in_pit_lane(s, lap_length, lateral):
-		return false
+		return -1
 	var b: Dictionary = branches[branch_at(s, lap_length)]
-	return absf(fposmod(s, lap_length) - float(b.box)) <= float(b.box_length) * 0.5
+	var strip := bay_strip(b, lap_length)
+	var into := (lateral - strip.x) * signf(float(b.side))
+	if into < float(b.bay_depth) * 0.25:
+		return -1
+	var w := fposmod(s, lap_length)
+	for k in bay_count(b):
+		if absf(w - bay_centre(b, k)) <= float(b.box_length) * 0.5:
+			return k
+	return -1
+
+
+## Is the point in any service bay?
+func in_service_box(s: float, lap_length: float, lateral: float) -> bool:
+	return bay_at(s, lap_length, lateral) >= 0
 
 
 ## Is a point off the drivable road or on a divider (missiles stop there)?
@@ -285,9 +348,11 @@ func validate_branches() -> PackedStringArray:
 			continue
 		if from < 0.0 or to > path.length - grid_extent() or to - from < 2.0 * float(b.ramp) + 2.0 * DIVIDER_NOSE + 100.0:
 			errors.append("branch %d must lie within the lap, clear of the grid, longer than its ramps" % k)
-		if b.kind == "pit" and (float(b.box) - float(b.box_length) * 0.5 < from + float(b.ramp) + DIVIDER_NOSE
-				or float(b.box) + float(b.box_length) * 0.5 > to - float(b.ramp) - DIVIDER_NOSE):
-			errors.append("branch %d: the service box must lie beside the divider" % k)
+		if b.kind == "pit":
+			var span := bay_span(b) if bay_count(b) > 0 else Vector2(float(b.box) - float(b.box_length) * 0.5, float(b.box) + float(b.box_length) * 0.5)
+			if span.x - BAY_TAPER < from + float(b.ramp) or span.y + BAY_TAPER > to - float(b.ramp) \
+					or span.x < from + float(b.ramp) + DIVIDER_NOSE or span.y > to - float(b.ramp) - DIVIDER_NOSE:
+				errors.append("branch %d: the service bays must lie beside the divider" % k)
 		for m in range(k + 1, branches.size()):
 			if from < float(branches[m].to) and float(branches[m].from) < to:
 				errors.append("branches %d and %d overlap" % [k, m])

@@ -256,7 +256,7 @@ func _drive_local_car(cmd: Dictionary) -> void:
 	c.active = true
 	# the pit limiter as the host has it (limiter on, or a penalty being served)
 	var st: int = race.pit_state[race.local_player_id] if race.local_player_id < race.pit_state.size() else 0
-	c.model.speed_cap = race.driving_params.max_speed * race.pit_rules.limiter_share if st & 5 != 0 else INF
+	c.model.speed_cap = race.driving_params.max_speed * race.pit_rules.limiter_share if st & 1 != 0 else INF
 	if race.session.racers[race.local_player_id].is_finished():
 		c.steer = 0.0
 		c.fire = c.model.control_mode == CarModel.ControlMode.FIRE_TO_BRAKE

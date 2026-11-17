@@ -212,5 +212,7 @@ func test_pit_stop_is_host_authoritative_and_agrees() -> void:
 	assert_eq(int(client.pit_car), int(host.pit_car), "the same rival on both computers")
 	assert_gte(int(host.pit_stops[int(host.pit_car)]), 1, "the damaged rival made a pit stop on the host")
 	assert_gt(int(client.pit_progress_seen), 20, "the client saw the service progress in the snapshots")
+	assert_gte(int(host.pit_bay_seen), 0, "the host gave it a service bay")
+	assert_eq(int(client.pit_bay_seen), int(host.pit_bay_seen), "the client sees the same bay held")
 	for k in ["order", "times", "condition", "dnf"]:
 		assert_eq(client[k], host[k], "pit race: %s agree" % k)

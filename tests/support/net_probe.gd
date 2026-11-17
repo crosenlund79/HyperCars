@@ -28,6 +28,7 @@ var waiting_next := false
 var _pit_damaged := false
 var pit_progress_seen := 0
 var pit_car := -1
+var pit_bay_seen := -1
 ## J5: per car, takeoffs and falls into a jump's gap seen on this computer.
 var takeoffs := {}
 var falls := {}
@@ -149,7 +150,8 @@ func _tick() -> void:
 			_pit_damaged = true
 			main.damage.condition[pit_car] = 10.0  # (below every rival's pit threshold)
 		if main.pit_state.size() > pit_car:
-			pit_progress_seen = maxi(pit_progress_seen, main.pit_state[pit_car] >> 3)
+			pit_progress_seen = maxi(pit_progress_seen, (main.pit_state[pit_car] >> 3) & 31)
+			pit_bay_seen = maxi(pit_bay_seen, PitWorld.packed_bay(main.pit_state[pit_car]))
 	if opts.role == "host":
 		if waiting_next and s.state == RaceSession.State.MODE_SELECT:
 			waiting_next = false
@@ -254,7 +256,7 @@ func _result() -> Dictionary:
 		"condition": condition, "ammo": ammo, "dnf": dnf, "takeoffs": takeoffs.duplicate(), "falls": falls.duplicate(),
 		"variant": main.track_variant, "night": main.night,
 		"pit_stops": Array(main.pits.stops) if main.pits != null and opts.role == "host" else [],
-		"pit_progress_seen": pit_progress_seen, "pit_car": pit_car,
+		"pit_progress_seen": pit_progress_seen, "pit_car": pit_car, "pit_bay_seen": pit_bay_seen,
 		"handling": [main.driving_params.max_speed, main.driving_params.acceleration, main.driving_params.grip]}
 
 
