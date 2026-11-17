@@ -64,26 +64,50 @@ Greta (0.9) and Nina (0.85) are calculated.
   (Rocco 0.3 for 30 s, Nina 0.2 for 25 s, Greta 0.04 for 10 s). Targeting only; it
   fades, and nobody leaves the racing line to chase.
 
-## Biomes
+## Environments
 
-The BIOME option (renamed from TRACK; internal ids and `custom/graphics/variant_N/...`
-overrides unchanged) now changes handling a little, the same for every car
-(`TrackTheme.driving()` scales the shared `DrivingParams`):
+The ENVIRONMENT option (renamed from BIOME on 2026-11-17, and from TRACK before that).
+Internal ids and the `custom/graphics/variant_N/...` overrides are unchanged. Every
+environment runs on every circuit, independent of the layout and of Day / Night.
+Each changes handling a little, the same for every car, human or AI:
+`TrackTheme.driving()` scales the shared `DrivingParams`.
 
-| Biome | Grip | Accel. | Turning | Braking | Weather |
-|---|---|---|---|---|---|
-| Green Valley (variant 1) | 1.00 | 1.00 | 1.00 | 1.00 | none |
-| Wasteland (variant 2) | 0.88 | 0.93 | 0.94 | 0.94 | rain, wet road tint |
-| Winter (variant 3) | 0.74 | 0.96 | 1.00 | 0.80 | snowfall |
+| Environment | Top speed | Grip | Accel. | Turning | Braking | Weather / look |
+|---|---|---|---|---|---|---|
+| Green Valley (variant 1) | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | none |
+| Wasteland (variant 2) | 1.00 | 0.88 | 0.93 | 0.94 | 0.94 | rain, wet road tint |
+| Winter (variant 3) | 1.00 | 0.74 | 0.96 | 1.00 | 0.80 | snowfall |
+| The Raceway (variant 4) | **1.05** | **1.05** | 1.00 | 1.00 | 1.00 | professional circuit: kerbs, ad boards, pits, floodlights |
+| Tabletop Mayhem (variant 5) | 1.00 | 1.00 | **1.28** | 1.00 | 1.00 | toy cars on a desk among giant everyday objects |
 
-Measured: No Guns lap times about 4 % slower on Winter, all rivals finish on every
-biome. Weather is a light particle layer (`src/presentation/weather_view.gd`) that never
+**The Raceway** has striped grass, clean asphalt, a red / white barrier and kerbs on
+every corner. Along the circuit are floodlight masts, original generic advertising
+boards facing the road, marshal posts and a pit building on the main straight.
+At night it is cool floodlit white with 16 lamps.
+
+**Tabletop Mayhem** has a wooden desk, a toy-track road and a ruler barrier. Around it
+are giant pencils, playing cards, paperclips, a mug, dice and toy blocks, and there are
+no grandstands. At night the light is a warm desk lamp.
+
+Every big prop keeps its whole footprint off every road (tested on all circuits), so
+nothing hides the road or looks like a barrier. The geometry and collisions are the
+circuit's own.
+
+**Measured** (3 laps, nine rivals):
+- No Guns lap times are about 3 % faster on The Raceway and 1–2 % faster on Tabletop
+  Mayhem than on Green Valley, and about 4 % slower on Winter.
+- Every rival finishes in every environment without weapons.
+- With weapons, barrier and contact damage is about 35–45 % higher on The Raceway and
+  Tabletop, because cars hit at higher speeds and respawned cars re-accelerate into
+  traffic. Retirements went from about 1 in 9 races to 1–2 per race there.
+- AI driving needs no environment-specific tuning: racing lines and speed profiles come
+  from the scaled parameters. Weather is a light particle layer (`src/presentation/weather_view.gd`) that never
 hides the cars. Values provisional in `src/track/themes/variant_N.tres`.
 
 ## Day / Night
 
-TIME: DAY / NIGHT is a setup option, independent of biome and circuit, also used by the
-championship schedule. Night promotes the lighting pilot: a biome-specific moonlight
+TIME: DAY / NIGHT is a setup option, independent of environment and circuit, also used by the
+championship schedule. Night promotes the lighting pilot: an environment-specific moonlight
 tint (`night_ambient`), lamp posts (`lamp_color`, `lamp_energy`) and per-car headlights
 (`headlight_energy`); Winter night is blue moonlight with warm lamps and snowfall
 crossing the headlights. Night never changes physics. L still toggles lights in any race.

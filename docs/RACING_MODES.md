@@ -9,7 +9,7 @@ championship or Knockout - while rivals are still racing:
    rivals simply keep racing, as they always did).
 2. A caption for 5 s: "1ST PLACE - YOU FINISHED!" (or "OUT - DNF!", or in Knockout
    "ELIMINATED AFTER LAP n!") over "RACE CONTINUES - WATCH YOUR RIVALS!".
-   Fire: watch at once. Tab: skip to the results.
+   Enter: watch at once. Tab: skip to the results.
 3. Live spectating (the spectator camera and director): the closest battle is
    followed; Left / Right switch to the previous / next car still racing; the standings
    tower can be clicked; it shows who is in, who is out and K / D / tombstones.
@@ -20,7 +20,8 @@ championship or Knockout - while rivals are still racing:
    nothing is invented. A field with no progress for 60 s is classified in running
    order, as in spectator races.
 6. When everyone is in: the results (with TOMBSTONE | K | D) and, in a championship,
-   the standings after the round; Fire continues as before (garage, standings, next race).
+   the standings after the round; Enter continues (garage, standings, next race). Fire
+   never dismisses a screen (2026-11-17).
 
 Couch and network races keep their previous behaviour (results with the cars still
 running). Once every car is in, contacts no longer change any car's condition.
@@ -50,19 +51,21 @@ is not sent, so collision retirements show unattributed on the client.
 
 ## Knockout (GO RACING! > KNOCKOUT)
 
-Last place out, on any circuit, biome and time of day, with the normal weapons, damage
+Last place out, on any circuit, environment and time of day, with the normal weapons, damage
 and personalities. Ten cars, nine laps: every time the leader completes a lap, the
 last-placed car still in (live standings) is eliminated - it leaves the race like a
 retired car (no collisions, off the road, never back). A combat DNF just leaves earlier,
 so fewer eliminations are needed; when one car is left it wins at once. The HUD line
-shows the cars left and the next elimination; the results show "OUT Ln". An eliminated
+shows the cars left and the next elimination. The last car still in, the one that would
+go out now, gets a red "!" before its position in the standings. When that car is the
+player, the HUD line turns red: "YOU ARE IN THE DROP ZONE!". The results show "OUT Ln". An eliminated
 player watches the rest live. Knockout races do not count for achievements.
 
 ## Battle Royale (GO RACING! > BATTLE ROYALE)
 
 **The Scrapyard** (`src/arena/`): an eight-sided walled yard with a scrap pile of junked
 cars in the middle, four concrete blocks with hazard stripes, two crash barriers that
-split the long sides into lanes, four tyre posts, grandstands and lamps; the biome's
+split the long sides into lanes, four tyre posts, grandstands and lamps; the environment's
 ground, weather and day / night. Wide rings for ramming runs, tight gaps for close
 fights, no dead ends.
 
@@ -83,7 +86,9 @@ fights, no dead ends.
   wanders. A stalled car pressed against a wall is turned a little (no reverse gear), the
   same for every driver.
 - An eliminated player watches the survivors (Left / Right, Tab skips); the winner
-  banner and the results with TOMBSTONE | K | D follow. Fire: menu, Tab: fight again.
+  banner and the results with TOMBSTONE | K | D follow. Enter: menu, Tab: fight again.
+- A hit only wears a car down here, so the rival defeat popup appears only for the hit
+  that eliminates the player (2026-11-17).
 - Measured AI matches: about 50-60 s, winners vary (Maya, Hank, Ellie, Greta, Dante,
   Rocco, Victor in different seeds), most eliminations by missiles, some by ramming.
   Local single-player only.

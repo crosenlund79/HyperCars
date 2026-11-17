@@ -88,20 +88,37 @@ Any resolution is accepted as long as the **aspect ratio and orientation** match
 | `custom/graphics/variant_3/track/grass.png` | 256 x 256 | tile = 256 | Variant 3 ground; same contract as track/grass (seamless, opaque). |
 | `custom/graphics/variant_3/track/tarmac.png` | 256 x 256 | tile = 256 | Variant 3 road surface; same contract as track/tarmac. |
 | `custom/graphics/variant_3/track/wall.png` | 128 x 32 | 80 x 20 | Variant 3 barrier strip; same contract as track/wall. |
+| `custom/graphics/variant_4/decals/kerb.png` | 64 x 16 | 64 x 14 | The Raceway kerb: red / white blocks along +X, seamless left-right; laid along the road edge on corners (visual only). |
+| `custom/graphics/variant_4/scenery/pit_building.png` | 384 x 128 | 480 x 160 | The Raceway pit building beside the main straight; garage doors along the bottom edge face the track. |
+| `custom/graphics/variant_4/scenery/prop_1.png` | 128 x 128 | 128 x 128 | The Raceway floodlight mast, top-down (lamp bank at the top), centred, transparent; any rotation. |
+| `custom/graphics/variant_4/scenery/prop_2.png` | 160 x 48 | 200 x 60 | The Raceway advertising board (original generic brand), text readable when the long edge faces the track; placed facing the road. |
+| `custom/graphics/variant_4/scenery/prop_3.png` | 56 x 56 | 56 x 56 | The Raceway marshal post, top-down, centred, transparent; any rotation. |
+| `custom/graphics/variant_4/track/grass.png` | 256 x 256 | tile = 256 | The Raceway ground: manicured striped grass; same contract as track/grass (seamless, opaque). |
+| `custom/graphics/variant_4/track/tarmac.png` | 256 x 256 | tile = 256 | The Raceway asphalt: clean dark grain; same contract as track/tarmac. |
+| `custom/graphics/variant_4/track/wall.png` | 128 x 32 | 80 x 20 | The Raceway barrier: red / white strip; same contract as track/wall. |
+| `custom/graphics/variant_5/scenery/card.png` | 220 x 300 | 220 x 300 | Tabletop Mayhem giant playing card (original design), centred, transparent; any rotation. |
+| `custom/graphics/variant_5/scenery/paperclip.png` | 280 x 140 | 280 x 140 | Tabletop Mayhem giant paperclip, centred, transparent; any rotation. |
+| `custom/graphics/variant_5/scenery/pencil.png` | 560 x 88 | 560 x 88 | Tabletop Mayhem giant pencil, point to the left, centred, transparent; any rotation. |
+| `custom/graphics/variant_5/scenery/prop_1.png` | 256 x 256 | 220 x 220 | Tabletop Mayhem giant coffee mug, top-down, centred, transparent; any rotation. |
+| `custom/graphics/variant_5/scenery/prop_2.png` | 128 x 128 | 110 x 110 | Tabletop Mayhem giant die, top-down, centred, transparent; any rotation. |
+| `custom/graphics/variant_5/scenery/prop_3.png` | 112 x 112 | 96 x 96 | Tabletop Mayhem toy block, top-down, centred, transparent; any rotation. |
+| `custom/graphics/variant_5/track/grass.png` | 256 x 256 | tile = 256 | Tabletop Mayhem ground: wooden desk; same contract as track/grass (seamless, opaque). |
+| `custom/graphics/variant_5/track/tarmac.png` | 256 x 256 | tile = 256 | Tabletop Mayhem road: toy race-track plastic; same contract as track/tarmac. |
+| `custom/graphics/variant_5/track/wall.png` | 128 x 32 | 80 x 20 | Tabletop Mayhem barrier: wooden ruler strip; same contract as track/wall. |
 | `custom/graphics/weapons/homing_missile.png` | 40 x 16 | 30 x 12 | Homing missile, nose pointing right (+X), centred; also the HUD / garage icon. |
 | `custom/graphics/weapons/mine.png` | 64 x 32 | 26 x 26 | Mine: horizontal strip of 2 frames (32x32 each: lamp off / lamp on), blinks while armed; also the HUD mine icon. |
 | `custom/graphics/weapons/missile.png` | 40 x 16 | 30 x 12 | Missile, nose pointing right (+X), centred; also the HUD missile icon. Homing/super missiles are tinted. |
 | `custom/graphics/weapons/super_missile.png` | 40 x 20 | 34 x 17 | Super missile (orbits its car), nose pointing right (+X), centred; also the HUD / garage icon. |
 
-## Audio (OGG Vorbis or WAV)
+## Audio (OGG Vorbis, WAV or MP3)
 
 `.ogg` is looked up first, then `.wav`. Looping sounds loop over the whole file; use WAV when a loop must be sample-exact (OGG encoding can trim the end). Buses: Music, Engine, Effects (all under Master).
 
 | Override path (.ogg or .wav) | Loops | Bus | Notes |
 |---|---|---|---|
 | `custom/audio/ambience/ambience` | yes | Effects | Trackside ambience loop (wind, birds), stereo. |
-| `custom/audio/music/music_menu` | yes | Music | Menu music loop, stereo. |
-| `custom/audio/music/music_race` | yes | Music | Race music loop, stereo. |
+| `custom/audio/music/music_menu` | yes | Music | Menu music (title, GO RACING!, setup, garage, championship screens): the official HyperCars - Theme. OGG, WAV or MP3; played to its end and looped with a short crossfade. |
+| `custom/audio/music/music_race` | yes | Music | Race music (every race, Knockout, Battle Royale, spectating): the official HyperCars - Racing Theme. OGG, WAV or MP3; played to its end and looped with a short crossfade. |
 | `custom/audio/race/finish` | no | Effects | Finish jingle (player finishes / spectator winner). |
 | `custom/audio/race/start_go` | no | Effects | Played when the race starts. |
 | `custom/audio/ui/achievement` | no | Effects | Achievement unlocked jingle. |

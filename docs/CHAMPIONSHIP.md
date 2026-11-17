@@ -9,34 +9,50 @@ Every entry opens the same setup screen (`src/ui/title_screen.gd`):
 | Row | Values | Shown for |
 |---|---|---|
 | CIRCUIT | Kestrel Ridge / Larkspur Ring / Ravenhook | all but Championship |
-| BIOME | Green Valley / Wasteland / Winter | all but Championship |
+| ENVIRONMENT | Green Valley / Wasteland / Winter / The Raceway / Tabletop Mayhem | all but Championship |
 | TIME | DAY / NIGHT | all but Championship |
 | LAPS | 3 / 7 / 20 / 50 | all but Championship |
 | WEAPONS | ON / NO GUNS | all |
 | COMBAT | Classic / Tactical | all |
 | CONTROL | Fire to Accelerate / Fire to Brake | all but Spectate |
 | CAR | your own car or a won rival car | Quick, Garage, Championship |
+| ROUNDS | 6 (full season) / 3 (short) | Championship |
 
-Enter (or Left / Right) changes a row; START begins; Esc goes back. Circuit, biome,
-time, laps, weapons, style, control and car are saved in `user://settings.cfg`.
+Enter (or Left / Right) changes a row; START begins; Esc goes back. Circuit, environment,
+time, laps, weapons, style, control, car and championship rounds are saved in `user://settings.cfg`.
 MULTIPLAYER continues to SPLIT SCREEN (press-a-button join) and LAN / ONLINE as before;
-a LAN / online client races the host's circuit, biome and time of day (sent in WELCOME).
+a LAN / online client races the host's circuit, environment and time of day (sent in WELCOME).
 
 The right half shows a rotating low-poly diorama of the chosen circuit
-(`src/ui/circuit_preview.gd`): a faceted plate in the biome's colours, the real
+(`src/ui/circuit_preview.gd`): a faceted plate in the environment's colours, the real
 centreline, bridges lifted on pillars, the jump's gap left open (gold markers), the
-start line, a few faceted trees and, at night, warm lamps. It is drawn procedurally
-(no 3D scene, no artwork) and rebuilt whenever the circuit, biome or time changes.
+start line, a few faceted trees and, at night, warm lamps. The Raceway shows red / white
+kerbs and floodlight masts (cool lamps at night); Tabletop Mayhem shows a wooden plate
+with pencils and dice. The preview is drawn procedurally (no 3D scene, no artwork) and
+rebuilt whenever the circuit, environment or time changes.
 
 ## The championship
 
-Three rounds, one on each original circuit, against all nine rivals
-(`src/championship/championship.gd`, `championship_schedule.gd`).
+A six-round season (or the three-round short version: ROUNDS on the setup screen)
+against all nine rivals (`src/championship/championship.gd`, `championship_schedule.gd`).
+Each schedule covers all three original circuits, all five environments and both day
+and night. It ends with a **seven-lap GRAND FINAL**, billed on the standings screen
+("NEXT: THE GRAND FINAL", "START THE FINAL") and in the race HUD.
 
-- **Schedules** are resources: `hypercars_cup.tres` (Kestrel Ridge, Green Valley, day ->
-  Larkspur Ring, Wasteland, night -> Ravenhook, Winter, night) and `night_series.tres`
-  (Larkspur Ring, Winter, day -> Ravenhook, Green Valley, night -> Kestrel Ridge,
-  Wasteland, day); 3 laps each. Championships take turns through
+- **Schedules** are resources (2026-11-17):
+
+  | Round | `hypercars_cup.tres` (HyperCars Cup) | `night_series.tres` (Ridge & Hook Series) |
+  |---|---|---|
+  | 1 | Kestrel Ridge, Green Valley, day | Larkspur Ring, The Raceway, night |
+  | 2 | Larkspur Ring, Wasteland, day | Kestrel Ridge, Tabletop Mayhem, day |
+  | 3 | Ravenhook, Tabletop Mayhem, day | Ravenhook, Winter, day |
+  | 4 | Larkspur Ring, Winter, night | Kestrel Ridge, Wasteland, night |
+  | 5 | Ravenhook, The Raceway, day | Larkspur Ring, Green Valley, night |
+  | FINAL | Kestrel Ridge, The Raceway, night, 7 laps | Ravenhook, Tabletop Mayhem, night, 7 laps |
+  | short version | rounds 2, 3, final | rounds 2, 5, final |
+
+  Rounds 1–5 are 3 laps. The short version (`short_rounds`) picks three rounds, one on
+  each circuit, ending with the same final. Championships take turns through
   `ChampionshipSchedule.SCHEDULES` (the count is saved), so consecutive runs race
   different combinations. Add a schedule by adding a `.tres` and listing it.
 - **Points** 25 / 18 / 15 / 12 / 10 / 8 / 6 / 4 / 2 / 1 (per schedule); a DNF scores
@@ -47,11 +63,12 @@ Three rounds, one on each original circuit, against all nine rivals
   round's order reversed (the winner starts last), as in normal races.
 - **Between rounds** the standings screen (`src/ui/championship_screen.gd`) shows the
   table (position, car, driver, last result, wins, points) and the next round's circuit,
-  biome, time of day and laps with the rotating preview; START ROUND n or ABANDON.
+  environment, time of day and laps with the rotating preview; START ROUND n or ABANDON.
 - **Racing**: the setup's weapons, combat style, control mode and car apply; the standard
   quick-race loadout (no garage money); ammunition scales with the round's laps; the HUD
   names the round. Esc pauses (RESUME RACE / ABANDON CHAMPIONSHIP); leaving abandons the
-  championship (nothing won). Fire on the results continues to the standings.
+  championship (nothing won). Enter on the results continues to the standings (Fire never
+  dismisses a screen).
 - **Final**: the final standings and the champion. Rounds count for achievements and
   rival careers like normal races.
 

@@ -90,3 +90,20 @@ Record only observations found during approved work. An item here is **not** per
 | 2026-11-17 | Racing modes notes: Battle Royale is local single-player only (no network or couch version). In the arena a weapon "destruction" is a hit (condition and a short stun) - only the last one eliminates; the rival taunt card still shows for a hit on the player. Arena AI matches last ~50-60 s, so the closing zone (from 70 s) rarely matters with AI only; a cautious human may meet it. Arena balance (cooldowns, hit damage, zone timing) is provisional. Knockout uses nine laps for ten cars whatever the LAPS setting; ammunition scales as for a 7-lap race. Watching after the finish is single-player only; couch and network races show the results at once (as before). Network clients see collision retirements unattributed in the kill feed (the host's attribution is not sent). | Racing modes |
 | 2026-11-17 | Racing modes decisions: K counts every weapon destruction of an opponent (also with respawn) and attributable collision retirements; D counts every destruction plus retirements not caused by a weapon destruction; a tombstone needs the culprit's weapon or damaging contact within 4 s. Forfeiting a championship for keeps = losing it (confirmed twice); the stake is saved at the start, so closing the game mid-championship forfeits at the next start. Found and fixed: Knockout eliminations could come back after a weapon wreck; results could flash up at the moment of finishing; the stake on load was applied before the owned cars were read. Pre-existing flaky check found in preflight (the armed LAN race compared condition captured at slightly different moments): once every car is in, contacts no longer change condition. | Racing modes |
 
+
+## From the Big Refinement (2026-11-17), not acted on
+- Damage attrition on the faster environments: with weapons, barrier and contact damage
+  is about 35–45 % higher on The Raceway and Tabletop Mayhem, with 1–2 retirements per
+  3-lap race (none without weapons). Possible tuning: impact thresholds relative to top
+  speed. That is a damage-rule change, so it needs approval.
+- Long armed races (7+ laps) can end with several retirements (e.g. 4 of 9 on The
+  Raceway, 7 laps), as before this run.
+- Poor finishers (P6+) earn nothing in garage races (top five only, as in the manual).
+  The 50 % free patch-up keeps them racing; consolation money would be a design
+  decision.
+- Remapping covers one keyboard key and one controller input per action. A second key
+  per action (e.g. arrows and WASD after a remap) would need a slot column.
+- Ad-board texts and the grandstand crowd are fixed template art; per-board variety
+  would need more assets.
+- MP3 overrides loop with a generic 0.25 s crossfade. Per-file loop points could be read
+  from a sidecar file.
