@@ -1,7 +1,59 @@
-# Garage economy review (2026-11-17)
+# Garage economy
 
-Garage races only; quick, spectator, couch, network, championship and arena races never touch money.
-These numbers remain **provisional** (`src/garage/default_garage_rules.tres` / `garage_rules.gd`).
+The **single authoritative description** of the garage economy. Other documents link
+here instead of repeating prices. Garage races only: quick, spectator, couch, network,
+championship and arena races never touch money. Numbers are **provisional**; they live
+in `src/garage/default_garage_rules.tres` and `src/garage/garage_rules.gd` defaults.
+
+## Current rules
+
+**Verified from the original manual:** starting money, prize money for the top five
+only, buy and sell after a race (selling pays less), two weapon types per race (front /
+rear), quantity limited only by money. The numbers are HyperCars choices.
+
+### Money and supplies
+
+| Item | Value |
+|---|---|
+| Start | $300, 5 front missiles and 5 mines owned and equipped |
+| Prizes, 1st–5th | $550 / 400 / 300 / 200 / 125 |
+| Prizes, 6th–10th and DNF | nothing |
+| Front / rear missile | $40 per round |
+| Homing missile | $90 per round |
+| Super missile | $150 per round |
+| Mine | $30 per round |
+| Selling | pays 50 % of the price |
+| Stock limit | 99 rounds per type |
+
+Prices are fixed; the original's fluctuating prices are not implemented.
+
+### Car
+
+| Item | Value |
+|---|---|
+| Repairs | $2 per 1 % condition (a full rebuild from 0 % costs $200) |
+| Free emergency patch-up | a car below 50 % is patched up to 50 % before the race, so a broke player can always race |
+| Armour LIGHT | −20 % damage, $250 |
+| Armour HEAVY | −35 % damage, $400 more |
+
+Armour is kept for the career and never sold back.
+
+### Races
+
+- Ammunition: the garage player races with their own rounds; race-length ammunition
+  scaling applies only to everyone else.
+- Prizes do not depend on race length.
+- A finished race is settled once: prize, rounds left, condition. Leaving before the
+  flag pays nothing, uses no rounds and causes no damage.
+
+### Career
+
+Money, rounds, equipped weapons, condition, armour and race count are saved in
+`user://garage.cfg` after every change. Nothing is written while a race is running, so
+quitting mid-race equals leaving the race. **NEW GARAGE** (a second press confirms) on
+the garage setup screen starts over.
+
+## Review 2026-11-17 (Big Refinement)
 
 ## Evidence
 
