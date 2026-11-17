@@ -146,6 +146,7 @@ func start_race(choice: int, with_garage: bool = false, devices: Array[int] = []
 	race = MAIN_SCENE.instantiate()
 	race.allow_exit = true
 	race.base_seed = race_rng.randi()
+	race.shuffle_first_grid = true  # race variety: the rivals' first grid varies too
 	race.music = music
 	var two := devices.size() == 2 or net != null
 	if net != null:

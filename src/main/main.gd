@@ -48,6 +48,12 @@ const LAP_OPTIONS: Array[int] = [3, 7, 20, 50]
 ## Player's grid slot in the first race (0 = pole, -1 = back of the grid). PROVISIONAL:
 ## the original's first-race grid order is unverified; later races use the reversed result.
 @export var player_first_grid_slot := -1
+## Race variety (set by the game): the rivals' order on a first grid (a new
+## race, the first spectator race, championship round 1) is shuffled from the
+## race seed, the player still starting last. Off for race scenes built
+## directly (tests, probes, fingerprints: rivals in id order). Couch and
+## network grids keep their rotation rule.
+@export var shuffle_first_grid := false
 ## Base seed for the rivals' decision randomness. Same seed + same race number
 ## = same decisions (used to compare normal and fast simulation).
 @export var base_seed := 1991
@@ -460,6 +466,9 @@ func _ready() -> void:
 	if championship_grid.size() == cars.size():
 		_race_grid = championship_grid.duplicate()
 	_spectator_grid = rival_ids.duplicate()
+	if shuffle_first_grid and not two and championship_round <= 0:
+		_race_grid = shuffled_rivals(_race_grid, hash([base_seed, "grid"]))
+		_spectator_grid = shuffled_rivals(_spectator_grid, hash([base_seed, "spectator grid"]))
 	grid_order = _race_grid
 	reset_race()
 	if net != null:
@@ -552,6 +561,27 @@ static func rotated_grid(reversed: Array[int], leaving: int, returning: int) -> 
 	if slot >= 0:
 		order[slot] = returning
 	return order
+
+
+## The same grid with the rivals' slots shuffled (seeded); humans keep theirs.
+static func shuffled_rivals(grid: Array[int], seed_value: int) -> Array[int]:
+	var slots: Array[int] = []
+	var rivals: Array[int] = []
+	for k in grid.size():
+		if grid[k] >= 1 and grid[k] <= 9:
+			slots.append(k)
+			rivals.append(grid[k])
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_value
+	for i in range(rivals.size() - 1, 0, -1):
+		var j := rng.randi_range(0, i)
+		var t := rivals[i]
+		rivals[i] = rivals[j]
+		rivals[j] = t
+	var out := grid.duplicate()
+	for k in slots.size():
+		out[slots[k]] = rivals[k]
+	return out
 
 
 ## Opponents fill the grid in id order around the player's slot.
