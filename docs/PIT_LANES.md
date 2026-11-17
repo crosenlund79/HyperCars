@@ -302,3 +302,23 @@ Columns:
 - Waiting behind a car being serviced after its own service.
 - Stubs too deep: 737 contacts.
 - A shoved victim ticketed.
+
+## Measurements: roomier bays (Personality & Polish, 2026-11-17)
+
+Ten-rival spectator races on the enlarged pits, seed 811 (crowd unarmed: 812). Every
+run finished without a jam.
+
+| Run | Stops / planned | Most bays at once | Pit full | Longest stay in the pit lane |
+|---|---|---|---|---|
+| Crowd, 7 laps, armed (each circuit) | 8 / 12 – 9 / 14 | 2–3 | up to 1.3 s | 15.6–17.3 s |
+| Crowd, 7 laps, unarmed (each circuit) | 8 / 10 – 8 / 19 | 2–3 | up to 3.0 s | 12.6–18.0 s |
+| 20 laps, armed (each circuit) | 8 / 11 – 15 / 22 | 1–2 | – | 14.1–16.1 s |
+| 50 laps, armed: Kestrel / Larkspur / Ravenhook | 20 / 25, 11 / 14, 18 / 21 | 3 / 1 / 2 | 1.1 s | 13.2–17.1 s |
+
+**What changed against the earlier, smaller bays:**
+- **Barrier contacts around the bays:** about 10–30 per race.
+- **Stops made:** more of the planned stops are completed in long races (Kestrel 50
+  laps: 20 of 25, up from 17 of 21 in proportion).
+- **Collision tickets:** 1–5 per race.
+- **Unchanged:** stops not made still come mostly from rivals giving up when the pit
+  is full, or being shoved wide at the entry.
