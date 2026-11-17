@@ -96,3 +96,7 @@ Record only observations found during approved work. An item here is **not** per
 | 2026-11-17 | Spectators see a rival's pit service only as the car standing in the box; there is no pit line for the followed rival. | Endurance / presentation |
 | 2026-11-17 | Night with DYNAMIC VEHICLE LIGHTS on costs about 13 % frame rate against the old single glow under software rendering; not measured on a real GPU. | Lighting performance |
 | 2026-11-17 | The ticket banner shows on the shared HUD in couch races (not per view); the pit line is per view. | Endurance / couch |
+| 2026-11-17 | Pit bays: a car parked in a bay without needing service (full condition) does not claim it, so its frame stays gold although the bay is physically taken. | Pit Lane Refinement |
+| 2026-11-17 | Pit bays: a human parked in the through-lane (not in a bay) blocks rivals behind until they can use an empty bay's apron to pass; there is no rule against stopping there. | Pit Lane Refinement |
+| 2026-11-17 | Pit tickets: blame compares the two cars' speeds towards each other just before contact; two cars both moving into each other at similar speed may occasionally be judged either way. Needs playtesting. | Pit Lane Refinement |
+| 2026-11-17 | A new music file, "HyperCars - Battle Royale.mp3", was uploaded to `assets/audio/_inbox/` during this run; integrating it is not part of this assignment. | Audio (user upload) |

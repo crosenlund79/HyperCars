@@ -233,3 +233,62 @@ were running, so the figures are relative only:
 | After, DYNAMIC VEHICLE LIGHTS off | — | 26.1 fps |
 
 The fallback is cheaper than the old single glow.
+
+## Measurements: Pit Lane Refinement (2026-11-17)
+
+Ten-rival spectator races, Green Valley, seed 811 (crowd: 812 unarmed). In the crowd
+runs, every rival's condition is set to 22 % after 40 s, so the whole field wants the
+pits at about the same time.
+
+Columns:
+- race time;
+- DNFs;
+- stops made / planned;
+- collision tickets;
+- barrier contacts;
+- most bays held at once;
+- time with all three bays held;
+- waits / stops given up;
+- longest single stay in the pit lane.
+
+| Circuit | Laps | Armed | Time | DNF | Stops | Tickets | Barriers | Bays | Full | Waits / gave up | Longest |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Kestrel Ridge | 7 crowd | no | 258 s | 0 | 8 / 10 | 2 | 131 | 3 | 8.1 s | 2 / 2 | 12.9 s |
+| Kestrel Ridge | 7 crowd | yes | 297 s | 3 | 8 / 13 | 5 | 123 | 3 | 0.1 s | 0 / 2 | 15.3 s |
+| Larkspur Ring | 7 crowd | no | 258 s | 0 | 8 / 15 | 3 | 104 | 3 | 8.9 s | 7 / 7 | 16.0 s |
+| Larkspur Ring | 7 crowd | yes | 300 s | 2 | 11 / 16 | 4 | 218 | 3 | 4.6 s | 0 / 2 | 13.3 s |
+| Ravenhook | 7 crowd | no | 276 s | 0 | 8 / 10 | 3 | 101 | 3 | 8.8 s | 2 / 2 | 12.1 s |
+| Ravenhook | 7 crowd | yes | 322 s | 3 | 11 / 18 | 5 | 127 | 3 | 0.6 s | 2 / 2 | 17.1 s |
+| Kestrel Ridge | 7 | yes | 302 s | 3 | 7 / 12 | 3 | 113 | 2 | 0 | 0 / 1 | 13.5 s |
+| Larkspur Ring | 7 | yes | 299 s | 2 | 6 / 7 | 1 | 168 | 2 | 0 | 0 / 0 | 15.6 s |
+| Ravenhook | 7 | yes | 312 s | 3 | 6 / 9 | 2 | 117 | 3 | 0.1 s | 0 / 2 | 18.6 s |
+| Kestrel Ridge | 20 | yes | 718 s | 5 | 5 / 5 | 0 | 56 | 1 | 0 | 0 / 0 | 9.9 s |
+| Larkspur Ring | 20 | yes | 701 s | 6 | 6 / 11 | 2 | 112 | 2 | 0 | 0 / 1 | 13.7 s |
+| Ravenhook | 20 | yes | 804 s | 3 | 9 / 10 | 1 | 295 | 2 | 0 | 0 / 0 | 15.3 s |
+| Kestrel Ridge | 50 | yes | 1791 s | 5 | 17 / 21 | 4 | 454 | 2 | 0 | 0 / 0 | 15.2 s |
+| Larkspur Ring | 50 | yes | 1690 s | 4 | 9 / 15 | 4 | 392 | 2 | 0 | 0 / 0 | 16.4 s |
+| Ravenhook | 50 | yes | 1907 s | 5 | 12 / 17 | 4 | 574 | 3 | 0.5 s | 0 / 0 | 12.4 s |
+| Kestrel Ridge | 50 | no | 1709 s | 0 | 0 | 0 | 504 | 0 | 0 | 0 / 0 | – |
+| Larkspur Ring | 50 | no | 1637 s | 0 | 0 | 0 | 350 | 0 | 0 | 0 / 0 | – |
+| Ravenhook | 50 | no | 1845 s | 0 | 0 | 0 | 558 | 0 | 0 | 0 / 0 | – |
+
+**Reading the table:**
+- **No jams:** the longest stay in any pit lane was 18.6 s (entry, turn-in, 6 s
+  service, exit). Every crowd run used all three bays at once, and the pit stayed full
+  for up to 9 s. Rivals waited, took a freed bay or gave up and drove on.
+- **Unarmed 50-lap races:** unchanged by the refinement (no stops; barrier and car
+  contacts as before).
+- **Planned stops not made:** mostly a rival shoved wide before the divider (the stop
+  is abandoned), a rival retiring first, or a rival giving up when the pit is full.
+- **Collision tickets:** 0–5 per race. Speeding alone never gives one.
+- **Barrier contacts around the bays:** at normal levels after three AI fixes found in
+  these runs. The Ravenhook 50-lap armed count is spread round the circuit; only 33
+  are near the bays.
+
+**AI faults found by these simulations and fixed:**
+- Turning in before the bay apron had opened: about 1,000 contacts per race.
+- Giving up on the first pit tick: Rocco never stopped.
+- Stopping short of the bay, then rolling into the stub.
+- Waiting behind a car being serviced after its own service.
+- Stubs too deep: 737 contacts.
+- A shoved victim ticketed.
