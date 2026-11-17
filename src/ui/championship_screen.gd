@@ -100,7 +100,9 @@ func setup(resolver: AssetResolver) -> void:
 	_abandon = _button("ABANDON", _on_abandon)
 	buttons.add_child(_continue)
 	buttons.add_child(_abandon)
-	_hint = HyperTheme.label("", 16, HyperTheme.CREAM_DIM, 500)
+	_hint = HyperTheme.label("", 16, HyperTheme.CREAM, 600)
+	_hint.add_theme_constant_override("outline_size", 6)  # readable over the backdrop
+	_hint.add_theme_color_override("font_outline_color", HyperTheme.OUTLINE)
 	_hint.position = Vector2(34, 640)
 	_root.add_child(_hint)
 	visible = false
