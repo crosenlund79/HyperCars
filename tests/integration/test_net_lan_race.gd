@@ -161,3 +161,26 @@ func test_armed_jump_race_at_170_ms_agrees() -> void:
 	_assert_jump_race(r, "Ravenhook 170 ms Tactical")
 	if r[1].has("jump_corrections"):
 		assert_lt(int(r[1].jump_corrections), 5, "jump predictions rarely need correcting")
+
+
+## The Raceway (night) and Tabletop Mayhem over the network: both computers
+## race the same environment with its own handling (Raceway top speed and
+## grip, Tabletop acceleration), with real jumps, falls, weapons and damage,
+## and agree on the result.
+func test_new_environments_agree_over_the_network() -> void:
+	var base: DrivingParams = load("res://src/driving/default_driving_params.tres")
+	var r := await _run(24761, ["laps=2", "layout=kestrel_ridge", "track=4", "night=1", "latency=80", "jitter=20",
+		"loss=0.02", "fall=1", "weapons=1", "fire_every=60", "timeout=140"])
+	_assert_jump_race(r, "Raceway night 80 ms")
+	for side in r:
+		side = side.results[0] if side.has("results") else {"variant": 0, "night": false, "handling": [0, 0, 0]}
+		assert_eq(int(side.variant), 4, "The Raceway on both computers")
+		assert_true(bool(side.night))
+		assert_almost_eq(float(side.handling[0]), base.max_speed * 1.05, 0.01, "Raceway top speed")
+	var t := await _run(24762, ["laps=2", "layout=ravenhook", "track=5", "latency=60", "fall=1", "weapons=1",
+		"style=1", "fire_every=45", "timeout=140"])
+	_assert_jump_race(t, "Tabletop 60 ms Tactical")
+	for side in t:
+		side = side.results[0] if side.has("results") else {"variant": 0, "handling": [0, 0, 0]}
+		assert_eq(int(side.variant), 5, "Tabletop Mayhem on both computers")
+		assert_almost_eq(float(side.handling[1]), base.acceleration * 1.28, 0.01, "Tabletop acceleration")

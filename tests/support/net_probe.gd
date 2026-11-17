@@ -9,7 +9,7 @@ extends SceneTree
 ## (finishing order, positions, times) and its own counters to `out`.
 
 var opts := {"role": "host", "port": "24690", "laps": "1", "weapons": "0", "style": "0", "out": "",
-	"latency": "0", "loss": "0", "races": "1", "fire_every": "0", "timeout": "120", "track": "1", "jitter": "0",
+	"latency": "0", "loss": "0", "races": "1", "fire_every": "0", "timeout": "120", "track": "1", "night": "0", "jitter": "0",
 	"mode": "0", "predict": "1", "fall": "0", "shots": ""}
 var link: NetLink
 var main: Node2D
@@ -89,6 +89,7 @@ func _make_race(role: NetRace.Role, track: int = int(opts.track)) -> Node2D:
 		m.layout_override = load(DevLayouts.LAYOUTS[opts.layout])
 	m.human_count = 2
 	m.track_variant = track
+	m.night = opts.night == "1"
 	m.net = NetRace.new(link, role)
 	root.add_child(m)
 	return m
@@ -233,7 +234,9 @@ func _result() -> Dictionary:
 			dnf.append(id)
 	return {"order": s.finish_order.duplicate(), "times": times, "positions": positions, "grid": main.grid_order.duplicate(),
 		"sitting_out": s.sitting_out.duplicate(), "fired": fired, "destroyed": destroyed,
-		"condition": condition, "ammo": ammo, "dnf": dnf, "takeoffs": takeoffs.duplicate(), "falls": falls.duplicate()}
+		"condition": condition, "ammo": ammo, "dnf": dnf, "takeoffs": takeoffs.duplicate(), "falls": falls.duplicate(),
+		"variant": main.track_variant, "night": main.night,
+		"handling": [main.driving_params.max_speed, main.driving_params.acceleration, main.driving_params.grip]}
 
 
 func _write(data: Dictionary) -> void:
