@@ -41,6 +41,10 @@ var _control_button: Button
 var player_car := 0
 var _car_button: Button
 var _rounds_button: Button
+var _garage_button: Button
+var _garage_confirming := false
+## The saved garage career (set by the game), for the GARAGE row.
+var garage: PlayerGarage
 ## The car collection (won rival cars); set by the game before setup.
 var cars: CarCollection
 ## GO RACING!: the modes, and the shared race setup (mode: "quick",
@@ -309,6 +313,7 @@ func _build_setup(root: Control) -> void:
 	_control_button = _setup_row("CONTROL", _cycle_control)
 	_car_button = _setup_row("CAR", _cycle_car)
 	_rounds_button = _setup_row("ROUNDS", _cycle_rounds)
+	_garage_button = _setup_row("GARAGE", func(_d: int = 1) -> void: _new_garage())
 	var go := Button.new()
 	go.text = "START"
 	go.custom_minimum_size = Vector2(520, 46)
@@ -367,6 +372,9 @@ func _open_setup(mode: String) -> void:
 	_control_button.visible = mode != "spectate"
 	_car_button.visible = mode != "spectate" and mode != "multi"
 	_rounds_button.visible = champ
+	_garage_button.visible = mode == "garage" and garage != null
+	_garage_confirming = false
+	_update_garage_button()
 	_update_rounds_button()
 	_refresh_preview()
 	_show_only(_setup)
@@ -538,6 +546,26 @@ func _cycle_rounds(_dir: int = 1) -> void:
 	cfg.load(settings.path)
 	cfg.set_value("game", "championship_rounds", championship_rounds)
 	cfg.save(settings.path)
+
+
+## Garage career row: what is saved; pressing twice starts over.
+func _update_garage_button() -> void:
+	if _garage_button == null or garage == null:
+		return
+	_garage_button.text = "CONFIRM: NEW GARAGE (money, weapons and car reset)" if _garage_confirming \
+		else "GARAGE:  $%d, %d races  -  NEW GARAGE" % [garage.money, garage.races_settled]
+
+
+func _new_garage() -> void:
+	if garage == null:
+		return
+	_sfx_play("ui/ui_select")
+	if not _garage_confirming:
+		_garage_confirming = true
+	else:
+		_garage_confirming = false
+		garage.reset()
+	_update_garage_button()
 
 
 func _update_rounds_button() -> void:

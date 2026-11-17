@@ -99,11 +99,12 @@ func _ready() -> void:
 	champ_screen.abandon_requested.connect(abandon_championship)
 	champ_screen.done.connect(abandon_championship)
 	reward_rng.randomize()
-	garage = PlayerGarage.new(load("res://src/garage/default_garage_rules.tres"))
+	garage = PlayerGarage.load_or_new(load("res://src/garage/default_garage_rules.tres"))  # saved career
 	garage_screen = GarageScreen.new()
 	garage_screen.name = "Garage"
 	add_child(garage_screen)
 	garage_screen.setup(garage, resolver)
+	title.garage = garage
 	garage_screen.race_requested.connect(func() -> void: _close_garage(true))
 	garage_screen.closed.connect(func() -> void: _close_garage(false))
 	var layer := CanvasLayer.new()

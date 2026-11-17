@@ -185,3 +185,23 @@ func test_game_opens_the_garage_before_the_first_garage_race() -> void:
 	await game.start_race(0)
 	assert_null(game.race.garage, "a quick race does not use the garage")
 	game.title.stop_audio()
+
+
+## The title's GARAGE row shows the saved career and starts over after a
+## second, confirming press.
+func test_new_garage_needs_confirmation() -> void:
+	var game := GAME_SCENE.instantiate()
+	add_child_autofree(game)
+	await wait_physics_frames(3)
+	game.garage.money = 1234
+	game.title._open_setup("garage")
+	assert_true(game.title._garage_button.visible)
+	assert_string_contains(game.title._garage_button.text, "$1234")
+	game.title._new_garage()
+	assert_eq(game.garage.money, 1234, "first press only asks")
+	assert_string_contains(game.title._garage_button.text, "CONFIRM")
+	game.title._new_garage()
+	assert_eq(game.garage.money, game.garage.rules.start_money, "second press resets")
+	game.title._open_setup("quick")
+	assert_false(game.title._garage_button.visible, "only for garage races")
+	game.title.stop_audio()

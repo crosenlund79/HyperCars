@@ -175,3 +175,68 @@ func test_economy_invariants() -> void:
 	for k in range(1, 5):
 		assert_gt(r.prize_for(k), r.prize_for(k + 1), "prizes fall with position")
 	assert_eq(r.prize_for(6), 0, "top five only (manual)")
+
+
+const SAVE := "user://test_run/test_garage_save.cfg"
+
+
+func _saved() -> PlayerGarage:
+	return PlayerGarage.load_or_new(_rules, SAVE)
+
+
+func test_career_is_saved_and_loaded() -> void:
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE))
+	var g := _saved()
+	assert_eq(g.money, _rules.start_money, "no file: a fresh career")
+	g.buy(W.HOMING_MISSILE, 2)
+	g.equip(0, W.HOMING_MISSILE)
+	g.begin_race()
+	g.settle_race(2, 1, 3, 61.0)
+	var again := _saved()
+	assert_eq(again.money, g.money)
+	assert_eq(again.count(W.HOMING_MISSILE), 1)
+	assert_eq(again.count(W.MINE), 3)
+	assert_eq(again.equipped, [W.HOMING_MISSILE, W.MINE] as Array[int])
+	assert_almost_eq(again.condition, 61.0, 0.01)
+	assert_eq(again.races_settled, 1)
+
+
+## Quitting mid-race = leaving the race: the save still holds the state
+## before it (no prize, no rounds used, no damage), so nothing is duplicated
+## or lost by reloading.
+func test_a_race_in_progress_is_never_saved() -> void:
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE))
+	var g := _saved()
+	g.condition = 20.0
+	g.save()
+	var money := g.money
+	g.begin_race()  # patched up to the minimum for the race
+	g.money += 9999  # whatever happens in memory during the race...
+	g.save()  # ...is not written while the race runs
+	var reloaded := _saved()
+	assert_eq(reloaded.money, money)
+	assert_eq(reloaded.count(W.FRONT_MISSILE), _rules.start_front_missiles)
+	assert_almost_eq(reloaded.condition, 20.0, 0.01, "no free patch-up banked")
+	reloaded.begin_race()
+	assert_eq(reloaded.settle_race(1, 0, 0), _rules.prize_for(1))
+	assert_eq(reloaded.settle_race(1, 0, 0), -1, "settled once")
+
+
+func test_broken_save_is_clamped_and_reset_starts_over() -> void:
+	var cfg := ConfigFile.new()
+	cfg.set_value("garage", "money", -50)
+	cfg.set_value("garage", "stock", {str(W.MINE): 5000})
+	cfg.set_value("garage", "equipped", [W.MINE, W.FRONT_MISSILE])  # wrong slots
+	cfg.set_value("garage", "armour", 9)
+	cfg.save(SAVE)
+	var g := _saved()
+	assert_eq(g.money, 0)
+	assert_eq(g.count(W.MINE), _rules.max_stock)
+	assert_eq(g.equipped, [W.FRONT_MISSILE, W.MINE] as Array[int], "invalid slots ignored")
+	assert_eq(g.armour, _rules.armour_names.size() - 1)
+	g.reset()
+	var fresh := _saved()
+	assert_eq(fresh.money, _rules.start_money)
+	assert_eq(fresh.races_settled, 0)
+	assert_eq(fresh.condition, 100.0)
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE))

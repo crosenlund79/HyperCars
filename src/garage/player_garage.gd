@@ -1,7 +1,10 @@
 class_name PlayerGarage
 extends RefCounted
-## The player's money and weapon inventory for one garage session (kept while
-## the game runs; nothing is saved to disk). The single authority for what the
+## The player's money, weapon inventory and car (condition, armour) for the
+## garage career, saved to user://garage.cfg after every change when a save
+## path is set (the game sets it; tests usually do not). Nothing is saved while
+## a race is running: quitting mid-race is the same as leaving the race (no
+## prize, no rounds used, no damage), so a save never holds a half-settled race. The single authority for what the
 ## player owns: the race only receives a copy of the equipped rounds, and the
 ## rounds left after the race are written back once by settle_race().
 ## Quick races and spectating never use it.
@@ -29,6 +32,11 @@ var last_condition_before := 100.0
 ## Free emergency patch-up given at the start of the last race (points).
 var last_patch := 0.0
 var _race_pending := false
+## Where the career is saved ("" = not saved).
+var save_path := ""
+
+const DEFAULT_PATH := "user://garage.cfg"
+static var default_path := DEFAULT_PATH
 
 
 func _init(p_rules: GarageRules) -> void:
@@ -56,6 +64,7 @@ func buy(w: int, n: int = 1) -> bool:
 		return false
 	money -= rules.price(w) * n
 	stock[w] += n
+	save()
 	return true
 
 
@@ -69,6 +78,7 @@ func sell(w: int, n: int = 1) -> bool:
 		return false
 	money += rules.sell_price(w) * n
 	stock[w] -= n
+	save()
 	return true
 
 
@@ -79,6 +89,7 @@ func equip(slot: int, w: int) -> bool:
 	if w != W.NONE and not WeaponRules.compatible(w, slot):
 		return false
 	equipped[slot] = w
+	save()
 	return true
 
 
@@ -113,6 +124,7 @@ func repair(points: float) -> bool:
 		return false
 	money -= rules.repair_price(points)
 	condition = minf(100.0, condition + ceil(points - 0.0001))
+	save()
 	return true
 
 
@@ -157,6 +169,7 @@ func buy_armour() -> bool:
 		return false
 	money -= next_armour_price()
 	armour += 1
+	save()
 	return true
 
 
@@ -192,6 +205,7 @@ func settle_race(position: int, front_left: int, rear_left: int, condition_left:
 	last_prize = rules.prize_for(position)
 	money += last_prize
 	races_settled += 1
+	save()
 	return last_prize
 
 
@@ -201,6 +215,63 @@ func abandon_race() -> void:
 	if _race_pending:
 		condition = last_condition_before
 	_race_pending = false
+
+
+## Writes the career (never in the middle of a race).
+func save() -> void:
+	if save_path == "" or _race_pending:
+		return
+	var cfg := ConfigFile.new()
+	cfg.set_value("garage", "money", money)
+	var st := {}
+	for w in stock:
+		st[str(w)] = stock[w]
+	cfg.set_value("garage", "stock", st)
+	cfg.set_value("garage", "equipped", [equipped[0], equipped[1]])
+	cfg.set_value("garage", "condition", condition)
+	cfg.set_value("garage", "armour", armour)
+	cfg.set_value("garage", "races", races_settled)
+	cfg.save(save_path)
+
+
+## The saved career at path, or a fresh one (missing or broken file). Values
+## are clamped to what the rules allow, so an edited file cannot break the game.
+static func load_or_new(p_rules: GarageRules, path: String = "") -> PlayerGarage:
+	var g := PlayerGarage.new(p_rules)
+	g.save_path = path if path != "" else default_path
+	var cfg := ConfigFile.new()
+	if cfg.load(g.save_path) != OK:
+		return g
+	g.money = maxi(0, int(cfg.get_value("garage", "money", g.money)))
+	var st = cfg.get_value("garage", "stock", {})
+	if st is Dictionary:
+		for w in g.stock:
+			g.stock[w] = clampi(int(st.get(str(w), g.stock[w])), 0, p_rules.max_stock)
+	var eq = cfg.get_value("garage", "equipped", [])
+	if eq is Array and eq.size() == 2:
+		for slot in 2:
+			var w := int(eq[slot])
+			if w == W.NONE or (g.stock.has(w) and WeaponRules.compatible(w, slot)):
+				g.equipped[slot] = w
+	g.condition = clampf(float(cfg.get_value("garage", "condition", 100.0)), 0.0, 100.0)
+	g.armour = clampi(int(cfg.get_value("garage", "armour", 0)), 0, p_rules.armour_names.size() - 1)
+	g.races_settled = maxi(0, int(cfg.get_value("garage", "races", 0)))
+	return g
+
+
+## Starts the career over (starting money and supplies, a repaired car).
+func reset() -> void:
+	var fresh := PlayerGarage.new(rules)
+	money = fresh.money
+	stock = fresh.stock
+	equipped = fresh.equipped
+	condition = 100.0
+	armour = 0
+	races_settled = 0
+	last_prize = 0
+	last_position = 0
+	_race_pending = false
+	save()
 
 
 ## Total shop value of everything owned (for display).
