@@ -62,10 +62,16 @@ static func events(action: String, kind: String) -> Array[InputEvent]:
 	return out
 
 
-## The input in one slot ("-" when empty).
+## The input in one slot, short enough for its button ("-" when empty).
 static func slot_name(action: String, kind: String, slot: int) -> String:
 	var list := events(action, kind)
-	return event_name(list[slot]) if slot < list.size() else "-"
+	if slot >= list.size():
+		return "-"
+	var e := list[slot]
+	if e is InputEventJoypadMotion and e.axis <= JOY_AXIS_RIGHT_Y:
+		var dirs := ["left", "right"] if e.axis in [JOY_AXIS_LEFT_X, JOY_AXIS_RIGHT_X] else ["up", "down"]
+		return "%s %s" % [PlayerControls.pad_short(e), dirs[0] if e.axis_value < 0.0 else dirs[1]]
+	return PlayerControls.pad_short(e) if kind == PAD else event_name(e)
 
 
 ## "Left / A", "D-pad Left / Left stick left" ...

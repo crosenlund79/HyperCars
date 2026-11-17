@@ -67,8 +67,8 @@ func setup() -> void:
 		for kind in [ControlBindings.KEYBOARD, ControlBindings.PAD]:
 			for slot in ControlBindings.SLOTS:
 				var b := Button.new()
-				b.custom_minimum_size = Vector2(118, 27)
-				b.add_theme_font_size_override("font_size", 13)
+				b.custom_minimum_size = Vector2(130, 27)
+				b.add_theme_font_size_override("font_size", 12)
 				b.clip_text = true
 				b.pressed.connect(_listen.bind(a[0], kind, slot))
 				map.add_child(b)
