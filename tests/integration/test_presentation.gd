@@ -105,7 +105,7 @@ func test_tyre_marks_appear_when_sliding_and_not_in_fast_mode() -> void:
 	Input.action_press(PlayerControls.FIRE)
 	await wait_physics_frames(2)
 	m.car.model.velocity = Vector2(0, 300).rotated(m.car.global_rotation)  # pure sideways slide
-	await wait_frames(4)
+	await wait_physics_frames(4)
 	assert_gt(m.effects.mark_count(), 0, "marks while sliding")
 	m.set_sim_speed(4)
 	assert_false(m.effects.visible, "effects reduced in fast mode")
@@ -115,7 +115,7 @@ func test_tyre_marks_appear_when_sliding_and_not_in_fast_mode() -> void:
 
 func test_hud_shows_tower_and_podium_stars_in_results() -> void:
 	var m := await _main(true)
-	await wait_frames(2)
+	await wait_physics_frames(2)
 	assert_eq(m.hud._tower_rows.size(), 10, "one row per car")
 	var rows: Array = m.hud._tower_rows
 	assert_eq(rows[9][3].text, "YOU", "player starts last")
@@ -148,7 +148,7 @@ func test_title_starts_a_race_and_returns() -> void:
 	var game := GAME_SCENE.instantiate()
 	game.achievements_path = "user://test_game_achievements.cfg"
 	add_child_autofree(game)
-	await wait_frames(3)
+	await wait_physics_frames(3)
 	assert_true(game.title._ui.visible)
 	await game.start_race(1)
 	assert_not_null(game.race)

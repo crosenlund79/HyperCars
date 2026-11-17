@@ -122,7 +122,7 @@ func test_toast_and_catalogue_with_confirmed_reset() -> void:
 	var game := GAME_SCENE.instantiate()
 	game.achievements_path = PATH
 	add_child_autofree(game)
-	await wait_frames(3)
+	await wait_physics_frames(3)
 	game.achievements.unlock("first_flag")
 	assert_eq(game.toast.pending(), 1)
 	var panel: AchievementsPanel = game.title._achievements_panel

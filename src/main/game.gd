@@ -10,9 +10,9 @@ extends Node
 const MAIN_SCENE := preload("res://src/main/main.tscn")
 
 ## Where achievements and rival careers are saved (tests use a scratch file).
-@export var achievements_path := AchievementStore.DEFAULT_PATH
+@export var achievements_path := ""  # "" = AchievementStore.default_path
 ## Where the won rival cars are saved (tests use a scratch file).
-@export var cars_path := CarCollection.DEFAULT_PATH
+@export var cars_path := ""  # "" = CarCollection.default_path
 
 var resolver: AssetResolver
 var settings: AudioSettings

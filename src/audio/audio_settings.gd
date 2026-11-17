@@ -14,8 +14,13 @@ var volume: Dictionary = {}
 var muted: Dictionary = {}
 
 
-func _init(p_path: String = DEFAULT_PATH) -> void:
-	path = p_path
+## Where a store without an explicit path saves (tests point this at a
+## throw-away file so they never touch the player's own).
+static var default_path := DEFAULT_PATH
+
+
+func _init(p_path: String = "") -> void:
+	path = p_path if p_path != "" else default_path
 	for bus in BUSES:
 		volume[bus] = DEFAULT_VOLUME[bus]
 		muted[bus] = false

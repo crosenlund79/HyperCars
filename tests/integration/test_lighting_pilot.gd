@@ -23,11 +23,11 @@ func test_lighting_does_not_change_the_race() -> void:
 func test_toggle_with_l_and_light_setup() -> void:
 	var m := MAIN_SCENE.instantiate()
 	add_child_autofree(m)
-	await wait_frames(2)
+	await wait_physics_frames(2)
 	var l: LightingPilot = m.lighting
 	assert_false(l.enabled, "off by default")
 	Input.action_press(PlayerControls.TOGGLE_LIGHTING)
-	await wait_frames(2)
+	await wait_physics_frames(2)
 	Input.action_release(PlayerControls.TOGGLE_LIGHTING)
 	assert_true(l.enabled)
 	assert_eq(l._lamps.size(), LightingPilot.LAMP_COUNT, "ten trackside lamps")
@@ -41,7 +41,7 @@ func test_toggle_with_l_and_light_setup() -> void:
 func test_lamps_stand_clear_of_the_road() -> void:
 	var m := MAIN_SCENE.instantiate()
 	add_child_autofree(m)
-	await wait_frames(2)
+	await wait_physics_frames(2)
 	var half: float = m.track.layout.road_width * 0.5
 	for s in m.lighting._lamp_sprites:
 		var p: Dictionary = m.track.path.project(s.global_position)

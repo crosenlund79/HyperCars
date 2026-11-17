@@ -15,13 +15,13 @@ func before_each() -> void:
 	_game = GAME_SCENE.instantiate()
 	_game.achievements_path = PATH
 	add_child_autofree(_game)
-	await wait_frames(3)
+	await wait_physics_frames(3)
 
 
 func after_each() -> void:
 	_space(false)
 	_cross(false)
-	await wait_frames(1)
+	await wait_physics_frames(1)
 	if _game != null and is_instance_valid(_game):
 		_game.title.stop_audio()
 	Engine.time_scale = 1.0
@@ -46,26 +46,26 @@ func _cross(pressed: bool) -> void:
 
 func _tap(fn: Callable) -> void:
 	fn.call(true)
-	await wait_frames(3)
+	await wait_physics_frames(3)
 	fn.call(false)
-	await wait_frames(3)
+	await wait_physics_frames(3)
 
 
 ## Waits for the game root's fade-in race start to complete.
 func _await_race() -> void:
 	await wait_until(func() -> bool: return _game.race != null and _game.race.is_inside_tree(), 3.0)
-	await wait_frames(20)
+	await wait_physics_frames(20)
 
 
 func _join_and_start(first: Callable, second: Callable, start: Callable) -> void:
 	_game.title._open_join()
-	await wait_frames(2)
+	await wait_physics_frames(2)
 	await _tap(first)
 	await _tap(second)
 	await _tap(start)  # both joined: continue to the race
 	await _await_race()
 	await _tap(start)  # start the race from the grid panel
-	await wait_frames(5)
+	await wait_physics_frames(5)
 
 
 func _check_presses_only_drive(press: Callable, driver_id: int, other_id: int) -> void:
@@ -73,12 +73,12 @@ func _check_presses_only_drive(press: Callable, driver_id: int, other_id: int) -
 	assert_eq(race.session.state, RaceSession.State.RACING, "race started")
 	for k in 4:
 		press.call(true)
-		await wait_frames(25)
+		await wait_physics_frames(25)
 		var p: float = race.progress[driver_id].distance
 		assert_true(race.cars[driver_id].fire, "the press drives its own car")
 		assert_false(race.cars[other_id].fire, "the other car is not affected")
 		press.call(false)
-		await wait_frames(25)
+		await wait_physics_frames(25)
 		assert_eq(_game.race, race, "the race was not replaced (press %d)" % k)
 		assert_eq(race.session.state, RaceSession.State.RACING, "still racing")
 		assert_gte(race.progress[driver_id].distance, p - 1.0, "progress not reset")

@@ -5,14 +5,18 @@ extends GutTest
 const PATH := "user://test_controls.cfg"
 
 
+var _saved_path := ""
+
+
 func before_each() -> void:
+	_saved_path = ControlBindings.path
 	ControlBindings.path = PATH
 	ControlBindings.restore_defaults()
 
 
 func after_each() -> void:
 	ControlBindings.restore_defaults()
-	ControlBindings.path = ControlBindings.PATH
+	ControlBindings.path = _saved_path
 	for n in [1, 2]:
 		for a in PlayerControls.PLAYER_ACTIONS:
 			if InputMap.has_action(PlayerControls.player_prefix(n) + a):

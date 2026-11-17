@@ -15,7 +15,7 @@ func _real_wait(ms: int, done: Callable) -> void:
 	var deadline := Time.get_ticks_msec() + ms
 	while Time.get_ticks_msec() < deadline and not done.call():
 		OS.delay_msec(20)
-		await wait_frames(1)
+		await wait_physics_frames(1)
 
 
 func _run(port: int, args: Array) -> Array:

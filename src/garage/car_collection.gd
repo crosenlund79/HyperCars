@@ -22,8 +22,13 @@ var stake := 0
 var forfeited_on_load := 0
 
 
-func _init(p_path: String = DEFAULT_PATH) -> void:
-	path = p_path
+## Where a store without an explicit path saves (tests point this at a
+## throw-away file so they never touch the player's own).
+static var default_path := DEFAULT_PATH
+
+
+func _init(p_path: String = "") -> void:
+	path = p_path if p_path != "" else default_path
 	load_from_disk()
 
 

@@ -67,7 +67,7 @@ func test_every_track_and_lap_setting_reaches_the_client() -> void:
 		after_each()
 		host.queue_free()
 		client.get_parent().queue_free()
-		await wait_frames(3)
+		await wait_physics_frames(3)
 
 
 func test_full_tactical_race_client_fire_to_brake_agrees() -> void:

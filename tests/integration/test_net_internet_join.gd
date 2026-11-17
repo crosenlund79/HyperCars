@@ -17,7 +17,7 @@ func before_each() -> void:
 	var vp := SubViewport.new()
 	add_child_autofree(vp)
 	client_game = _make_game(vp, "c")
-	await wait_frames(3)
+	await wait_physics_frames(3)
 
 
 func after_each() -> void:
@@ -43,7 +43,7 @@ func _real_wait(ms: int, done: Callable) -> void:
 	var deadline := Time.get_ticks_msec() + ms
 	while Time.get_ticks_msec() < deadline and not done.call():
 		OS.delay_msec(10)
-		await wait_frames(1)
+		await wait_physics_frames(1)
 
 
 func test_address_parsing() -> void:
@@ -144,7 +144,7 @@ func test_messages_from_unexpected_senders_are_ignored() -> void:
 	assert_eq(host_game.host_lan(), OK)
 	assert_eq(client_game.join_lan("127.0.0.1"), OK)
 	await _real_wait(10000, func() -> bool: return host_game.race != null and client_game.race != null)
-	await wait_frames(20)
+	await wait_physics_frames(20)
 	var c: Node2D = client_game.race
 	var laps: int = c.session.lap_count()
 	var net: NetRace = c.net

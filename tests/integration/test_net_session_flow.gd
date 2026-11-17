@@ -17,7 +17,7 @@ func before_each() -> void:
 	var vp := SubViewport.new()  # the client gets its own world, like a second computer
 	add_child_autofree(vp)
 	client_game = _make_game(vp, "c")
-	await wait_frames(3)
+	await wait_physics_frames(3)
 
 
 func after_each() -> void:
@@ -43,7 +43,7 @@ func _real_wait(ms: int, done: Callable) -> void:
 	var deadline := Time.get_ticks_msec() + ms
 	while Time.get_ticks_msec() < deadline and not done.call():
 		OS.delay_msec(10)
-		await wait_frames(1)
+		await wait_physics_frames(1)
 
 
 func _connect_both() -> void:
@@ -53,7 +53,7 @@ func _connect_both() -> void:
 	await _real_wait(8000, func() -> bool:
 		return host_game.race != null and client_game.race != null and client_game.race.is_inside_tree() \
 			and host_game.race.is_inside_tree())
-	await wait_frames(30)
+	await wait_physics_frames(30)
 
 
 func _labels(game: Node) -> Array:
@@ -73,7 +73,7 @@ func test_host_join_ready_start_and_disconnect() -> void:
 	client_game.race.net.local_ready = true
 	client_game.race.net._send_ready()
 	await _real_wait(3000, func() -> bool: return host_game.race.net.client_ready)
-	await wait_frames(3)
+	await wait_physics_frames(3)
 	assert_has(_labels(host_game), "PLAYER 2 READY  -  Fire: start the race")
 	var host_race: Node2D = host_game.race
 	host_race.start_race()

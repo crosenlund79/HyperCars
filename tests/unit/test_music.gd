@@ -58,7 +58,7 @@ func test_music_keeps_playing_through_a_race() -> void:
 	main.combat.mines.append({"owner": 3, "pos": main.cars[0].global_position, "age": main.combat.rules.mine_fuse - 0.01})
 	await wait_physics_frames(200)  # destroyed, wrecked, respawned
 	main.open_race_menu()
-	await wait_frames(5)
+	await wait_physics_frames(5)
 	main.resume_race()
 	assert_eq(m.starts(), starts, "no restart for destructions, respawns or the pause menu")
 	assert_true(m.playing())

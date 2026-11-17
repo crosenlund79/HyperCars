@@ -16,7 +16,7 @@ func before_each() -> void:
 	game.achievements_path = "user://test_champ_ach.cfg"
 	game.cars_path = CARS
 	add_child_autofree(game)
-	await wait_frames(3)
+	await wait_physics_frames(3)
 	game.title.championship_rounds = 3  # the short version keeps these flows quick
 
 
@@ -41,7 +41,7 @@ func _wait_race() -> void:
 	for i in 300:
 		if game.race != null and not game._starting:
 			return
-		await wait_frames(1)
+		await wait_physics_frames(1)
 
 
 ## Drives the player's laps (checkpoints in order) so they win the round.
@@ -64,7 +64,7 @@ func _win_round() -> void:
 	for i in 120:
 		if game.race == null and game.champ_screen.visible:
 			break
-		await wait_frames(1)
+		await wait_physics_frames(1)
 
 
 func test_three_rounds_follow_the_schedule_and_reward_the_champion() -> void:
@@ -98,7 +98,7 @@ func test_three_rounds_follow_the_schedule_and_reward_the_champion() -> void:
 	assert_ne(game.title.championship.resource_path, schedule.resource_path, "the next championship differs")
 	# the next race: the rival drives the junker; the player can take the car
 	game.abandon_championship()
-	await wait_frames(60)
+	await wait_physics_frames(60)
 	game.title.player_car = won
 	game.start_race(0)
 	await _wait_race()
@@ -110,7 +110,7 @@ func test_three_rounds_follow_the_schedule_and_reward_the_champion() -> void:
 	assert_eq(race.cars[won].model.params, race.cars[0].model.params, "identical performance")
 	game.title.player_car = 0
 	race.leave_race()
-	await wait_frames(40)
+	await wait_physics_frames(40)
 	game.start_race(0)
 	await _wait_race()
 	assert_eq(game.race._car_looks[won].body_logical, AssetCatalog.body_of(AssetCatalog.CAR_JUNKER),
@@ -123,7 +123,7 @@ func test_leaving_a_round_abandons_the_championship() -> void:
 	assert_not_null(game.champ)
 	assert_eq(game.race.race_menu._leave.text, "ABANDON CHAMPIONSHIP")
 	game.race.leave_race()
-	await wait_frames(60)
+	await wait_physics_frames(60)
 	assert_null(game.champ)
 	assert_null(game.race)
 	assert_eq(CarCollection.new(CARS).owned.size(), 0, "nothing won")
@@ -140,7 +140,7 @@ func test_six_round_season_ends_with_the_grand_final() -> void:
 	for k in 4:
 		game.champ.record([1, 2, 3, 4, 5, 6, 7, 8, 9, 0], [])
 	game.race.championship_round_done.emit([1, 2, 3, 4, 5, 6, 7, 8, 9, 0], [])
-	await wait_frames(30)
+	await wait_physics_frames(30)
 	assert_true(game.champ_screen.visible)
 	assert_string_contains(game.champ_screen._next_title.text, "GRAND FINAL")
 	assert_eq(game.champ_screen._continue.text, "START THE FINAL")
@@ -172,7 +172,7 @@ func test_a_lost_championship_gives_nothing() -> void:
 	game.champ.record([1, 2, 3, 4, 5, 6, 7, 8, 9, 0], [])
 	game.champ.record([1, 2, 3, 4, 5, 6, 7, 8, 9, 0], [])
 	game.race.championship_round_done.emit([1, 2, 3, 4, 5, 6, 7, 8, 9, 0], [0])
-	await wait_frames(60)
+	await wait_physics_frames(60)
 	assert_true(game.champ.finished())
 	assert_eq(game.champ.champion(), 1)
 	assert_eq(game.last_reward, -1)
@@ -191,23 +191,23 @@ func test_defeat_popup_credits_the_attacker_once() -> void:
 	var race: Node2D = game.race
 	race.set_weapons_enabled(true)
 	race.start_race()
-	await wait_frames(5)
+	await wait_physics_frames(5)
 	var popup: DefeatPopup = race.defeat_popup
 	var seen: Array = []
 	popup.shown.connect(func(rival: int, text: String) -> void: seen.append([rival, text]))
 	race.combat.events.append({"kind": "destroyed", "type": 0, "pos": Vector2.ZERO, "car": 0, "owner": 9})
 	race.combat.events.append({"kind": "destroyed", "type": 0, "pos": Vector2.ZERO, "car": 0, "owner": 2})
-	await wait_frames(3)
+	await wait_physics_frames(3)
 	assert_eq(seen.size(), 1, "one card at a time (minimum gap)")
 	assert_eq(seen[0][0], 9, "the actual attacker")
 	assert_eq(seen[0][1], RivalTaunts.line(9, 0))
 	race.combat.events.append({"kind": "destroyed", "type": 0, "pos": Vector2.ZERO, "car": 3, "owner": 9})
 	race.combat.events.append({"kind": "destroyed", "type": 0, "pos": Vector2.ZERO, "car": 0, "owner": 0})
 	popup.time += DefeatPopup.MIN_GAP
-	await wait_frames(3)
+	await wait_physics_frames(3)
 	assert_eq(seen.size(), 1, "rivals hitting rivals, or your own mine: no card")
 	race.combat.events.append({"kind": "destroyed", "type": 0, "pos": Vector2.ZERO, "car": 0, "owner": 9})
-	await wait_frames(3)
+	await wait_physics_frames(3)
 	assert_eq(seen.size(), 2)
 	assert_eq(seen[1][1], RivalTaunts.line(9, 1), "the next line, not a repeat")
 	assert_false(popup.has_node("AudioStreamPlayer"), "silent: the Voice Director stays the only voice")
@@ -229,7 +229,7 @@ func _decide(player_wins: bool) -> void:
 	game.champ.record(order, [])
 	game.champ.record(order, [])
 	game.race.championship_round_done.emit(order, [])
-	await wait_frames(60)
+	await wait_physics_frames(60)
 
 
 func test_winning_with_a_won_car_keeps_it_and_adds_a_new_one() -> void:
@@ -263,7 +263,7 @@ func test_losing_with_a_won_car_returns_it_to_its_rival() -> void:
 	assert_string_contains(game.lost_text(2), "ROCCO RECLAIMS THE CAR!")
 	# it can be won again later
 	game.abandon_championship()
-	await wait_frames(60)
+	await wait_physics_frames(60)
 	assert_eq(game.cars.unlock_random(RandomNumberGenerator.new()) in [1, 2, 3, 4, 5, 6, 7, 8], true)
 
 
@@ -291,7 +291,7 @@ func test_forfeiting_asks_first_and_loses_the_car() -> void:
 	assert_eq(menu._leave.text, "CONFIRM: FORFEIT")
 	menu.close()
 	game.race.leave_race()
-	await wait_frames(60)
+	await wait_physics_frames(60)
 	assert_null(game.champ)
 	assert_false(CarCollection.new(CARS).owns(4), "forfeited: Hank takes the car back")
 	assert_string_contains(game.title._notice.text, "FORFEITED")
@@ -318,7 +318,7 @@ func test_consecutive_championships_change_ownership() -> void:
 	var won: int = game.last_reward
 	assert_between(won, 1, 9)
 	game.abandon_championship()
-	await wait_frames(60)
+	await wait_physics_frames(60)
 	game.title.player_car = won
 	game.start_championship(0)
 	await _wait_race()

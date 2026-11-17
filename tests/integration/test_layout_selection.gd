@@ -17,7 +17,7 @@ func before_each() -> void:
 	_game = GAME_SCENE.instantiate()
 	_game.achievements_path = "user://test_layout_selection_ach.cfg"
 	add_child_autofree(_game)
-	await wait_frames(3)
+	await wait_physics_frames(3)
 
 
 func after_each() -> void:
@@ -28,13 +28,13 @@ func after_each() -> void:
 
 func _start(choice: int, with_garage := false, devices: Array[int] = []) -> Node2D:
 	_game.start_race(choice, with_garage, devices)
-	await wait_frames(30)
+	await wait_physics_frames(30)
 	return _game.race
 
 
 func _back() -> void:
 	_game.back_to_title()
-	await wait_frames(30)
+	await wait_physics_frames(30)
 
 
 func test_selector_defaults_to_kestrel_ridge_and_offers_no_legacy_layout() -> void:
@@ -63,12 +63,12 @@ func test_selector_defaults_to_kestrel_ridge_and_offers_no_legacy_layout() -> vo
 
 func test_title_menu_fits_at_1280x720() -> void:
 	var menu: Control = _game.title._main_menu
-	await wait_frames(2)
+	await wait_physics_frames(2)
 	var r := Rect2(menu.global_position, menu.size)
 	assert_true(Rect2(0, 0, 1280, 720).encloses(r), "menu %s on screen" % r)
 	assert_lt(r.end.y, 686.0, "clear of the controls hint at the bottom")
 	_game.title._open_setup("quick")
-	await wait_frames(12)
+	await wait_physics_frames(12)
 	assert_true(_game.title._layout_button.is_visible_in_tree(), "the circuit is chosen on the setup screen")
 	var setup: Control = _game.title._setup
 	var sr := Rect2(setup.global_position, setup.size)

@@ -25,7 +25,7 @@ func after_each() -> void:
 func _spectate() -> void:
 	_main.set_menu_choice(2)
 	_main.start_race()
-	await wait_frames(2)
+	await wait_physics_frames(2)
 
 
 func _row_of(id: int) -> PanelContainer:
@@ -46,7 +46,7 @@ func _click(id: int) -> void:
 	var up := e.duplicate()
 	up.pressed = false
 	get_viewport().push_input(up, true)
-	await wait_frames(2)
+	await wait_physics_frames(2)
 
 
 func test_grid_neighbour_wraps_in_grid_order() -> void:
@@ -84,7 +84,7 @@ func test_clicking_a_standings_row_follows_that_driver_and_highlights_it() -> vo
 	assert_eq(_main.director.target_id, pick)
 	await wait_physics_frames(2)
 	assert_eq(_main.camera.target, _main.cars[pick])
-	await wait_frames(1)
+	await wait_physics_frames(1)
 	for parts in _main.hud._tower_rows:
 		var is_pick: bool = int(parts[0].get_meta("racer_id")) == pick
 		assert_eq(parts[0].get_theme_stylebox("panel") == _main.hud._highlight, is_pick)
@@ -106,7 +106,7 @@ func test_arrows_follow_the_starting_grid_not_live_positions() -> void:
 	assert_eq(_main.director.target_id, grid[-1])
 	_main.hud._follow_next.pressed.emit()
 	assert_eq(_main.director.target_id, grid[0], "wraps to pole")
-	await wait_frames(1)
+	await wait_physics_frames(1)
 	await _click(grid[4])
 	assert_eq(_main.director.target_id, grid[4], "clicking works at fast speed")
 
@@ -123,7 +123,7 @@ func test_new_race_resets_to_its_last_grid_starter() -> void:
 
 func test_normal_race_has_no_follow_controls() -> void:
 	_main.start_race()
-	await wait_frames(2)
+	await wait_physics_frames(2)
 	assert_false(_main.hud._follow_controls.visible)
 	for parts in _main.hud._tower_rows:
 		assert_eq(parts[0].mouse_filter, Control.MOUSE_FILTER_IGNORE)

@@ -17,7 +17,7 @@ func before_each() -> void:
 	var vp := SubViewport.new()
 	add_child_autofree(vp)
 	client_game = _make_game(vp, "c")
-	await wait_frames(3)
+	await wait_physics_frames(3)
 
 
 func after_each() -> void:
@@ -44,7 +44,7 @@ func _real_wait(ms: int, done: Callable) -> void:
 	var deadline := Time.get_ticks_msec() + ms
 	while Time.get_ticks_msec() < deadline and not done.call():
 		OS.delay_msec(10)
-		await wait_frames(1)
+		await wait_physics_frames(1)
 
 
 func _connect_both() -> void:
@@ -53,7 +53,7 @@ func _connect_both() -> void:
 	await _real_wait(10000, func() -> bool:
 		return host_game.race != null and client_game.race != null and client_game.race.is_inside_tree() \
 			and host_game.race.is_inside_tree() and client_game.race.net.race != null)
-	await wait_frames(20)
+	await wait_physics_frames(20)
 
 
 func _ready_and_start() -> void:
@@ -88,7 +88,7 @@ func test_two_sessions_in_a_row_start_clean() -> void:
 		assert_null(host_game.race)
 		assert_null(client_game.race)
 		assert_false(host_game.link.is_open())
-		await wait_frames(5)
+		await wait_physics_frames(5)
 
 
 func test_repeated_fire_readies_once_and_mode_change_unreadies() -> void:
@@ -155,7 +155,7 @@ func test_disconnect_on_the_results_screen() -> void:
 func test_connection_quality_indicator() -> void:
 	await _connect_both()
 	var c: Node2D = client_game.race
-	await wait_frames(5)
+	await wait_physics_frames(5)
 	assert_true(c.hud._net_label.visible)
 	assert_string_contains(c.hud._net_label.text, "PING")
 	host_game.close_lan()  # the host goes silent (and away)

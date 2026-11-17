@@ -74,7 +74,7 @@ func test_each_hud_shows_its_own_player() -> void:
 	Input.action_press("p2_fire_front")
 	await wait_physics_frames(2)
 	Input.action_release("p2_fire_front")
-	await wait_frames(2)
+	await wait_physics_frames(2)
 	var h1: Hud = _main.player_views.views[0].hud
 	var h2: Hud = _main.player_views.views[1].hud
 	assert_eq(h1._pos_label.text, "P%d" % _main.session.position_of(P1))
@@ -95,7 +95,7 @@ func test_split_screen_race_completes_and_shows_results() -> void:
 	_main.start_race()
 	_finish(P2)
 	_finish(P1)
-	await wait_frames(3)
+	await wait_physics_frames(3)
 	assert_eq(_main.session.state, RaceSession.State.FINISHED)
 	assert_true(_main.hud._message.visible, "results on the shared HUD")
 
@@ -158,7 +158,7 @@ func test_title_launches_two_player_split_screen() -> void:
 	var game := GAME_SCENE.instantiate()
 	game.achievements_path = "user://test_split_achievements.cfg"
 	add_child_autofree(game)
-	await wait_frames(3)
+	await wait_physics_frames(3)
 	game.title._open_join()
 	assert_true(game.title._join_panel.visible)
 	await game.start_race(0, false, [3, 4] as Array[int])
