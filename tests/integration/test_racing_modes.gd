@@ -208,6 +208,23 @@ func test_knockout_eliminates_last_place_every_lap_until_one_is_left() -> void:
 	assert_string_contains(_main.knockout_text(), "WINNER")
 
 
+## Knockout's nine laps are a rule: the grid panel shows them as fixed and
+## the laps key does not change them (championship rounds alike).
+func test_knockout_laps_are_fixed_on_the_grid() -> void:
+	await _make(true, false, "knockout")
+	_main.set_lap_count(9)
+	await wait_physics_frames(10)
+	await _tap(PlayerControls.HISTORY_VIEW)
+	assert_eq(_main.lap_count(), 9, "the laps key changes nothing")
+	assert_true(_main.laps_fixed())
+	var texts := []
+	for l in _main.hud._message_box.find_children("*", "Label", true, false):
+		texts.append(l.text)
+	var all := " | ".join(texts)
+	assert_string_contains(all, "9 LAPS (FIXED)")
+	assert_false(all.contains(PlayerControls.key_text(PlayerControls.HISTORY_VIEW) + ": laps"), "no laps hint")
+
+
 func test_knockout_player_eliminated_watches() -> void:
 	await _make(true, false, "knockout")
 	_main.set_weapons_enabled(false)

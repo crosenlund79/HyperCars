@@ -671,9 +671,15 @@ func _show_menu() -> void:
 		return
 	hud.track_name = hud_track_name
 	hud.show_menu(choice_name(menu_choice), weapons_enabled, session.lap_count(), combat_style,
-		net.status_text() if net != null and net.race != null else "")
+		net.status_text() if net != null and net.race != null else "", laps_fixed())
 	if net != null and net.is_host():
 		net.send_setup()
+
+
+## Knockout (one elimination per lap) and championship rounds (the schedule's
+## laps) do not let the grid panel change the race length.
+func laps_fixed() -> bool:
+	return race_mode == "knockout" or championship_round >= 0
 
 
 func reset_race() -> void:
@@ -1004,7 +1010,7 @@ func _physics_process(_delta: float) -> void:
 				set_weapons_enabled(not weapons_enabled)
 			elif _menu_pressed(PlayerControls.TOGGLE_STYLE):
 				set_combat_style(WeaponRules.Style.TACTICAL if combat_style == WeaponRules.Style.CLASSIC else WeaponRules.Style.CLASSIC)
-			elif _menu_pressed(PlayerControls.HISTORY_VIEW):
+			elif _menu_pressed(PlayerControls.HISTORY_VIEW) and not laps_fixed():
 				var i := LAP_OPTIONS.find(session.lap_count())
 				set_lap_count(LAP_OPTIONS[(i + 1) % LAP_OPTIONS.size()])
 			elif _menu_pressed(PlayerControls.FIRE):

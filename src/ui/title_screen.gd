@@ -417,6 +417,10 @@ func _refresh_preview() -> void:
 		return
 	var chosen := DevLayouts.load_layout(layout_id)
 	_preview.show_circuit(chosen if chosen != null else LAYOUT, track_variant, night)
+	if setup_mode == "knockout":
+		_setup_note.text = "%s  -  %s, %s\nTen cars, nine laps: each time the leader completes a lap, the last car still in is out.\nThe last one standing wins." % [
+			DevLayouts.display_name(layout_id), TrackTheme.load_variant(track_variant).display_name, "night" if night else "day"]
+		return
 	var theme := TrackTheme.load_variant(track_variant)
 	var feel := {1: "Baseline grip, clear skies.", 2: "Rain: wet road, a little less grip and response.",
 		3: "Snow: lower grip, longer braking, more sliding.",

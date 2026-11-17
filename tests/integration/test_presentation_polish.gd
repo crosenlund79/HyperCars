@@ -179,6 +179,9 @@ func test_garage_disabled_buttons_read_as_inactive() -> void:
 	var mounted: Dictionary = screen._cards[garage.equipped[PlayerGarage.FRONT]]
 	assert_true(mounted.equip.disabled)
 	assert_eq(mounted.equip.get_theme_color("font_disabled_color"), HyperTheme.GOLD, "EQUIPPED is a state, in gold")
+	for state in ["normal", "focus", "disabled"]:
+		var box: StyleBox = card.buy.get_theme_stylebox(state)
+		assert_eq([box.content_margin_left, box.content_margin_right], [12.0, 12.0], "both side margins (%s)" % state)
 
 
 # --- P1 Stage 2: combat readability (presentation only) ---

@@ -293,11 +293,11 @@ func _small_button(text: String) -> Button:
 	var b := Button.new()
 	b.text = text
 	b.add_theme_font_size_override("font_size", 19)
-	for side in ["left", "right"]:
-		for state in ["normal", "hover", "pressed", "focus", "disabled"]:
-			var box: StyleBox = _root.theme.get_stylebox(state, "Button").duplicate()
-			box.set("content_margin_" + side, 12)
-			b.add_theme_stylebox_override(state, box)
+	for state in ["normal", "hover", "pressed", "focus", "disabled"]:
+		var box: StyleBox = _root.theme.get_stylebox(state, "Button").duplicate()
+		box.content_margin_left = 12  # both sides on the same box (each used to replace the other)
+		box.content_margin_right = 12
+		b.add_theme_stylebox_override(state, box)
 	# unavailable actions read clearly as inactive: darker, more transparent plate, faint text
 	var off: StyleBox = b.get_theme_stylebox("disabled")
 	if off is StyleBoxTexture:
