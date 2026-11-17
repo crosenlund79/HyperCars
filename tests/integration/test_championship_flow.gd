@@ -79,7 +79,12 @@ func test_three_rounds_follow_the_schedule_and_reward_the_champion() -> void:
 		assert_eq(race.night, r.night, "round %d time of day" % (k + 1))
 		assert_eq(race.session.lap_count(), r.laps)
 		assert_eq(race.championship_round, k)
-		assert_eq(race.grid_order, game.champ.next_grid(), "the championship's grid")
+		if k == 0:  # round 1: the rivals shuffled (race variety), the player last
+			var sorted: Array[int] = race.grid_order.duplicate()
+			sorted.sort()
+			assert_eq(sorted, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] as Array[int], "every car once")
+		else:
+			assert_eq(race.grid_order, game.champ.next_grid(), "the championship's reversed grid")
 		if k == 0:
 			assert_eq(race.grid_order[-1], 0, "round 1: the player starts last")
 		else:
