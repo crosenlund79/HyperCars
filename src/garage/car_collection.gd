@@ -30,17 +30,18 @@ func _init(p_path: String = DEFAULT_PATH) -> void:
 func load_from_disk() -> void:
 	owned.clear()
 	championships_run = 0
+	stake = 0
 	var cfg := ConfigFile.new()
 	if cfg.load(path) != OK:
 		return
 	championships_run = maxi(0, int(cfg.get_value("cars", "championships_run", 0)))
+	for id in cfg.get_value("cars", "owned", []):
+		if int(id) >= 1 and int(id) <= 9 and not owned.has(int(id)):
+			owned.append(int(id))
 	stake = int(cfg.get_value("cars", "stake", 0))
 	if stake > 0:  # a championship for keeps was left unfinished (game closed): forfeited
 		forfeited_on_load = stake
 		lose(stake)
-	for id in cfg.get_value("cars", "owned", []):
-		if int(id) >= 1 and int(id) <= 9 and not owned.has(int(id)):
-			owned.append(int(id))
 
 
 func save() -> Error:

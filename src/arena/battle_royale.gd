@@ -81,6 +81,8 @@ var _stall := PackedFloat32Array()
 var _celebrate_left := -1.0
 var _skipping := false
 var _menu_paused := false
+## The Esc menu is open (the human's car brakes; read by HumanDriverInput).
+var menu_open := false
 var _driving_params: DrivingParams
 var _shown_result := false
 ## Per car: the last weapon hit {by, weapon, time} (credits an elimination).
@@ -287,10 +289,8 @@ func _drive(step: float) -> void:
 		var cmd: Dictionary
 		if ais[i] == null:
 			var h := human_input.drive(self, step)
-			cmd = {"steer": h.steer, "fire": h.fire, "front": Input.is_action_just_pressed(PlayerControls.FIRE_FRONT),
-				"rear": Input.is_action_just_pressed(PlayerControls.FIRE_REAR)}
-			if race_menu.is_open():
-				cmd = {"steer": 0.0, "fire": false, "front": false, "rear": false}
+			var w := human_input.weapons(self, step, states)
+			cmd = {"steer": h.steer, "fire": h.fire, "front": w.front, "rear": w.rear}
 		else:
 			var others := others_all.filter(func(o: Dictionary) -> bool: return o.id != i)
 			cmd = ais[i].decide({"id": i, "position": c.global_position, "heading": c.model.heading, "velocity": c.model.velocity},
@@ -547,12 +547,14 @@ func _cooldown(slot: int) -> float:
 # ------------------------------------------------------------------ the menu
 
 func _open_menu() -> void:
+	menu_open = true
 	race_menu.open(false)
 	get_tree().paused = true
 	_menu_paused = true
 
 
 func _resume() -> void:
+	menu_open = false
 	race_menu.close()
 	if _menu_paused:
 		get_tree().paused = false

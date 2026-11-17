@@ -137,6 +137,7 @@ func start_race(choice: int, with_garage: bool = false, devices: Array[int] = []
 	if not two and mode == "race":  # (Knockout is not counted for achievements)
 		race.achievements = achievements
 	race.race_mode = mode
+	race.watch_enabled = true  # finished early: watch the rest live (single-player only)
 	var client := net != null and net.is_client()
 	race.track_variant = net_track if client else title.track_variant
 	race.night = net_night if client else title.night

@@ -21,6 +21,9 @@ func before_each() -> void:
 
 func after_each() -> void:
 	Input.action_release(PlayerControls.FIRE)
+	Input.action_release(PlayerControls.HISTORY_VIEW)
+	Engine.physics_ticks_per_second = 60
+	Engine.time_scale = 1.0
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(CARS))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://test_champ_ach.cfg"))
 
@@ -51,6 +54,10 @@ func _win_round() -> void:
 		race.session.checkpoint_reached(0, 0)
 	await wait_physics_frames(3)
 	assert_eq(race.session.state, RaceSession.State.FINISHED)
+	if not race.session.all_finished():  # the rivals race on: skip to the results (fast-forward)
+		await _tap(PlayerControls.HISTORY_VIEW)
+		await wait_until(func() -> bool: return race.session.all_finished(), 600.0)
+		await wait_physics_frames(3)
 	await _tap(PlayerControls.FIRE)
 	for i in 120:
 		if game.race == null and game.champ_screen.visible:
@@ -165,3 +172,121 @@ func test_defeat_popup_credits_the_attacker_once() -> void:
 	assert_eq(seen.size(), 2)
 	assert_eq(seen[1][1], RivalTaunts.line(9, 1), "the next line, not a repeat")
 	assert_false(popup.has_node("AudioStreamPlayer"), "silent: the Voice Director stays the only voice")
+
+
+# --- Racing for Keeps ---
+
+func _own(ids: Array) -> void:
+	game.cars.owned.clear()
+	for id in ids:
+		game.cars.owned.append(id)
+	game.cars.save()
+	game.title.player_car = ids[0] if not ids.is_empty() else 0
+
+
+## A whole championship decided at once (round results recorded directly).
+func _decide(player_wins: bool) -> void:
+	var order: Array = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] if player_wins else [1, 2, 3, 4, 5, 6, 7, 8, 9, 0]
+	game.champ.record(order, [])
+	game.champ.record(order, [])
+	game.race.championship_round_done.emit(order, [])
+	await wait_frames(60)
+
+
+func test_winning_with_a_won_car_keeps_it_and_adds_a_new_one() -> void:
+	_own([2])
+	assert_string_contains(game.title.keeps_text(), "OR LOSE ROCCO'S CAR", "the stake is shown before the start")
+	game.start_championship(0)
+	await _wait_race()
+	var cfg := ConfigFile.new()
+	cfg.load(CARS)
+	assert_eq(int(cfg.get_value("cars", "stake", 0)), 2, "the stake is saved at the start")
+	assert_eq(game.cars.stake, 2)
+	assert_string_contains(game.race.championship_label, "FOR KEEPS")
+	await _decide(true)
+	var saved := CarCollection.new(CARS)
+	assert_true(saved.owns(2), "the car entered with stays")
+	assert_eq(saved.owned.size(), 2, "plus the normal reward")
+	assert_eq(saved.stake, 0)
+
+
+func test_losing_with_a_won_car_returns_it_to_its_rival() -> void:
+	_own([2, 9])
+	game.start_championship(0)
+	await _wait_race()
+	await _decide(false)
+	assert_eq(game.last_lost, 2)
+	var saved := CarCollection.new(CARS)
+	assert_false(saved.owns(2), "Rocco's car goes back")
+	assert_false(saved.displaced(2), "Rocco drives his own car again")
+	assert_true(saved.owns(9), "other won cars stay")
+	assert_eq(game.title.player_car, 0, "the player falls back to the own car")
+	assert_string_contains(game.lost_text(2), "ROCCO RECLAIMS THE CAR!")
+	# it can be won again later
+	game.abandon_championship()
+	await wait_frames(60)
+	assert_eq(game.cars.unlock_random(RandomNumberGenerator.new()) in [1, 2, 3, 4, 5, 6, 7, 8], true)
+
+
+func test_the_own_car_is_never_at_stake() -> void:
+	_own([5])
+	game.title.player_car = 0
+	assert_eq(game.title.keeps_text(), "", "no warning with the own car")
+	game.start_championship(0)
+	await _wait_race()
+	assert_eq(game.cars.stake, 0)
+	await _decide(false)
+	assert_eq(game.last_lost, 0)
+	assert_true(CarCollection.new(CARS).owns(5), "nothing lost")
+
+
+func test_forfeiting_asks_first_and_loses_the_car() -> void:
+	_own([4])
+	game.start_championship(0)
+	await _wait_race()
+	var menu: RaceMenu = game.race.race_menu
+	assert_ne(menu.warning, "", "the race menu warns about the stake")
+	menu.open(false)
+	menu._on_leave()
+	assert_true(game.race != null, "the first press only warns")
+	assert_eq(menu._leave.text, "CONFIRM: FORFEIT")
+	menu.close()
+	game.race.leave_race()
+	await wait_frames(60)
+	assert_null(game.champ)
+	assert_false(CarCollection.new(CARS).owns(4), "forfeited: Hank takes the car back")
+	assert_string_contains(game.title._notice.text, "FORFEITED")
+
+
+func test_quitting_the_game_does_not_escape_the_stake() -> void:
+	var cars := CarCollection.new(CARS)
+	cars.clear()
+	cars.owned.append(7)
+	cars.save()
+	cars.put_at_stake(7)  # a championship for keeps was running when the game closed
+	var next_start := CarCollection.new(CARS)
+	assert_eq(next_start.forfeited_on_load, 7)
+	assert_false(next_start.owns(7), "forfeited on the next start")
+	assert_eq(CarCollection.new(CARS).stake, 0, "and settled once")
+
+
+func test_consecutive_championships_change_ownership() -> void:
+	_own([])
+	game.title.player_car = 0
+	game.start_championship(0)
+	await _wait_race()
+	await _decide(true)
+	var won: int = game.last_reward
+	assert_between(won, 1, 9)
+	game.abandon_championship()
+	await wait_frames(60)
+	game.title.player_car = won
+	game.start_championship(0)
+	await _wait_race()
+	assert_eq(game.race.player_car, won, "racing the won car")
+	assert_eq(game.race._car_looks[0].body, CarArt.look(game.resolver, AssetCatalog.ai_car(won)).body,
+		"in the rival's original colours (no repaint)")
+	await _decide(false)
+	assert_false(CarCollection.new(CARS).owns(won), "lost again")
+	assert_eq(CarCollection.new(CARS).owned.size(), 0)
+

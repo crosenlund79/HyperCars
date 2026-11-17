@@ -122,10 +122,11 @@ var combat_view: CombatView
 var _ko_lap := 0
 ## Finished, the rivals still racing (single local player): a short
 ## celebration, then live spectating of the rest of the race; the results come
-## when everyone is in. watch_enabled = false keeps the old behaviour (tests).
+## when everyone is in. The game turns it on (watch_enabled); the bare race
+## scene keeps the earlier behaviour (results at once) for tests and tools.
 const CELEBRATION_TIME := 5.0
 const SKIP_SPEED := 8
-var watch_enabled := true
+var watch_enabled := false
 var watching := false
 var _celebrate_left := -1.0
 var _watch_started := false
@@ -1706,6 +1707,7 @@ func _apply_impacts(step: float) -> void:
 func _retire(id: int, by_weapon := false, eliminated := false) -> void:
 	if eliminated:
 		stats.on_eliminated(id, session.elapsed)  # by position: no statistics
+		damage.retired[id] = 1  # out like a DNF: no collisions, never back (also after a weapon wreck)
 	else:
 		stats.on_retired(id, session.elapsed, by_weapon)
 	var c := cars[id]
