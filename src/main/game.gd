@@ -48,6 +48,13 @@ var last_reward := -1
 ## Racing for Keeps: the won car lost in the last championship (0 none), for tests.
 var last_lost := 0
 var reward_rng := RandomNumberGenerator.new()
+## Race variety: every new race scene gets its own AI seed from this
+## generator, so players do not see the same rival decisions every session.
+## `-- --seed=N` (or setting it before _ready) makes a whole session
+## reproducible; tests and probes that build race scenes directly keep the
+## race scene's fixed default seed.
+var race_rng := RandomNumberGenerator.new()
+var session_seed := -1
 
 
 func _ready() -> void:
@@ -99,6 +106,9 @@ func _ready() -> void:
 	champ_screen.abandon_requested.connect(abandon_championship)
 	champ_screen.done.connect(abandon_championship)
 	reward_rng.randomize()
+	if session_seed < 0:
+		session_seed = GameSeed.from_args(OS.get_cmdline_user_args())
+	race_rng.seed = session_seed
 	garage = PlayerGarage.load_or_new(load("res://src/garage/default_garage_rules.tres"))  # saved career
 	garage_screen = GarageScreen.new()
 	garage_screen.name = "Garage"
@@ -135,6 +145,7 @@ func start_race(choice: int, with_garage: bool = false, devices: Array[int] = []
 	title.hide_title()
 	race = MAIN_SCENE.instantiate()
 	race.allow_exit = true
+	race.base_seed = race_rng.randi()
 	race.music = music
 	var two := devices.size() == 2 or net != null
 	if net != null:
@@ -233,7 +244,7 @@ func start_battle(choice: int) -> void:
 	b.player_car = title.player_car if cars.owns(title.player_car) else CarCollection.OWN_CAR
 	b.displaced = cars.owned.duplicate()
 	b.music = music
-	b.base_seed = reward_rng.randi()
+	b.base_seed = race_rng.randi()
 	race = b
 	add_child(b)
 	if choice == 1:
