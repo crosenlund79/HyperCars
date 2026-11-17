@@ -1,7 +1,8 @@
 class_name AudioSettings
 extends RefCounted
 ## Volume and mute preferences for the Master, Music, Engine, Effects and Voice buses,
-## saved to a small config file (user://settings.cfg by default).
+## plus the DYNAMIC VEHICLE LIGHTS choice, saved to a small config file
+## (user://settings.cfg by default).
 ## Presentation only: nothing here touches the simulation.
 
 const BUSES: Array[String] = ["Master", "Music", "Engine", "Effects", "Voice"]
@@ -12,6 +13,8 @@ var path: String
 ## Linear volume 0..1 per bus.
 var volume: Dictionary = {}
 var muted: Dictionary = {}
+## Night vehicle lights: real 2D lights (true) or the cheap glow sprites.
+var vehicle_lights := true
 
 
 ## Where a store without an explicit path saves (tests point this at a
@@ -43,6 +46,7 @@ func load_settings() -> void:
 	for bus in BUSES:
 		volume[bus] = clampf(float(cfg.get_value("audio", bus.to_lower() + "_volume", volume[bus])), 0.0, 1.0)
 		muted[bus] = bool(cfg.get_value("audio", bus.to_lower() + "_muted", muted[bus]))
+	vehicle_lights = bool(cfg.get_value("video", "dynamic_vehicle_lights", vehicle_lights))
 
 
 func save_settings() -> Error:
@@ -51,6 +55,7 @@ func save_settings() -> Error:
 	for bus in BUSES:
 		cfg.set_value("audio", bus.to_lower() + "_volume", volume[bus])
 		cfg.set_value("audio", bus.to_lower() + "_muted", muted[bus])
+	cfg.set_value("video", "dynamic_vehicle_lights", vehicle_lights)
 	return cfg.save(path)
 
 

@@ -211,6 +211,9 @@ var achievement_tracker: AchievementTracker
 var _race_open := false
 ## Start with the lighting pilot on (e.g. for comparison runs).
 @export var lighting_on_start := false
+## DYNAMIC VEHICLE LIGHTS (setting): real 2D vehicle lights at night, or the
+## cheap glow-sprite fallback (presentation only).
+var dynamic_vehicle_lights := true
 ## TIME: NIGHT (race setup / championship): night lighting from the start.
 ## Presentation only: no physics change (the biome sets the handling).
 var night := false
@@ -455,7 +458,8 @@ func _ready() -> void:
 		lighting = LightingPilot.new()
 		lighting.name = "LightingPilot"
 		add_child(lighting)
-		lighting.setup(track, cars, combat, resolver, track_theme)
+		lighting.setup(track, cars, combat, resolver, track_theme, dynamic_vehicle_lights,
+			driving_params.max_speed)
 		if track.layout.has_elevation():
 			lighting.level_of = draw_level_of
 		lighting.set_enabled(lighting_on_start or night)

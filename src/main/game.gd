@@ -148,6 +148,7 @@ func start_race(choice: int, with_garage: bool = false, devices: Array[int] = []
 	race.base_seed = race_rng.randi()
 	race.shuffle_first_grid = true  # race variety: the rivals' first grid varies too
 	race.music = music
+	race.dynamic_vehicle_lights = settings.vehicle_lights
 	var two := devices.size() == 2 or net != null
 	if net != null:
 		race.human_count = 2

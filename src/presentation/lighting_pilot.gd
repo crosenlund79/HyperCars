@@ -1,9 +1,17 @@
 class_name LightingPilot
 extends Node2D
 ## Night racing (TIME: NIGHT; started as the lighting pilot). A night presentation:
-## the world is tinted darker, ten trackside lamps light the road, each car
-## carries one light (a soft headlight cone plus a small glow so the car stays
-## readable), and weapon explosions flash briefly. Toggle with L.
+## the world is tinted darker, ten trackside lamps light the road, every car
+## (rivals, junkers and won cars alike) carries vehicle lights, and weapon
+## explosions flash briefly. Toggle with L.
+##
+## Vehicle lights (2026-11-17): two headlight beams and two red taillights per
+## car. The taillights brighten into brake lights while the car slows hard; the
+## headlights switch to high beam on a clear straight at speed and dip near
+## another car ahead or a bend. DYNAMIC VEHICLE LIGHTS (setting) chooses real
+## 2D lights (one twin-beam headlight light and one twin-lamp tail light per
+## car) or the cheap fallback: additive glow sprites, no light passes. The lamp
+## lenses are small additive sprites in both modes.
 ## Presentation only: reads car transforms and the combat event log; no physics,
 ## no collision, no gameplay writes. The HUD is on its own canvas layer and is
 ## not darkened.
@@ -11,6 +19,25 @@ extends Node2D
 const AMBIENT := Color(0.42, 0.44, 0.58)
 const LAMP_COLOR := Color(1.0, 0.86, 0.6)
 const HEADLIGHT_COLOR := Color(1.0, 0.95, 0.82)
+const TAIL_COLOR := Color(1.0, 0.12, 0.08)
+## Taillight energy: running and braking (brake lights brighter).
+const TAIL_ENERGY := 0.45
+const BRAKE_ENERGY := 1.25
+## Braking = slowing faster than this (px/s^2) above BRAKE_MIN_SPEED.
+const BRAKE_DECEL := 110.0
+const BRAKE_MIN_SPEED := 30.0
+## High beam: above this share of top speed, nothing within HIGH_BEAM_CLEAR px
+## ahead (cars within the beam) and the road ahead straight (< HIGH_BEAM_BEND).
+const HIGH_BEAM_SPEED := 0.55
+const HIGH_BEAM_CLEAR := 560.0
+const HIGH_BEAM_LOOKAHEAD := 520.0
+const HIGH_BEAM_BEND := deg_to_rad(14.0)
+## High beam reach and brightness (multipliers of the dipped beam).
+const HIGH_BEAM_SCALE := 1.45
+const HIGH_BEAM_ENERGY := 1.25
+## Head / tail lamp positions on the car (display px, nose +X).
+const HEAD_LAMP := Vector2(29.0, 10.0)
+const TAIL_LAMP := Vector2(-30.0, 11.0)
 const LAMP_COUNT := 10
 const FLASHES := 4
 
@@ -19,6 +46,24 @@ var _ambient: CanvasModulate
 var _lamps: Array[PointLight2D] = []
 var _lamp_sprites: Array[Sprite2D] = []
 var _car_lights: Array[PointLight2D] = []
+var _tail_lights: Array[PointLight2D] = []
+## Fallback (dynamic lights off): additive beam / tail glow sprites per car.
+var _beam_sprites: Array[Sprite2D] = []
+var _tail_sprites: Array[Sprite2D] = []
+## Lamp lenses per car: [head left, head right, tail left, tail right].
+var _lenses: Array = []
+## Real 2D vehicle lights (DYNAMIC VEHICLE LIGHTS on) or the sprite fallback.
+var dynamic_lights := true
+## Per car: braking (brake lights), high beam blend 0 .. 1, measured speed.
+var braking := PackedByteArray()
+var high_beam := PackedFloat32Array()
+var _speed := PackedFloat32Array()
+var _last_pos := PackedVector2Array()
+var _path: ClosedPath
+var _path_hint := PackedInt32Array()
+var _frame := 0
+## Top speed for the high-beam threshold (px/s).
+var max_speed := 300.0
 ## J2 (elevated layouts): road level of a racer; a car's light only lights its own level.
 var level_of: Callable
 var _flashes: Array[PointLight2D] = []
@@ -36,8 +81,13 @@ var headlight_energy := 0.95
 
 
 ## theme: the biome's night mood (ambient tint, lamps, headlights); null = the pilot's.
-func setup(track: Track, cars: Array[Car], combat: CombatWorld, resolver: AssetResolver, theme: TrackTheme = null) -> void:
+func setup(track: Track, cars: Array[Car], combat: CombatWorld, resolver: AssetResolver, theme: TrackTheme = null,
+		p_dynamic_lights := true, p_max_speed := 300.0) -> void:
 	_cars = cars
+	dynamic_lights = p_dynamic_lights
+	max_speed = p_max_speed
+	if track != null:
+		_path = track.path
 	_combat = combat
 	var ambient := AMBIENT
 	if theme != null:
@@ -53,16 +103,60 @@ func setup(track: Track, cars: Array[Car], combat: CombatWorld, resolver: AssetR
 	_light_texture = radial
 	if track != null:  # (the Battle Royale arena places its own lamps: add_lamp)
 		_place_lamps(track, resolver, radial)
-	var car_tex := _car_light_texture()
+	var head_tex := _car_light_texture()
+	var tail_tex := _tail_light_texture()
+	var lens_tex := _radial_texture(32)
 	for c in cars:
-		var l := PointLight2D.new()
-		l.texture = car_tex
-		l.color = HEADLIGHT_COLOR
-		l.energy = headlight_energy
-		l.texture_scale = 1.0
-		l.offset = Vector2(car_tex.get_width() * 0.5 - 40.0, 0)
-		add_child(l)
-		_car_lights.append(l)
+		if dynamic_lights:
+			var l := PointLight2D.new()
+			l.texture = head_tex
+			l.color = HEADLIGHT_COLOR
+			l.energy = headlight_energy
+			l.offset = Vector2(head_tex.get_width() * 0.5 - 40.0, 0)
+			add_child(l)
+			_car_lights.append(l)
+			var t := PointLight2D.new()
+			t.texture = tail_tex
+			t.color = TAIL_COLOR
+			t.energy = TAIL_ENERGY
+			add_child(t)
+			_tail_lights.append(t)
+		else:  # the cheap fallback: additive glows, no light passes
+			var b := Sprite2D.new()
+			b.texture = head_tex
+			b.material = _additive()
+			b.modulate = Color(HEADLIGHT_COLOR, 0.32)
+			b.offset = Vector2(head_tex.get_width() * 0.5 - 40.0, 0)
+			b.z_index = 3
+			add_child(b)
+			_beam_sprites.append(b)
+			var ts := Sprite2D.new()
+			ts.texture = tail_tex
+			ts.material = _additive()
+			ts.modulate = Color(TAIL_COLOR, 0.5)
+			ts.z_index = 3
+			add_child(ts)
+			_tail_sprites.append(ts)
+		var lenses: Array[Sprite2D] = []
+		for k in 4:
+			var lens := Sprite2D.new()
+			lens.texture = lens_tex
+			lens.material = _additive()
+			lens.scale = Vector2.ONE * (0.42 if k < 2 else 0.36)
+			lens.modulate = HEADLIGHT_COLOR if k < 2 else TAIL_COLOR
+			lens.z_index = 4
+			add_child(lens)
+			lenses.append(lens)
+		_lenses.append(lenses)
+	braking.resize(cars.size())
+	high_beam.resize(cars.size())
+	_speed.resize(cars.size())
+	_last_pos.resize(cars.size())
+	_path_hint.resize(cars.size())
+	_path_hint.fill(-1)
+	_high_beam_target.resize(cars.size())
+	for i in cars.size():
+		_last_pos[i] = cars[i].global_position
 	for k in FLASHES:
 		var f := PointLight2D.new()
 		f.texture = radial
@@ -79,31 +173,71 @@ func setup(track: Track, cars: Array[Car], combat: CombatWorld, resolver: AssetR
 func set_enabled(on: bool) -> void:
 	enabled = on
 	_ambient.visible = on
-	for l in _lamps + _car_lights + _flashes:
+	for l in _lamps + _car_lights + _tail_lights + _flashes:
 		l.enabled = on
-	for s in _lamp_sprites:
+	for s in _lamp_sprites + _beam_sprites + _tail_sprites:
 		s.visible = on
+	for lenses in _lenses:
+		for lens in lenses:
+			lens.visible = on
 	if _combat != null:
 		_cursor = _combat.events.size()
 
 
 func light_count() -> int:
-	return _lamps.size() + _car_lights.size() + _flashes.size()
+	return _lamps.size() + _car_lights.size() + _tail_lights.size() + _flashes.size()
 
 
 func _process(delta: float) -> void:
 	if not enabled:
 		return
+	_frame += 1
 	for i in _cars.size():
 		var c := _cars[i]
-		var l := _car_lights[i]
-		l.enabled = c.visible
-		l.global_position = c.global_position
-		l.global_rotation = c.global_rotation
-		if level_of.is_valid():
-			var upper: bool = level_of.call(c.racer_id) == 1
-			l.range_z_min = Track.BRIDGE_DECK_Z if upper else RenderingServer.CANVAS_ITEM_Z_MIN
-			l.range_z_max = RenderingServer.CANVAS_ITEM_Z_MAX if upper else Track.BRIDGE_SHADOW_Z - 1
+		_update_car_state(i, c, delta)
+		var head := _car_lights[i] if dynamic_lights else null
+		var tail := _tail_lights[i] if dynamic_lights else null
+		var hb := high_beam[i]
+		var brake := braking[i] == 1
+		var xf := c.global_transform.orthonormalized()
+		if dynamic_lights:
+			head.enabled = c.visible
+			tail.enabled = c.visible
+			head.global_transform = xf
+			tail.global_transform = xf.translated_local(Vector2(TAIL_LAMP.x - 6.0, 0))
+			head.texture_scale = lerpf(1.0, HIGH_BEAM_SCALE, hb)
+			head.offset = Vector2(head.texture.get_width() * 0.5 - 40.0, 0)
+			head.energy = headlight_energy * lerpf(1.0, HIGH_BEAM_ENERGY, hb)
+			tail.energy = BRAKE_ENERGY if brake else TAIL_ENERGY
+			if level_of.is_valid():
+				var upper: bool = level_of.call(c.racer_id) == 1
+				for l in [head, tail]:
+					l.range_z_min = Track.BRIDGE_DECK_Z if upper else RenderingServer.CANVAS_ITEM_Z_MIN
+					l.range_z_max = RenderingServer.CANVAS_ITEM_Z_MAX if upper else Track.BRIDGE_SHADOW_Z - 1
+		else:
+			var b := _beam_sprites[i]
+			var ts := _tail_sprites[i]
+			b.visible = c.visible
+			ts.visible = c.visible
+			b.global_transform = xf.scaled_local(Vector2.ONE * lerpf(1.0, HIGH_BEAM_SCALE, hb))
+			b.modulate.a = 0.3 * lerpf(1.0, HIGH_BEAM_ENERGY, hb)
+			ts.global_transform = xf.translated_local(Vector2(TAIL_LAMP.x - 6.0, 0))
+			ts.modulate.a = 0.85 if brake else 0.35
+			if level_of.is_valid():
+				var z := Track.BRIDGE_DECK_Z + 3 if level_of.call(c.racer_id) == 1 else 3
+				b.z_index = z
+				ts.z_index = z
+		var lenses: Array = _lenses[i]
+		for k in 4:
+			var lens: Sprite2D = lenses[k]
+			var lp := HEAD_LAMP if k < 2 else TAIL_LAMP
+			lens.visible = c.visible
+			lens.global_position = xf * Vector2(lp.x, lp.y * (1.0 if k % 2 == 0 else -1.0))
+			if k >= 2:
+				lens.modulate = Color(TAIL_COLOR.lightened(0.35 if brake else 0.0), 1.0 if brake else 0.7)
+				lens.scale = Vector2.ONE * (0.5 if brake else 0.36)
+			if level_of.is_valid():
+				lens.z_index = Track.BRIDGE_DECK_Z + 4 if level_of.call(c.racer_id) == 1 else 4
 	if _combat != null:
 		if _cursor > _combat.events.size():
 			_cursor = 0
@@ -118,6 +252,58 @@ func _process(delta: float) -> void:
 	for k in FLASHES:
 		_flash_age[k] = minf(1.0, _flash_age[k] + delta / 0.45)
 		_flashes[k].energy = 1.6 * (1.0 - _flash_age[k])
+
+
+## Brake lights and high beams from what the car visibly does (works for every
+## car, also a network client's interpolated ones: speed from its movement).
+func _update_car_state(i: int, c: Car, delta: float) -> void:
+	var pos := c.global_position
+	var v := pos.distance_to(_last_pos[i]) / maxf(delta, 0.0001)
+	_last_pos[i] = pos
+	if v > max_speed * 3.0:  # a teleport (respawn, reset): not a speed
+		v = _speed[i]
+	var prev := _speed[i]
+	var sp := lerpf(prev, v, clampf(delta * 10.0, 0.0, 1.0))
+	_speed[i] = sp
+	var decel := (prev - sp) / maxf(delta, 0.0001)
+	braking[i] = 1 if c.visible and sp > BRAKE_MIN_SPEED and decel > BRAKE_DECEL else 0
+	if (_frame + i) % 6 == 0:  # (high beam re-evaluated ten times a second per car)
+		_high_beam_target[i] = 1.0 if _clear_ahead(i, c, sp) else 0.0
+	high_beam[i] = move_toward(high_beam[i], _high_beam_target[i], delta * 3.0)
+
+
+var _high_beam_target := PackedFloat32Array()
+
+
+## High beam: fast, no car in the beam and the road ahead straight.
+func _clear_ahead(i: int, c: Car, sp: float) -> bool:
+	if not c.visible or sp < max_speed * HIGH_BEAM_SPEED:
+		return false
+	var fwd := Vector2.from_angle(c.global_rotation)
+	for o in _cars:
+		if o == c or not o.visible:
+			continue
+		var d := o.global_position - c.global_position
+		var dist := d.length()
+		if dist < HIGH_BEAM_CLEAR and d.dot(fwd) > dist * 0.6:
+			return false  # dip for a car ahead
+	if _path != null:  # dip for a bend (geometry ahead)
+		var p := _path.project(c.global_position, _path_hint[i], 12)
+		if p.distance < 0.0 or absf(p.lateral) > 400.0:
+			p = _path.project(c.global_position)
+		_path_hint[i] = p.index
+		var s: float = p.distance
+		var t0 := _path.tangent_at(s)
+		for k in 3:
+			if absf(t0.angle_to(_path.tangent_at(s + HIGH_BEAM_LOOKAHEAD * (k + 1) / 3.0))) > HIGH_BEAM_BEND:
+				return false
+	return true
+
+
+static func _additive() -> CanvasItemMaterial:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	return m
 
 
 ## The environment's lamps (ten by default): on the outside of the sharpest corners and along the main straight.
@@ -200,22 +386,42 @@ static func _radial_texture(size: int) -> GradientTexture2D:
 	return t
 
 
-## One light per car: a soft cone ahead (+X) plus a small glow round the car.
+## Headlights: two beams from the lamps (y = +-HEAD_LAMP.y, a little apart)
+## merging ahead, plus a faint pool so the car's own nose stays readable.
+## Origin (the car centre) at x = 40 of the texture.
 static func _car_light_texture() -> ImageTexture:
-	var w := 320
+	var w := 340
 	var h := 200
 	var img := Image.create(w, h, false, Image.FORMAT_RGBA8)
 	var origin := Vector2(40, h * 0.5)
 	for y in h:
 		for x in w:
 			var p := Vector2(x, y) - origin
-			var glow := clampf(1.0 - p.length() / 46.0, 0.0, 1.0) * 0.55
+			var glow := clampf(1.0 - p.length() / 40.0, 0.0, 1.0) * 0.3
 			var cone := 0.0
-			if p.x > 18.0:
-				var ang := absf(atan2(p.y, p.x))
-				var spread := clampf(1.0 - ang / deg_to_rad(24.0), 0.0, 1.0)
-				var falloff := clampf(1.0 - (p.x - 18.0) / 270.0, 0.0, 1.0)
-				cone = spread * spread * falloff * 0.9
-			var a := clampf(glow + cone, 0.0, 1.0)
-			img.set_pixel(x, y, Color(1, 1, 1, a))
+			for side in [-1.0, 1.0]:
+				var q := p - Vector2(HEAD_LAMP.x - 4.0, HEAD_LAMP.y * side)
+				if q.x > 0.0:
+					var ang := absf(atan2(q.y, q.x))
+					var spread := clampf(1.0 - ang / deg_to_rad(19.0), 0.0, 1.0)
+					var falloff := clampf(1.0 - q.x / 270.0, 0.0, 1.0)
+					var near := clampf(q.x / 10.0, 0.0, 1.0)
+					cone = maxf(cone, spread * spread * falloff * near * 0.85)
+			img.set_pixel(x, y, Color(1, 1, 1, clampf(glow + cone, 0.0, 1.0)))
+	return ImageTexture.create_from_image(img)
+
+
+## Taillights: two small red glows behind the car (centred on the rear bumper).
+static func _tail_light_texture() -> ImageTexture:
+	var w := 64
+	var h := 72
+	var img := Image.create(w, h, false, Image.FORMAT_RGBA8)
+	var c := Vector2(w * 0.5, h * 0.5)
+	for y in h:
+		for x in w:
+			var a := 0.0
+			for side in [-1.0, 1.0]:
+				var d := (Vector2(x, y) - (c + Vector2(0, TAIL_LAMP.y * side))).length()
+				a = maxf(a, clampf(1.0 - d / 26.0, 0.0, 1.0))
+			img.set_pixel(x, y, Color(1, 1, 1, a * a))
 	return ImageTexture.create_from_image(img)

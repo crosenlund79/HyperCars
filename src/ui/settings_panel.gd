@@ -1,6 +1,7 @@
 class_name SettingsPanel
 extends PanelContainer
-## Audio settings: Master, Music, Engine, Effects and Voice volume with mute toggles.
+## Settings: Master, Music, Engine, Effects and Voice volume with mute toggles,
+## and DYNAMIC VEHICLE LIGHTS ON / OFF (night races; off = cheap glow sprites).
 ## Changes apply immediately and are saved.
 
 signal closed
@@ -9,6 +10,7 @@ var settings: AudioSettings
 var _sliders: Dictionary = {}
 var _mutes: Dictionary = {}
 var _back: Button
+var _lights: CheckButton
 
 
 func setup(p_settings: AudioSettings) -> void:
@@ -17,7 +19,7 @@ func setup(p_settings: AudioSettings) -> void:
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 12)
 	add_child(box)
-	var title := HyperTheme.label("AUDIO SETTINGS", 34, HyperTheme.GOLD, 700)
+	var title := HyperTheme.label("SETTINGS", 34, HyperTheme.GOLD, 700)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(title)
 	var grid := GridContainer.new()
@@ -54,6 +56,15 @@ func setup(p_settings: AudioSettings) -> void:
 			settings.save_settings())
 		_sliders[bus] = slider
 		_mutes[bus] = mute
+	_lights = CheckButton.new()
+	_lights.text = "DYNAMIC VEHICLE LIGHTS"
+	_lights.tooltip_text = "Night races: real headlights, brake lights and high beams. Off = simple glows (faster)."
+	_lights.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_lights.button_pressed = settings.vehicle_lights
+	_lights.toggled.connect(func(on: bool) -> void:
+		settings.vehicle_lights = on
+		settings.save_settings())
+	box.add_child(_lights)
 	var hint := HyperTheme.label("Left / Right adjust the focused slider. Settings are saved automatically.", 16, HyperTheme.CREAM_DIM, 500)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(hint)
@@ -70,6 +81,10 @@ func focus_first() -> void:
 
 func slider(bus: String) -> HSlider:
 	return _sliders[bus]
+
+
+func lights_toggle() -> CheckButton:
+	return _lights
 
 
 func mute_toggle(bus: String) -> CheckButton:
