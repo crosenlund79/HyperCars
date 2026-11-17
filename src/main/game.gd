@@ -55,6 +55,7 @@ func _ready() -> void:
 	settings = AudioSettings.new()
 	settings.load_settings()
 	settings.apply()
+	ControlBindings.load_saved()  # the player's remapped controls (CONTROLS screen)
 	resolver = AssetResolver.new()
 	achievements = AchievementStore.new(achievements_path)
 	achievements.load_store()
