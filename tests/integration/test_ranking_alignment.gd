@@ -69,3 +69,16 @@ func test_results_heads_line_up() -> void:
 		var grid: HBoxContainer = panel.get_child(0)
 		var n := grid.get_child_count()
 		_assert_columns(heads, grid.get_children().slice(n - 3, n), "results")
+
+
+## The achievement toast slides in below the kill feed's tallest stack.
+func test_toast_clears_the_kill_feed() -> void:
+	var main: Node2D = await _race()
+	for k in KillFeed.MAX_ROWS + 2:
+		main.stats.feed.append({"attacker": 1 + k % 8, "victim": 2 + k % 7, "weapon": 0, "tombstone": k % 2 == 0, "time": 1.0})
+	await wait_process_frames(5)
+	var feed: KillFeed = main.kill_feed
+	var bottom: float = feed._box.get_global_rect().end.y
+	assert_gt(bottom, 60.0, "the feed is showing")
+	assert_lt(bottom, AchievementToast.TOP, "the toast starts below the feed")
+	assert_lt(AchievementToast.TOP + 80.0, 720.0, "and stays on screen")

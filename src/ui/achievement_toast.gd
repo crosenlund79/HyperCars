@@ -50,6 +50,10 @@ func show_unlock(id: String) -> void:
 		_next()
 
 
+## Below the kill feed's tallest stack (top right), clear of the standings (left).
+const TOP := 172.0
+
+
 func pending() -> int:
 	return _queue.size() + (1 if _busy else 0)
 
@@ -65,7 +69,7 @@ func _next() -> void:
 	_panel.visible = true
 	_panel.reset_size()
 	var w := _panel.get_combined_minimum_size().x
-	_panel.position = Vector2(1280 + 10, 18)
+	_panel.position = Vector2(1280 + 10, TOP)
 	_sfx.stream = _resolver.get_audio("ui/achievement")
 	_sfx.play()
 	var tw := create_tween()

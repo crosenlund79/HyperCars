@@ -62,3 +62,15 @@ func test_music_keeps_playing_through_a_race() -> void:
 	main.resume_race()
 	assert_eq(m.starts(), starts, "no restart for destructions, respawns or the pause menu")
 	assert_true(m.playing())
+	# a voice line ducks the music bus (an amplify effect), never the player
+	assert_not_null(main.voice, "voice director in a single-player race")
+	main.voice._speaking_until = main.voice.time + 1.5
+	await wait_process_frames(30)
+	var duck: AudioEffectAmplify = null
+	for d in main.voice._ducks:
+		if d[0] == "Music":
+			duck = d[1]
+	assert_not_null(duck)
+	assert_lt(duck.volume_db, -1.0, "music ducked under the voice")
+	assert_eq(m.starts(), starts, "ducking never restarts the music")
+	assert_eq(m.current, "music/music_race")
