@@ -69,7 +69,7 @@ This is the **master template**, not an active game. Complete it collaboratively
     - Garage, achievements, Knockout and Battle Royale are single-player only.
   - **In-race menu:** Back opens RESUME / LEAVE. Local races pause bit-identically; network races never pause; leaving a garage race pays nothing and uses no rounds.
   - **Audio:**
-    - **Music:** the official tracks (menus: "HyperCars - Theme"; races and every mode: "HyperCars - Racing Theme"), unchanged recordings, one shared player, crossfade loops (`docs/MUSIC.md`).
+    - **Music:** the official tracks (menus: "HyperCars - Theme"; races and every other mode: "HyperCars - Racing Theme"; Battle Royale: "HyperCars - Battle Royale"), unchanged recordings, one shared player, crossfade loops (`docs/MUSIC.md`).
     - **Voice:** event-driven announcer and rival taunts with the user's recordings; the music is ducked without restarting (`docs/VOICE.md`).
     - Volumes are saved: Master / Music / Engine / Effects / Voice.
 - **Explicitly out of scope:** Undecided

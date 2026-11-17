@@ -1,12 +1,13 @@
 # Music
 
-The two official tracks by the user are integrated unchanged. They are copied
+The three official tracks by the user are integrated unchanged. They are copied
 byte-for-byte from `assets/audio/_inbox/` (originals kept there):
 
 | Logical name | Packaged file | Source | Plays on |
 |---|---|---|---|
 | `music/music_menu` | `assets/audio/music/template_music_menu.mp3` | HyperCars - Theme.mp3 (89.6 s) | title, GO RACING!, setup screens, garage, championship standings |
-| `music/music_race` | `assets/audio/music/template_music_race.mp3` | HyperCars - Racing Theme.mp3 (179.6 s) | every race, Knockout, Battle Royale, spectating |
+| `music/music_race` | `assets/audio/music/template_music_race.mp3` | HyperCars - Racing Theme.mp3 (179.6 s) | every race, Knockout, spectating |
+| `music/music_battle` | `assets/audio/music/template_music_battle.mp3` | HyperCars - Battle Royale.mp3 (151.3 s) | Battle Royale (from FIGHT!, through restarts, until back to the menu) |
 
 There is no remix, re-encode, shortening or generated music.
 
@@ -45,6 +46,7 @@ player:
 |---|---|---|
 | Theme | 0.92 s | 0.08 s (the padding is silence) |
 | Racing Theme | 1.25 s | 0.35 s (the reverb tail overlaps the new start) |
+| Battle Royale | 0.59 s (silence) | 0.2 s; the restart begins at 0.83 s, after the file's leading silence (`start`) |
 
 No music is cut: only the trailing silence or tail overlaps the restart.
 `MusicPlayer.loop_due()` decides when, and is tested as a pure function. The headless
@@ -53,7 +55,7 @@ see the manual checklist.
 
 ## Overrides
 
-`custom/audio/music/music_menu.(ogg|wav|mp3)` and `music_race.(...)` replace the
+`custom/audio/music/music_menu.(ogg|wav|mp3)`, `music_race.(...)` and `music_battle.(...)` replace the
 pieces next to an exported Windows / Linux game, without a rebuild. Overrides loop with
 a short default crossfade (0.25 s at the file end), since their padding is unknown.
 
@@ -62,4 +64,7 @@ Tests: `tests/unit/test_music.gd`
 - no restart when the same piece plays again; crossfade to another piece;
 - loop points;
 - music survives a destruction, a respawn and the pause menu;
-- voice ducking never restarts the music.
+- voice ducking never restarts the music;
+- the Battle Royale theme: byte-identical packaged copy, its loop without the
+  silences, played in the arena without restarts and handed back to the menu / race
+  themes.

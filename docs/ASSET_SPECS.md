@@ -120,7 +120,8 @@ Any resolution is accepted as long as the **aspect ratio and orientation** match
 |---|---|---|---|
 | `custom/audio/ambience/ambience` | yes | Effects | Trackside ambience loop (wind, birds), stereo. |
 | `custom/audio/music/music_menu` | yes | Music | Menu music (title, GO RACING!, setup, garage, championship screens): the official HyperCars - Theme. OGG, WAV or MP3; played to its end and looped with a short crossfade. |
-| `custom/audio/music/music_race` | yes | Music | Race music (every race, Knockout, Battle Royale, spectating): the official HyperCars - Racing Theme. OGG, WAV or MP3; played to its end and looped with a short crossfade. |
+| `custom/audio/music/music_race` | yes | Music | Race music (every race, Knockout, spectating): the official HyperCars - Racing Theme. OGG, WAV or MP3; played to its end and looped with a short crossfade. |
+| `custom/audio/music/music_battle` | yes | Music | Battle Royale music (the Scrapyard arena): the official HyperCars - Battle Royale theme. OGG, WAV or MP3; played to its end and looped with a short crossfade. |
 | `custom/audio/race/finish` | no | Effects | Finish jingle (player finishes / spectator winner). |
 | `custom/audio/race/start_go` | no | Effects | Played when the race starts. |
 | `custom/audio/ui/achievement` | no | Effects | Achievement unlocked jingle. |

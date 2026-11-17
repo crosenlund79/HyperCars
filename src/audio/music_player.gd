@@ -20,6 +20,9 @@ const FADE := 1.2
 const LOOPS := {
 	"music/music_menu": {"end_trim": 0.92, "crossfade": 0.08},
 	"music/music_race": {"end_trim": 1.25, "crossfade": 0.35},
+	# Battle Royale: 0.84 s of silence before the music and 0.59 s after it; the
+	# restart begins where the music does (start), so the loop has no gap.
+	"music/music_battle": {"end_trim": 0.59, "crossfade": 0.2, "start": 0.83},
 }
 const DEFAULT_LOOP := {"end_trim": 0.0, "crossfade": 0.25}
 const SILENT_DB := -60.0
@@ -67,7 +70,7 @@ func play(logical: String, fade: float = FADE) -> void:
 	var old := _active
 	_active = 1 - _active
 	_fade(old, SILENT_DB, fade, true)
-	_start(_active, stream, fade)
+	_start(_active, stream, fade, float(_loop.get("start", 0.0)))
 	_starts += 1
 
 
@@ -101,7 +104,7 @@ func _process(_delta: float) -> void:
 		var old := _active
 		_active = 1 - _active
 		_fade(old, SILENT_DB, _loop.crossfade, true)
-		_start(_active, p.stream, _loop.crossfade)
+		_start(_active, p.stream, _loop.crossfade, float(_loop.get("start", 0.0)))
 		loops += 1
 
 
@@ -110,11 +113,12 @@ static func loop_due(position: float, length: float, loop: Dictionary) -> bool:
 	return position >= length - float(loop.end_trim) - float(loop.crossfade)
 
 
-func _start(k: int, stream: AudioStream, fade: float) -> void:
+## from: where in the piece to begin (skips leading silence).
+func _start(k: int, stream: AudioStream, fade: float, from: float = 0.0) -> void:
 	var p := _players[k]
 	p.stream = stream
 	p.volume_db = SILENT_DB if fade > 0.0 else BASE_DB
-	p.play()
+	p.play(from)
 	_fade(k, BASE_DB, fade, false)
 
 

@@ -81,7 +81,7 @@ func setup(cars: Array[Car], resolver: AssetResolver, sound_parent: Node2D) -> v
 	_ambience.play()
 
 
-## "menu" or "race" (fades over; the same piece keeps playing).
+## "menu", "race" or "battle" (fades over; the same piece keeps playing).
 func play_music(mood: String) -> void:
 	music.play("music/music_" + mood)
 

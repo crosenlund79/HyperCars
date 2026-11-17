@@ -74,3 +74,53 @@ func test_music_keeps_playing_through_a_race() -> void:
 	assert_lt(duck.volume_db, -1.0, "music ducked under the voice")
 	assert_eq(m.starts(), starts, "ducking never restarts the music")
 	assert_eq(m.current, "music/music_race")
+
+
+func test_battle_royale_theme_is_packaged_unchanged() -> void:
+	var r := AssetResolver.new()
+	var s := r.get_audio("music/music_battle")
+	assert_true(s is AudioStreamMP3, "the official MP3")
+	assert_almost_eq(s.get_length(), 151.3, 1.0, "HyperCars - Battle Royale")
+	var inbox := "res://assets/audio/_inbox/HyperCars - Battle Royale.mp3"
+	assert_true(FileAccess.file_exists(inbox), "the inbox original stays")
+	assert_eq(FileAccess.get_file_as_bytes("res://assets/audio/music/template_music_battle.mp3"),
+		FileAccess.get_file_as_bytes(inbox), "byte-identical copy (no re-encode)")
+	assert_true(AssetCatalog.AUDIO.has("music/music_battle"), "overridable like the other pieces")
+
+
+func test_battle_theme_loops_without_its_silences() -> void:
+	var battle: Dictionary = MusicPlayer.LOOPS["music/music_battle"]
+	assert_gt(float(battle.start), 0.8, "the restart skips the 0.84 s of silence before the music")
+	assert_false(MusicPlayer.loop_due(140.0, 151.3, battle))
+	assert_true(MusicPlayer.loop_due(151.3 - battle.end_trim - battle.crossfade + 0.001, 151.3, battle),
+		"restart under the end of the music, before the trailing silence")
+	var m := MusicPlayer.new()
+	add_child_autofree(m)
+	m.play("music/music_battle", 0.0)
+	await wait_process_frames(2)
+	assert_gt(m.position(), 0.8, "it begins where the music begins")
+	m.stop(0.0)
+
+
+func test_battle_royale_plays_its_own_theme_and_hands_back_cleanly() -> void:
+	var m := MusicPlayer.new()
+	add_child_autofree(m)
+	m.play("music/music_menu", 0.0)
+	var b := BattleRoyale.new()
+	b.music = m
+	add_child_autofree(b)
+	await wait_until(func() -> bool: return m.current == "music/music_battle", 10.0)
+	assert_eq(m.current, "music/music_battle", "the Battle Royale theme in the arena")
+	var starts := m.starts()
+	await wait_physics_frames(30)
+	assert_eq(m.starts(), starts, "never restarted during the match")
+	b.queue_free()
+	await wait_physics_frames(2)
+	m.play("music/music_menu")  # (what the game root does on the way back)
+	assert_eq(m.current, "music/music_menu")
+	await wait_seconds(MusicPlayer.FADE + 0.3)
+	var on := m._players.filter(func(p: AudioStreamPlayer) -> bool: return p.playing)
+	assert_eq(on.size(), 1, "one piece at a time after the fade")
+	m.play("music/music_race")  # another race mode afterwards: the race theme, unchanged
+	assert_eq(m.current, "music/music_race")
+	m.stop(0.0)

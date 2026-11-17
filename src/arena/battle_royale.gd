@@ -210,7 +210,7 @@ func _ready() -> void:
 			var weather := WeatherView.new()
 			add_child(weather)
 			weather.setup(theme.weather, night)
-		race_audio.play_music("race")
+		race_audio.play_music("battle")  # its own theme (docs/MUSIC.md)
 	session.start()
 	hud.flash_banner("FIGHT!", HyperTheme.RED, FIGHT_DELAY - 0.6)
 	if race_audio != null:
