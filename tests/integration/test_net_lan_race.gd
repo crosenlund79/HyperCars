@@ -75,7 +75,14 @@ func test_armed_races_agree_classic_and_tactical() -> void:
 			fail_test("style %d no results: %s / %s" % [style, str(r[0]), str(r[1])])
 			continue
 		var host: Dictionary = r[0].results[0]
-		assert_eq(r[1].results[0], host, "style %d: same result, shots and destructions on both" % style)
+		var client: Dictionary = r[1].results[0]
+		for k in host:
+			if k in ["variant", "night", "handling"]:
+				continue  # each side's own environment report (test_new_environments_agree_over_the_network)
+			if k in ["takeoffs", "falls"]:
+				_assert_jumps_agree(host, client, k, "style %d" % style)
+				continue
+			assert_eq(client.get(k), host[k], "style %d: %s agrees on both" % [style, k])
 		assert_gt(host.fired, 0.0)
 		assert_gt(r[0].client_shots, 0.0, "the client's player fired through the network")
 
@@ -128,6 +135,18 @@ func test_experimental_crossing_armed_race_agrees() -> void:
 ## (fall=1) so it falls into the gap: takeoff, failed landing, the fall's
 ## damage and the recovery all go through prediction and the host's
 ## corrections. Both computers must agree on everything, jumps included.
+## Jump outcomes: every car exactly; the client's own car may show one
+## predicted takeoff / fall more that the host corrected (contacts are not
+## predicted on the client), never fewer.
+func _assert_jumps_agree(host: Dictionary, client: Dictionary, k: String, label: String) -> void:
+	var me := str(RaceSession.PLAYER_2_ID)
+	for id in host[k]:
+		if id != me:
+			assert_eq(client[k].get(id, 0.0), host[k][id], "%s: %s of car %s agree" % [label, k, id])
+	var extra: float = client[k].get(me, 0.0) - host[k].get(me, 0.0)
+	assert_true(extra >= 0.0 and extra <= 1.0, "%s: own-car %s %s vs host %s" % [label, k, client[k].get(me, 0.0), host[k].get(me, 0.0)])
+
+
 func _assert_jump_race(r: Array, label: String) -> void:
 	assert_true(r[0].has("results") and r[1].has("results"), "%s: %s" % [label, str(r)])
 	if not r[0].has("results") or not r[1].has("results"):
@@ -136,16 +155,8 @@ func _assert_jump_race(r: Array, label: String) -> void:
 	var client: Dictionary = r[1].results[0]
 	for k in ["order", "times", "positions", "condition", "ammo", "dnf", "destroyed"]:
 		assert_eq(client[k], host[k], "%s: %s agree" % [label, k])
-	# jump outcomes: every car exactly; the client's own car may show one
-	# predicted takeoff / fall more that the host corrected (contacts are not
-	# predicted on the client), never fewer
-	var me := str(RaceSession.PLAYER_2_ID)
 	for k in ["takeoffs", "falls"]:
-		for id in host[k]:
-			if id != me:
-				assert_eq(client[k].get(id, 0.0), host[k][id], "%s: %s of car %s agree" % [label, k, id])
-		var extra: float = client[k].get(me, 0.0) - host[k].get(me, 0.0)
-		assert_true(extra >= 0.0 and extra <= 1.0, "%s: own-car %s %s vs host %s" % [label, k, client[k].get(me, 0.0), host[k].get(me, 0.0)])
+		_assert_jumps_agree(host, client, k, label)
 	assert_gt(int(host.falls.get(str(RaceSession.PLAYER_2_ID), 0)), 0, label + ": the client's car fell in")
 	assert_lt(host.condition[RaceSession.PLAYER_2_ID], 100.0, label + ": the fall damaged it")
 
@@ -172,6 +183,8 @@ func test_new_environments_agree_over_the_network() -> void:
 	var r := await _run(24761, ["laps=2", "layout=kestrel_ridge", "track=4", "night=1", "latency=80", "jitter=20",
 		"loss=0.02", "fall=1", "weapons=1", "fire_every=60", "timeout=140"])
 	_assert_jump_race(r, "Raceway night 80 ms")
+	if r[0].has("results") and r[1].has("results"):
+		assert_eq(r[1].results[0].handling, r[0].results[0].handling, "identical handling on both computers")
 	for side in r:
 		side = side.results[0] if side.has("results") else {"variant": 0, "night": false, "handling": [0, 0, 0]}
 		assert_eq(int(side.variant), 4, "The Raceway on both computers")
