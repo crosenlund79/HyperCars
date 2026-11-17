@@ -31,20 +31,18 @@ result (the last classified starts in front).
 **Everyone, the same rules:** rivals take the same damage and can retire. AI driving,
 personalities and weapon decisions are unchanged (the AI does not consider damage).
 
-## Garage races (`src/garage/default_garage_rules.tres`)
+## Garage races
 
-- Damage carries from race to race for the garage session (not saved to disk).
-- Repairs: **$2 per 1 %** (full repair from 0 % = $200; was $3 until the 2026-11-17 economy review, docs/ECONOMY.md). REPAIR ALL repairs everything
-  or as much as your money pays for; +10 % repairs ten points.
-- **No dead end:** a car below 50 % (was 30 %) is patched up to 50 % for free before a race, so you
-  can always race and earn prize money again.
-- A DNF pays no prize; unused rounds are still kept. Leaving a garage race before the
-  flag changes nothing (no rounds, no damage, no patch-up).
-- **Armour** (fitted for the session, not sold back): LIGHT −20 % damage ($250), then
-  HEAVY −35 % ($400 more). Armour reduces every kind of damage; it never makes a car
-  invulnerable.
-- Quick races, spectating, couch and network races always start with fully repaired,
-  unarmoured cars.
+In garage races the car's condition carries from race to race and is saved with the
+garage career. Repairs, the free emergency patch-up and armour are bought in the
+garage; prices and rules are in [`ECONOMY.md`](ECONOMY.md), the single authoritative
+description. Armour reduces every kind of damage, but never makes a car invulnerable.
+
+A DNF pays no prize, though unused rounds are kept. Leaving a garage race before the
+flag changes nothing: no rounds used, no damage, no patch-up.
+
+Quick races, spectating, couch and network races always start with fully repaired,
+unarmoured cars.
 
 ## Multiplayer
 

@@ -3,7 +3,7 @@
 Two physical computers are needed for the network items (simulated latency is not a real internet test).
 
 ## Network jumping (two computers, LAN and over the internet)
-- [ ] Host Kestrel Ridge, Winter, Night: the joining computer shows the same circuit, biome, night and the open gap.
+- [ ] Host Kestrel Ridge, Winter, Night: the joining computer shows the same circuit, environment, night and the open gap.
 - [ ] Your own jump feels immediate on the client (no delay at the lip); the landing looks clean.
 - [ ] The other player's and the rivals' jumps look smooth on both screens (shadow, size, no stutter).
 - [ ] Crawl up to the lip on the client: you fall in, lose condition, and come back past the gap; nothing flickers back.
@@ -11,7 +11,7 @@ Two physical computers are needed for the network items (simulated latency is no
 - [ ] Pull the network cable mid-flight: CONNECTION LOST, back to the menu; a new race starts normally.
 
 ## Every mode
-- [ ] Quick, Garage, Championship, Spectate and couch split-screen on each circuit with each biome, day and night.
+- [ ] Quick, Garage, Championship, Spectate and couch split-screen on each circuit in each environment, day and night.
 - [ ] Garage race: a fall's damage carries into the garage and costs repairs.
 - [ ] Championship: three rounds, standings, reward, the won car in red, the rival in the junker (also on the title screen).
 - [ ] A rival that retires on the racing line never blocks the others.

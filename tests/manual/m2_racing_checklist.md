@@ -28,4 +28,4 @@ To test with fewer opponents: select `Main` in `src/main/main.tscn` and set **Op
 ## Positions and results
 - [ ] HUD POS updates live as cars pass each other.
 - [ ] When you finish, RESULTS lists finished cars with times, then the rest by running order ("running").
-- [ ] Fire on RESULTS returns to the grid with the order reversed: the winner starts last.
+- [ ] Enter on RESULTS returns to the grid (Fire does nothing) with the order reversed: the winner starts last.

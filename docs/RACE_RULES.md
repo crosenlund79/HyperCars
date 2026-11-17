@@ -120,8 +120,8 @@ race-length ammunition change every AI race, so no earlier value can hold. The t
 sets in `tests/integration/test_multiplayer_regression.gd` keep their meaning
 (`damage=0 lock=0 contact=0`, `lock=0 contact=0`, everything on), as do the M2.3 /
 M3 gates in `test_combat_race.gd` / `test_tactical_race.gd`; old values are in git
-history. Biomes change handling, so `test_track_themes.gd` now checks that each
-biome differs from Green Valley and is deterministic, instead of identical races.
+history. Environments change handling, so `test_track_themes.gd` now checks that each
+environment differs from Green Valley and is deterministic, instead of identical races.
 J6 (same day): rivals ignore retired cars (and cars down in a jump's gap) as traffic
 and targets; races in which a car retires change, so the two damage-on sets were
 re-recorded again (the damage-off set and the No Guns all-on value are unchanged).

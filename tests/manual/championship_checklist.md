@@ -6,13 +6,13 @@ Run the game (`godot --path .`). Tick each item.
 - [ ] Title: GO RACING! / ACHIEVEMENTS / SETTINGS / CONTROLS / QUIT; Esc / BACK return correctly.
 - [ ] GO RACING!: Quick Race, Garage Race, Championship, Spectate, Multiplayer.
 - [ ] Setup rows change with Enter and Left / Right; values persist after a restart.
-- [ ] The preview rotates and updates for every circuit, biome and DAY / NIGHT; Ravenhook shows its bridge and the open jump gap.
-- [ ] Spectate hides CONTROL and CAR; Championship hides circuit / biome / time / laps and lists the schedule.
+- [ ] The preview rotates and updates for every circuit, environment and DAY / NIGHT; Ravenhook shows its bridge and the open jump gap.
+- [ ] Spectate hides CONTROL and CAR; Championship hides circuit / environment / time / laps and lists the schedule.
 - [ ] Multiplayer → split screen join and LAN host / join still work; audio settings still apply.
 
-## Biomes and night
+## Environments and night
 - [ ] Wasteland: rain, slightly looser handling; Winter: snowfall, noticeably lower grip and longer braking; Green Valley unchanged.
-- [ ] Night on every circuit and biome: cars, road edges and HUD stay readable; Winter night has blue moonlight, warm lamps, snow in the headlights.
+- [ ] Night on every circuit and environment: cars, road edges and HUD stay readable; Winter night has blue moonlight, warm lamps, snow in the headlights.
 - [ ] L still toggles lights; split-screen and spectating work at night.
 
 ## Rivals
@@ -21,7 +21,7 @@ Run the game (`godot --path .`). Tick each item.
 - [ ] A car stuck behind a wreck gets through it after about half a second; active cars never pass through each other.
 
 ## Championship
-- [ ] Three rounds with the announced circuit / biome / time; standings after each round with points, DNF, wins.
+- [ ] Six rounds (or three with ROUNDS 3) with the announced circuit / environment / time; standings after each round with points, DNF, wins.
 - [ ] The grid reverses between rounds (winner last).
 - [ ] Esc in a round: RESUME RACE / ABANDON CHAMPIONSHIP; abandoning returns to the menu.
 - [ ] Winning: "CHAMPIONSHIP WON - YOU UNLOCKED <NICKNAME>!" with the red car; the CAR row offers it; that rival races the junker in later races, even with your own car chosen; ownership survives a restart.

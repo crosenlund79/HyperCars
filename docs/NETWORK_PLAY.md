@@ -9,7 +9,7 @@ HyperCars connects two computers directly over **UDP port 24680** (Godot ENet). 
    - Same house / local network: the host's local address, e.g. `192.168.1.20`.
    - Over the internet: the host's **public** IPv4 address, e.g. `203.0.113.7` (the host finds it by searching "what is my IP" in a browser).
    - A different port: `203.0.113.7:30000` (the host must then also use that port — the default 24680 is recommended).
-4. Both land on the grid panel. The joiner presses **Fire** to be ready, the host presses **Fire** to start.
+4. Both land on the grid panel. The joiner presses **Fire** to be ready, the host presses **Fire** to start. After the results the host presses **Confirm** (Enter / pad Start) for the next race; Fire never dismisses a screen. (Keys shown are the defaults; the game shows your own bindings.)
 
 ## What the host must set up for internet play
 ### 1. Windows Firewall (host, and usually the joiner too)
@@ -42,7 +42,7 @@ Port forwarding cannot work if the internet provider shares one public address b
 | "Could not host on port 24680" | Another program (or another HyperCars) already uses the port | Close it, or restart the computer. |
 | "The host runs a different version of HyperCars" | Different builds | Both players install the same build. |
 | "The host is already racing" | A race is in progress on the host | Wait until the host returns to the menu and hosts again. |
-| "CONNECTION LOST" during a race | One computer closed the game or the connection dropped for ~10 s | Both return to the menu (Fire / Esc) and start a new session. There is no reconnect. |
+| "CONNECTION LOST" during a race | One computer closed the game or the connection dropped for ~10 s | Both return to the menu (Enter / Esc, or pad Start / B) and start a new session. There is no reconnect. |
 | High ping / "connection problems" indicator | Busy or Wi-Fi network, long distance | Prefer cable, close downloads / streams. Above ~150 ms ping the game remains playable but bumps and hits react later. |
 
 ## Testing at home
@@ -67,7 +67,7 @@ takeoff, landing and fall, the fall's damage and the set-back past the gap.
   simulate), the host's state replaces it. A one- or two-tick timing difference does
   not count. A fall the client predicts waits in the gap until the host confirms it;
   after a fall or a wreck the client continues from the host's newest state.
-- **Same race on both computers:** the client always races the host's circuit, biome
+- **Same race on both computers:** the client always races the host's circuit, environment
   (and so the same handling), time of day, laps, weapons and combat style.
 
 Measured on one machine with simulated conditions (two processes over localhost):

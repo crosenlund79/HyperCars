@@ -1,37 +1,96 @@
-# Godot / Claude Starter Pack — v1.2
+# HyperCars
 
-Reusable **development instructions and design conventions** for future Godot 4 projects; this is **not a game, a functioning asset loader, or an implemented test framework**. We improve this pack with the user, ChatGPT and Claude before promoting a reviewed version to `main`.
+A top-down combat racing game in Godot 4.7, mechanically faithful to *Super Cars II* (Gremlin, 1991) with original, hand-painted HyperCars artwork. Ten cars race: you and nine recurring rivals with their own personalities, or two players with eight rivals.
 
-## Contents
+## Run
 
-| File | Responsibility |
-| --- | --- |
-| `CLAUDE.md` | Claude's entry point, preflight and work modes |
-| `docs/GODOT_CLAUDE_GUIDELINES.md` | Single authority for engineering, source control, scope and delivery rules |
-| `docs/DESIGN_WORKFLOW.md` | User / ChatGPT / Claude decision and handoff process |
-| `docs/PROJECT_BRIEF.md` | Single record for each game's design and approved current objective |
-| `docs/BACKLOG.md` | Deferred observations, never implicit authorization |
-| `assets/README.md` | Runtime art/audio override contract (`template_` fallbacks) |
-| `custom/` | User-owned override folder (`graphics/`, `audio/`); `.gdignore` keeps Godot from importing/packing it |
-| `tests/README.md` | Module, integration, manual and environment test expectations |
-| `.gitignore` | Editor-generated, local and binary artifacts ignored by default |
+- Open the folder in **Godot 4.7.x** (developed with 4.7.2-stable, GL Compatibility renderer) and press Play.
+- Command line: `godot --path .`
+  - `-- --seed=N` replays a whole session's rival decisions.
+  - `-- --layout=<id>` preselects a circuit.
 
-## Pilot this master pack
+## What is in the game
 
-1. Review the rules and check for gaps or needless complexity with Claude Code in **review-only mode**.
-2. Approve changes explicitly. Keep review edits on a working branch, then inspect and merge to `main` only after approval.
-3. When stable, optionally mark `_StarterGodotPack` as a **GitHub template repository**.
-4. For a new project, choose **Use this template**, then complete `docs/PROJECT_BRIEF.md` and hold a design review **before any game code**.
+**GO RACING!** opens a shared setup screen with a rotating circuit preview. The modes are:
 
-### Starter review prompt
+| Mode | What it is |
+|---|---|
+| Quick Race | Standard weapons, any circuit / environment / time / length |
+| Garage Race | Prize money, your own weapons, repairs and armour; the career is saved |
+| Championship | Six rounds (or three) ending in a grand final; win a rival's car |
+| Knockout | Nine laps, last place out every lap |
+| Battle Royale | One arena, no respawns, last car standing |
+| Spectate | The nine rivals race; follow any driver |
+| Multiplayer | Couch split-screen, or LAN / online |
 
-> This is the `_StarterGodotPack` reusable template, not a game. Read `CLAUDE.md` and all referenced guidance. Review for contradictory rules, real Godot 4 pitfalls, unnecessary complexity and scope creep. Propose minimal improvements with trade-offs. Do not edit files, create branches, generate game code or export a build without my explicit approval.
+The game has:
+- **3 circuits:** Kestrel Ridge, Larkspur Ring, Ravenhook. They include bridges, narrowings and speed-dependent jumps.
+- **5 environments:** Green Valley, Wasteland, Winter, The Raceway and Tabletop Mayhem. Each has its own modest handling, identical for every car.
+- **Day / night** on any combination.
+- **Weapons:** Classic or Tactical combat style, or No Guns.
+- **Vehicle damage**, a kill feed and TOMBSTONE | K | D statistics.
+- **Achievements** and rival careers.
+- **The official music** and an announcer with rival taunts.
 
-## Reuse in a game repository
+## Controls
 
-- **Replace this README with the game's README.** Preserve `CLAUDE.md`, the rules and relevant conventions; fill out `docs/PROJECT_BRIEF.md` only with user-confirmed decisions.
-- `src/<module>/`, automated tests and the minimal asset resolver are introduced when an approved game objective needs them—not prebuilt speculatively in this template.
-- The runtime override behavior (Windows/Linux, effective after restarting the game) is required in games that use replaceable assets. This documentation **does not itself implement that loader**; the first relevant implementation must test it.
-- Template updates do **not** automatically flow into existing games. Review changes case by case.
+The defaults below can be changed in **CONTROLS**: every action takes two keyboard keys and two controller inputs.
 
-**Operating principle:** Build what's needed. Test it. Preserve what works. Report what was discovered. Then stop.
+| Action | Keyboard | Controller |
+|---|---|---|
+| Steer left / right | arrow keys / A, D | d-pad / left stick |
+| Fire (accelerate or brake, by control mode) | Space / Ctrl | A |
+| Front / rear weapon | Up / Down, W / S | d-pad / stick up / down |
+| Confirm (results, standings, garage) | Enter | Start |
+| Back / race menu | Esc | B |
+
+Fire never dismisses a results or standings screen. The game's hints always show your current bindings.
+
+## Your own art and audio
+
+Put replacement files in a `custom/` folder: in the project while developing, or next to the exported Windows / Linux game. Restart the game to apply them; no rebuild is needed. Missing or broken files fall back to the packaged `template_` assets.
+
+- Per-asset contract: [`docs/ASSET_SPECS.md`](docs/ASSET_SPECS.md).
+- Rules: [`assets/README.md`](assets/README.md).
+
+## Saved data (`user://`)
+
+| File | Contents |
+|---|---|
+| `settings.cfg` | Volumes and setup choices |
+| `controls.cfg` | Your bindings |
+| `garage.cfg` | Garage career |
+| `car_collection.cfg` | Won cars and the Racing for Keeps stake |
+| `achievements.cfg` | Achievements and rival careers |
+
+## Tests
+
+```bash
+godot --headless --path . --import
+```
+
+```bash
+godot --headless --path . --fixed-fps 60 -s addons/gut/gut_cmdln.gd
+```
+
+GUT 9.7.1 is vendored. Tests never touch your own saved files (a pre-run hook redirects them). Manual checklists are in `tests/manual/`.
+
+## Documentation
+
+| Topic | Where |
+|---|---|
+| Current rules, decisions, approvals | [`docs/PROJECT_BRIEF.md`](docs/PROJECT_BRIEF.md) |
+| Development rules (Claude / Godot) | [`docs/GODOT_CLAUDE_GUIDELINES.md`](docs/GODOT_CLAUDE_GUIDELINES.md), [`docs/DESIGN_WORKFLOW.md`](docs/DESIGN_WORKFLOW.md), [`CLAUDE.md`](CLAUDE.md) |
+| Race rules, environments, fingerprints | [`docs/RACE_RULES.md`](docs/RACE_RULES.md) |
+| Circuits | [`docs/TRACKS.md`](docs/TRACKS.md) |
+| Championship, setup screen, car rewards | [`docs/CHAMPIONSHIP.md`](docs/CHAMPIONSHIP.md) |
+| Knockout, Battle Royale, statistics | [`docs/RACING_MODES.md`](docs/RACING_MODES.md) |
+| Damage and repairs | [`docs/VEHICLE_DAMAGE.md`](docs/VEHICLE_DAMAGE.md) |
+| Garage economy | [`docs/ECONOMY.md`](docs/ECONOMY.md) |
+| Music, voice | [`docs/MUSIC.md`](docs/MUSIC.md), [`docs/VOICE.md`](docs/VOICE.md) |
+| LAN / online play | [`docs/NETWORK_PLAY.md`](docs/NETWORK_PLAY.md) |
+| Deferred observations | [`docs/BACKLOG.md`](docs/BACKLOG.md) |
+
+## Status
+
+Development happens on a working branch and is reviewed before promotion to `main`. Builds and exports are made only on explicit request.

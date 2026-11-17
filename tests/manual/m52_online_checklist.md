@@ -26,10 +26,10 @@ Real cross-network play has **not** been verified by the developer tools — onl
 - [ ] PING line bottom-right shows plausible values (note them); it turns red only on real trouble.
 - [ ] Classic, Tactical and No Guns: shots fire once per press; ammunition, explosions, wrecks and recovery look the same on both PCs.
 - [ ] Every track (Green Valley, Heather Moor, Snow Pass) and at least 3 and 7 laps; one 20-lap race if time allows.
-- [ ] Both PCs show the same results; host Fire → next race with the reversed grid and the next rival sitting out; repeat 3 races.
+- [ ] Both PCs show the same results; host Enter (Confirm) → next race (Fire does nothing on the results) with the reversed grid and the next rival sitting out; repeat 3 races.
 
 ## Disconnects and cleanup
-- [ ] Joiner quits mid-race → host shows CONNECTION LOST within ~10 s → Fire / Esc → menu. Swap roles and repeat.
+- [ ] Joiner quits mid-race → host shows CONNECTION LOST within ~10 s → Enter / Esc → menu. Swap roles and repeat.
 - [ ] Pull the network cable / disable Wi-Fi for 15 s on one PC: both end cleanly, no freeze.
 - [ ] After any ending, host and join again: a fresh session works (no ghost cars, no old results).
 - [ ] Afterwards: single-player, spectating, garage races and couch split-screen still work.

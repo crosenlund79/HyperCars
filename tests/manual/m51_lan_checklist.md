@@ -13,9 +13,9 @@ Both computers on the same local network, both running this HyperCars build. All
 - [ ] Both computers show the same positions, crashes and finishing order; PC B's view lags very slightly behind and its own steering reacts a little late (no prediction yet) — note how it feels on your network.
 - [ ] Weapons ON (Classic and Tactical): both see the same missiles, mines, explosions and wrecks; a press fires exactly once; ammunition matches on both screens.
 - [ ] Holding / repeatedly pressing Space or Cross during a race only drives (never restarts anything).
-- [ ] After both finish, both show the same results; PC A presses Fire for the next race (reversed grid, a different rival sits out); PC B readies again.
+- [ ] After both finish, both show the same results; PC A presses Enter (Confirm) for the next race; Fire on the results does nothing (reversed grid, a different rival sits out); PC B readies again.
 
 ## Disconnects
-- [ ] Close the game (or pull the network cable) on PC B mid-race: PC A shows "CONNECTION LOST — The other player left the game."; Fire / Esc returns to the menu. Same the other way round ("The host left the game.").
+- [ ] Close the game (or pull the network cable) on PC B mid-race: PC A shows "CONNECTION LOST — The other player left the game."; Enter / Esc returns to the menu. Same the other way round ("The host left the game.").
 - [ ] While PC A is still on its "connection lost" screen, a third computer that tries to join is refused ("The host is already racing").
 - [ ] After returning, both can host / join again; single-player, couch split-screen, spectating and garage races still work.
