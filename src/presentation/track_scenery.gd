@@ -148,13 +148,24 @@ func _add_landmarks(track: Track, resolver: AssetResolver, rng: RandomNumberGene
 func _add_kerbs(track: Track, resolver: AssetResolver, decal_layer: Node2D, c: PackedVector2Array, tans: PackedVector2Array, curvature: PackedFloat32Array) -> void:
 	var n := c.size()
 	var halves := track.half_widths
+	var length: float = AssetCatalog.SPECS[_theme.asset("decals/kerb")].display_size.x
+	var last := {-1.0: Vector2.INF, 1.0: Vector2.INF}
 	for i in n:
 		if curvature[i] < 0.3:
+			last = {-1.0: Vector2.INF, 1.0: Vector2.INF}
 			continue
 		var right := Vector2(-tans[i].y, tans[i].x)
 		var h: float = halves[i] if i < halves.size() else track.layout.road_width * 0.5
 		for side in [-1.0, 1.0]:
-			_sprite(decal_layer, resolver, "decals/kerb", c[i] + right * side * (h - 7.0), tans[i].angle())
+			var p: Vector2 = c[i] + right * side * (h - 7.0)
+			if last[side] != Vector2.INF and p.distance_to(last[side]) < length * 0.92:
+				continue  # one piece per kerb length: no bunching on the inside of tight corners
+			var from: Vector2 = last[side]
+			if from == Vector2.INF or p.distance_to(from) > length * 1.5:
+				_sprite(decal_layer, resolver, "decals/kerb", p, tans[i].angle())
+			else:  # the next piece in the chain, laid along the edge between the anchors
+				_sprite(decal_layer, resolver, "decals/kerb", (p + from) * 0.5, (p - from).angle())
+			last[side] = p
 			_kerb_count += 1
 
 
