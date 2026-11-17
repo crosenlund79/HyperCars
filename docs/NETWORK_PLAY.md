@@ -50,6 +50,19 @@ Port forwarding cannot work if the internet provider shares one public address b
 - **Two computers, same network:** join the host's local address (no forwarding needed).
 - **Over the internet:** only after port forwarding; if it fails, test the forwarding with a friend first on LAN, then from outside.
 
+## Pit lanes in network races (protocol 6)
+
+The host decides everything in the pit lanes: limiter, overrides, tickets, service
+and repairs (`docs/PIT_LANES.md`). Each snapshot carries every car's pit state
+(limiter, overridden, penalty, service progress); the client's own car follows the
+host's limiter at once. A client's double tap travels as a running total in its
+INPUT messages (delivered exactly once, like weapon presses); tickets reach the
+client's kill feed and announcer through the reliable EVENTS channel. Steering is
+sent as a fraction (proportional sticks, smoothed keys). Protocol 6 builds cannot
+join older builds (the version check says so). Tested with 80 ms latency, jitter
+and loss: a host-decided rival pit stop, the client seeing the service, identical
+condition and results (`test_net_lan_race.gd`).
+
 ## Jumps in network races (J5)
 
 Kestrel Ridge, Ravenhook and the experimental figure-eight are raced with their real

@@ -163,6 +163,14 @@ championship schedule. Night promotes the lighting pilot: an environment-specifi
 tint (`night_ambient`), lamp posts (`lamp_color`, `lamp_energy`) and per-car headlights
 (`headlight_energy`); Winter night is blue moonlight with warm lamps and snowfall
 crossing the headlights. Night never changes physics. L still toggles lights in any race.
+Since 2026-11-17 every car carries two headlights and two taillights (brake lights,
+automatic high beams), and Settings → DYNAMIC VEHICLE LIGHTS chooses real lights or
+cheap glow sprites (`docs/PIT_LANES.md`, Vehicle lights).
+
+## Pit lanes, split sections and pit violations
+
+Free pit service (+30 condition), the 50 % pit limiter, the double-tap override with
+its speeding ticket, and the split sections: `docs/PIT_LANES.md`.
 
 ## Fingerprints
 

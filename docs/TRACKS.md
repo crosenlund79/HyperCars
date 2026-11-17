@@ -114,10 +114,23 @@ screen. They stay unchanged for regression tests and can be preselected with
 `--layout=classic_01` or `--layout=exp_figure8_01`. All their fingerprints are
 unchanged by Kestrel Ridge.
 
+## Pit lanes and split sections (2026-11-17)
+
+Every circuit has a pit lane on the main straight and one split section with a solid
+divider (table, rules and AI behaviour: `docs/PIT_LANES.md`). Kestrel Ridge's split is
+on the west loop straight (equal lanes); Larkspur Ring's runs through a bend (tight
+84 px inside or wide 112 px outside); Ravenhook's has a wide left and a narrow right
+lane. Laps, positions and timing are unchanged by the lane taken (centreline
+progress); checkpoint gates span every lane. The fingerprints above predate the
+branches: races on these circuits now differ (pit stops, route choice), so the table
+is historical; the regression fingerprints in `tests/integration/` that use these
+circuits were re-recorded (git history keeps the old values).
+
 ## Layout features (for future circuits)
 
 `TrackLayout`: control points + corner radii; `elevation_zones` (bridges);
 `jumps` (ground jumps, or flyover jumps on an elevated stretch spanning a crossing);
 `jump_rules` (per-layout jump physics); `narrow_sections` (start, end, width; tapered
 over 120 px, at least 96 px wide, on the ground, away from crossings and jumps);
-`display_name`. `TrackLayout.validate()` checks all of them.
+`branches` (pit lanes and split sections: from, to, ramp, side, lane widths, divider,
+service box); `display_name`. `TrackLayout.validate()` checks all of them.

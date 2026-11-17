@@ -20,6 +20,11 @@ class Drive extends DriverInput:
 		return {"steer": 0.0, "fire": throttle}
 
 
+class Speeder extends DriverInput:
+	func drive(_race: Node, _step: float) -> Dictionary:
+		return {"steer": 0.0, "fire": true, "pit_override": true}
+
+
 func after_each() -> void:
 	Engine.physics_ticks_per_second = 60
 	Engine.time_scale = 1.0
@@ -28,13 +33,17 @@ func after_each() -> void:
 
 
 ## A race scene with commentary; talkative = no random silence (deterministic tests).
-func _make(talkative := true, humans := 1, spectate := false) -> void:
+func _make(talkative := true, humans := 1, spectate := false, layout := "") -> void:
 	_main = MAIN_SCENE.instantiate()
+	if layout != "":
+		_main.use_command_line_layout = false
+		_main.layout_override = DevLayouts.load_layout(layout)
 	var p: VoiceParams = (load("res://src/audio/default_voice_params.tres") as VoiceParams).duplicate()
 	if talkative:
 		p.silence_destroyed = 0.0
 		p.silence_overtake = 0.0
 		p.silence_wall = 0.0
+		p.silence_pit_violation = 0.0
 		p.chatter_silence = 0.0
 		p.speaker_cooldown_factor = 1.0
 		p.repeat_factor = 1.0
@@ -153,6 +162,30 @@ func test_no_overtake_lines_from_the_start_or_a_whole_ai_race_order_shuffle_with
 
 
 # --- one voice, memory, silence ---
+
+## A rival speeding in the pit lane: one ticket, the announcer's "Pit lane
+## violation" once (however long it keeps asking to override).
+func test_pit_speeding_ticket_says_pit_lane_violation_once() -> void:
+	await _make(true, 1, false, "kestrel_ridge")
+	await _wait_out_start()
+	_park_rivals([3])
+	await wait_physics_frames(2)
+	var layout: TrackLayout = _main.track.layout
+	var b: Dictionary = layout.branches[layout.pit_branch()]
+	var s := float(b.box) - 200.0
+	var bd := layout.route_bounds(s, _main.track.path.length, 1)
+	var lat := (bd.x + bd.y) * 0.5
+	var tan: Vector2 = _main.track.path.tangent_at(s)
+	var c: Car = _main.cars[3]
+	c.place(Transform2D(tan.angle(), _main.track.path.point_at(s) + Vector2(-tan.y, tan.x) * lat))
+	c.model.velocity = tan * 150.0
+	c.active = true
+	_main.progress[3].reset(c.global_position)
+	_main.inputs[3] = Speeder.new()
+	await wait_seconds(1.5)
+	assert_eq(_main.pits.tickets[3], 1, "one ticket")
+	assert_eq(_lines, ["announcer_pit_violation"], "the announcer, once")
+
 
 func test_one_line_at_a_time_and_nothing_queued() -> void:
 	await _make()

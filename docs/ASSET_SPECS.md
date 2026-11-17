@@ -62,6 +62,7 @@ Any resolution is accepted as long as the **aspect ratio and orientation** match
 | `custom/graphics/scenery/tree_round.png` | 128 x 128 | 128 x 128 | Top-down tree canopy, centred, transparent; sways gently. |
 | `custom/graphics/scenery/tyre_stack.png` | 56 x 56 | 56 x 56 | Tyre stack, centred, transparent. |
 | `custom/graphics/track/grass.png` | 256 x 256 | tile = 256 | Seamless repeating off-track ground, opaque. |
+| `custom/graphics/track/pit_sign.png` | 128 x 64 | 96 x 48 | Pit lane entrance sign (PIT + arrow), placed beside the entrance behind the barrier; the arrow points along the driving direction (+X). |
 | `custom/graphics/track/start_line.png` | 32 x 128 | 24 x 150 | Start/finish strip, long axis across the road; stretched to road width. |
 | `custom/graphics/track/tarmac.png` | 256 x 256 | tile = 256 | Seamless repeating road surface, opaque. |
 | `custom/graphics/track/wall.png` | 128 x 32 | 80 x 20 | Barrier strip, seamless left-right, repeated along the track edge; transparent background. |
@@ -72,6 +73,7 @@ Any resolution is accepted as long as the **aspect ratio and orientation** match
 | `custom/graphics/ui/hud_panel.png` | 96 x 96 | nine-patch, 24 px margins | Nine-patch panel; 24 px corners are not stretched (scaled with the texture). |
 | `custom/graphics/ui/logo.png` | 880 x 240 | 660 x 180 | Title logo; transparent background, centred. |
 | `custom/graphics/ui/star_bronze.png` | 48 x 48 | 22 x 22 | 3rd place marker; same contract as the gold star. |
+| `custom/graphics/ui/ticket.png` | 48 x 48 | 20 x 20 | Kill feed: a pit-lane speeding ticket (the driver overrode the pit limiter); square, centred, transparent. |
 | `custom/graphics/ui/tombstone.png` | 48 x 48 | 20 x 20 | Kill feed and rankings: a permanent elimination (DNF) caused by a driver; square, centred, transparent. |
 | `custom/graphics/ui/crash.png` | 48 x 48 | 20 x 20 | Kill feed: a car put out of the race by collisions (no weapon); square, centred, transparent. |
 | `custom/graphics/ui/star_gold.png` | 48 x 48 | 22 x 22 | 1st place marker in the race history; square, centred, transparent background. |
