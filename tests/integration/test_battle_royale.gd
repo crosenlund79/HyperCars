@@ -135,3 +135,30 @@ func test_layout_spawns_are_clear_and_inside() -> void:
 	assert_true(layout.blocked(Vector2(0, 0)), "the scrap pile is solid")
 	assert_false(layout.clear_line(Vector2(-400, 0), Vector2(400, 0)), "no shooting through the pile")
 	assert_true(layout.clear_line(Vector2(-400, -700), Vector2(400, -700)))
+
+
+## A hit only wears a car down in the arena: the rival defeat popup appears
+## only for the hit that eliminates the player.
+func test_defeat_popup_only_for_the_eliminating_hit() -> void:
+	_b = BattleRoyale.new()
+	_b.player_ai = false
+	_b.base_seed = 2
+	add_child_autofree(_b)
+	await wait_physics_frames(2)
+	assert_not_null(_b.defeat_popup)
+	_hit(0, 3)
+	await wait_physics_frames(6)
+	assert_false(_b.session.racers[0].is_done(), "a hit, not an elimination")
+	assert_false(_b.defeat_popup._panel.visible, "no defeat popup for a hit")
+	_b.damage.condition[0] = 1.0
+	_hit(0, 3)
+	await wait_physics_frames(6)
+	assert_true(_b.session.racers[0].is_done(), "eliminated")
+	assert_true(_b.defeat_popup._panel.visible, "the eliminating rival is shown")
+
+
+## What the arena does with a missile hit (as in _combat_step), plus its event.
+func _hit(car: int, by: int) -> void:
+	_b.combat.events.append({"kind": "destroyed", "type": W.FRONT_MISSILE, "pos": _b.cars[car].position, "car": car, "owner": by})
+	if _b.damage.damage(car, 20.0):
+		_b._eliminate(car, true, by, W.FRONT_MISSILE)

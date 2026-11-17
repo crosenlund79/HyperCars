@@ -213,8 +213,13 @@ func test_knockout_player_eliminated_watches() -> void:
 	_main.set_weapons_enabled(false)
 	_main.set_lap_count(9)
 	_main.start_race()  # the player never drives: last after the first lap
+	await wait_physics_frames(240)
+	assert_eq(_main.knockout_danger(), 0, "the parked player is in the drop zone")
+	assert_string_contains(_main.knockout_text(), "YOU ARE IN THE DROP ZONE!")
+	assert_eq(_main.hud.danger_id, 0)
 	await wait_until(func() -> bool: return _main.session.racers[0].knockout_lap > 0, 120.0)
 	await wait_physics_frames(3)
 	assert_eq(_main.session.racers[0].knockout_lap, 1)
 	assert_string_contains(_main.hud.caption_text(), "ELIMINATED AFTER LAP 1!")
 	assert_string_contains(_main.knockout_text(), "9 LEFT", "the player out: nine left")
+	assert_false(_main.knockout_text().contains("YOU ARE IN THE DROP ZONE"), "no longer in danger once out")

@@ -61,6 +61,8 @@ var hud: Hud
 var camera: FollowCamera
 var kill_feed: KillFeed
 var defeat_popup: DefeatPopup
+## The defeat popup appears only for the hit that eliminates the player.
+var eliminations_only := true
 var race_menu: RaceMenu
 var lighting: LightingPilot
 var combat_view: CombatView

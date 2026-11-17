@@ -78,6 +78,8 @@ func _process(delta: float) -> void:
 		var e: Dictionary = events[k]
 		if e.kind != "destroyed" or not mine.has(int(e.car)):
 			continue
+		if race.get("eliminations_only") == true and not race.session.racers[int(e.car)].is_done():
+			continue  # Battle Royale: a hit is not a defeat, only the eliminating one
 		var rival := int(e.get("owner", -1))
 		if rival < 1 or rival > 9 or race.session.human_ids.has(rival):
 			continue  # own weapon, another human, unknown

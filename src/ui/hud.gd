@@ -503,7 +503,8 @@ func update_tower(standings: Array[RacerState]) -> void:
 			continue
 		var r := standings[i]
 		parts[0].set_meta("racer_id", r.id)
-		parts[1].text = str(i + 1)
+		parts[1].text = ("! %d" if r.id == danger_id else "%d") % (i + 1)
+		parts[1].add_theme_color_override("font_color", HyperTheme.RED if r.id == danger_id else HyperTheme.CREAM)
 		parts[2].texture = _car_textures.get(r.id)
 		parts[3].text = r.display_name + (("  OUT" if r.knockout_lap > 0 or r.result_note.begins_with("OUT") else "  DNF") if r.dnf else "")
 		if stats != null and r.id < stats.kills.size():
@@ -976,6 +977,11 @@ var _mode_line: Label
 
 ## A line at the top centre for the race kind (Knockout: cars left and the
 ## next elimination; Battle Royale: cars left). "" hides it.
+## Knockout: the racer in the drop zone (last of those still in), -1 = none.
+## Their position number turns red with a warning mark.
+var danger_id := -1
+
+
 func set_mode_line(text: String) -> void:
 	if _mode_line == null:
 		_mode_line = HyperTheme.label("", 20, HyperTheme.GOLD, 700)
@@ -991,6 +997,12 @@ func set_mode_line(text: String) -> void:
 
 func mode_line() -> String:
 	return "" if _mode_line == null or not _mode_line.visible else _mode_line.text
+
+
+## Mode line colour: red while the local player is in danger.
+func set_mode_line_alert(on: bool) -> void:
+	if _mode_line != null:
+		_mode_line.add_theme_color_override("font_color", HyperTheme.RED if on else HyperTheme.GOLD)
 
 
 ## Battle Royale info panel: cars left, kills, fight time.

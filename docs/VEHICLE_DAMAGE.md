@@ -34,9 +34,9 @@ personalities and weapon decisions are unchanged (the AI does not consider damag
 ## Garage races (`src/garage/default_garage_rules.tres`)
 
 - Damage carries from race to race for the garage session (not saved to disk).
-- Repairs: **$3 per 1 %** (full repair from 0 % = $300). REPAIR ALL repairs everything
+- Repairs: **$2 per 1 %** (full repair from 0 % = $200; was $3 until the 2026-11-17 economy review, docs/ECONOMY.md). REPAIR ALL repairs everything
   or as much as your money pays for; +10 % repairs ten points.
-- **No dead end:** a car below 30 % is patched up to 30 % for free before a race, so you
+- **No dead end:** a car below 50 % (was 30 %) is patched up to 50 % for free before a race, so you
   can always race and earn prize money again.
 - A DNF pays no prize; unused rounds are still kept. Leaving a garage race before the
   flag changes nothing (no rounds, no damage, no patch-up).

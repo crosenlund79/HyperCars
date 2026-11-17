@@ -15,7 +15,7 @@ const W := WeaponRules.Weapon
 
 @export var start_money := 300
 ## Prize money for finishing 1st, 2nd, ... (positions beyond the list win nothing).
-@export var prize_money: Array[int] = [500, 350, 250, 150, 100]
+@export var prize_money: Array[int] = [550, 400, 300, 200, 125]  # 2026-11-17 economy review (was 500 / 350 / 250 / 150 / 100)
 ## Shop price of one round of each weapon.
 @export var price_front_missile := 40
 @export var price_rear_missile := 40
@@ -33,10 +33,10 @@ const W := WeaponRules.Weapon
 ## M6 repairs and armour (VERIFIED from the manual: repairs and armour are
 ## bought in the shop between races; armour came in grades). PROVISIONAL numbers.
 ## Price of one point of condition (a full repair from 0 % costs 100 points).
-@export var repair_price_per_point := 3
+@export var repair_price_per_point := 2  # was 3 (economy review, docs/ECONOMY.md)
 ## Emergency patch-up: a car below this condition (%) is always patched up to
 ## it for free before a garage race, so a player can always race (no dead end).
-@export var min_start_condition := 30.0
+@export var min_start_condition := 50.0  # was 30 (economy review)
 ## Armour grades: names, damage reduction and the price of each grade on top
 ## of the previous one (grade 0 = no armour).
 @export var armour_names: PackedStringArray = PackedStringArray(["NONE", "LIGHT", "HEAVY"])

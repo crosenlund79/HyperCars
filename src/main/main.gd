@@ -1441,7 +1441,19 @@ func knockout_text() -> String:
 	var left := knockout_remaining().size()
 	if session.all_finished() or left <= 1:
 		return "KNOCKOUT  -  WINNER: %s" % (session.standings()[0].display_name.to_upper())
-	return "KNOCKOUT  -  %d LEFT  -  LAST PLACE OUT AT THE END OF LAP %d" % [left, _ko_lap + 1]
+	var text := "KNOCKOUT  -  %d LEFT  -  LAST PLACE OUT AT THE END OF LAP %d" % [left, _ko_lap + 1]
+	if knockout_danger() >= 0 and session.human_ids.has(knockout_danger()) and not session.spectator:
+		text += "  -  %s IN THE DROP ZONE!" % ("YOU ARE" if not is_two_player() else session.racers[knockout_danger()].display_name.to_upper() + " IS")
+	return text
+
+
+## Knockout: who would be eliminated if the leader completed the lap now
+## (the last of the racers still in), -1 outside Knockout or when decided.
+func knockout_danger() -> int:
+	if race_mode != "knockout" or session.state != RaceSession.State.RACING:
+		return -1
+	var left := knockout_remaining()
+	return left[-1] if left.size() >= 2 else -1
 
 
 ## The provisional championship standings, while watching a championship round.
@@ -1599,7 +1611,9 @@ func _refresh_hud() -> void:
 	if network_lost:
 		return
 	hud.set_follow(session.spectator or watching, director.target_id)
+	hud.danger_id = knockout_danger()
 	hud.set_mode_line(knockout_text())
+	hud.set_mode_line_alert(hud.danger_id >= 0 and session.human_ids.has(hud.danger_id) and not session.spectator)
 	hud.update_tower(session.standings())
 	if session.spectator:
 		var leader := session.standings()[0] if session.racer_count() > 0 else null
@@ -1615,6 +1629,7 @@ func _refresh_hud() -> void:
 		for v in player_views.views:
 			v.hud.set_results_up(session.state == RaceSession.State.FINISHED)
 			_refresh_player_hud(v.hud, v.racer_id)
+			v.hud.danger_id = hud.danger_id
 			v.hud.update_tower(standings)
 		if session.state == RaceSession.State.FINISHED:
 			hud.show_results(session.standings())

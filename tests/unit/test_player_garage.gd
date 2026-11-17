@@ -137,7 +137,7 @@ func test_abandoned_race_pays_nothing_and_uses_nothing() -> void:
 
 
 func test_prize_money_top_five_only() -> void:
-	assert_eq(_rules.prize_for(1), 500)
+	assert_eq(_rules.prize_for(1), 550)
 	assert_gt(_rules.prize_for(1), _rules.prize_for(2))
 	assert_gt(_rules.prize_for(5), 0)
 	assert_eq(_rules.prize_for(6), 0)
@@ -160,3 +160,18 @@ func test_rival_loadouts_are_valid_bounded_and_equal_in_value() -> void:
 		used[RivalArmoury.loadout(id)[0]] = true
 		used[RivalArmoury.loadout(id)[2]] = true
 	assert_eq(used.size(), 5, "all five weapons appear in the field")
+
+
+## Economy review (2026-11-17, docs/ECONOMY.md): a race's wear (measured mean
+## about 55 % per car) costs less to repair than a podium pays, the free
+## patch-up keeps a broke car well clear of the critical zone, and the shop
+## stays affordable from the starting money.
+func test_economy_invariants() -> void:
+	var r: GarageRules = load("res://src/garage/default_garage_rules.tres")
+	assert_lt(55 * r.repair_price_per_point, r.prize_for(3), "a podium pays a typical race's repairs")
+	assert_gt(r.min_start_condition, DamageRules.new().critical_condition, "patched cars start clear of critical")
+	assert_lte(100 * r.repair_price_per_point, r.prize_for(1), "a win pays a full rebuild")
+	assert_gte(r.start_money, r.price_front_missile * 5, "the starting money buys a few rounds")
+	for k in range(1, 5):
+		assert_gt(r.prize_for(k), r.prize_for(k + 1), "prizes fall with position")
+	assert_eq(r.prize_for(6), 0, "top five only (manual)")
