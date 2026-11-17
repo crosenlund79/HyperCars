@@ -72,6 +72,8 @@ Any resolution is accepted as long as the **aspect ratio and orientation** match
 | `custom/graphics/ui/hud_panel.png` | 96 x 96 | nine-patch, 24 px margins | Nine-patch panel; 24 px corners are not stretched (scaled with the texture). |
 | `custom/graphics/ui/logo.png` | 880 x 240 | 660 x 180 | Title logo; transparent background, centred. |
 | `custom/graphics/ui/star_bronze.png` | 48 x 48 | 22 x 22 | 3rd place marker; same contract as the gold star. |
+| `custom/graphics/ui/tombstone.png` | 48 x 48 | 20 x 20 | Kill feed and rankings: a permanent elimination (DNF) caused by a driver; square, centred, transparent. |
+| `custom/graphics/ui/crash.png` | 48 x 48 | 20 x 20 | Kill feed: a car put out of the race by collisions (no weapon); square, centred, transparent. |
 | `custom/graphics/ui/star_gold.png` | 48 x 48 | 22 x 22 | 1st place marker in the race history; square, centred, transparent background. |
 | `custom/graphics/ui/star_silver.png` | 48 x 48 | 22 x 22 | 2nd place marker; same contract as the gold star. |
 | `custom/graphics/variant_2/scenery/prop_1.png` | 128 x 128 | 128 x 128 | Variant 2 tall prop (sways), top-down, centred, transparent; any rotation. |

@@ -60,14 +60,12 @@ Three rounds, one on each original circuit, against all nine rivals
 Winning a championship unlocks one random rival car the player does not own yet and
 saves it in `user://car_collection.cfg` (never a duplicate; all nine can be collected).
 The reward screen says e.g. "CHAMPIONSHIP WON - YOU UNLOCKED THE HUNTER!" with the car
-in the player's red; after the ninth, "ALL NINE RIVAL CARS COLLECTED!", and later wins
+in its original colours; after the ninth, "ALL NINE RIVAL CARS COLLECTED!", and later wins
 say the collection is complete.
 
 - **The player's car**: the setup's CAR row picks the own car or any won car. A won car
-  keeps the rival's silhouette and details with its main paint turned red
-  (`src/assets/car_paint.gd`: the most common saturated hue -> the player's red, shading
-  kept; also for user art). If an image cannot be read or has no clear paint colour,
-  it is used as it is (the player marker still shows which car is yours).
+  keeps the rival's original colours and artwork (user overrides included); the earlier
+  red repaint was removed. Racing for Keeps: see `docs/RACING_MODES.md`.
 - **The displaced rival** races the one shared junker (`cars/body_junker`,
   `cars/car_junker`, slight per-rival tint) from then on, whatever car the player
   picks, with the same name, personality, voice lines and career statistics.
