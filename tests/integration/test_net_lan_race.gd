@@ -197,3 +197,20 @@ func test_new_environments_agree_over_the_network() -> void:
 		side = side.results[0] if side.has("results") else {"variant": 0, "handling": [0, 0, 0]}
 		assert_eq(int(side.variant), 5, "Tabletop Mayhem on both computers")
 		assert_almost_eq(float(side.handling[1]), base.acceleration * 1.28, 0.01, "Tabletop acceleration")
+
+
+## Pit lanes over the network: the host decides the pit stop (a damaged rival
+## drives into the box, stops and gets +30); the client sees the service in
+## the snapshots and both computers agree on condition and the result.
+func test_pit_stop_is_host_authoritative_and_agrees() -> void:
+	var r := await _run(24771, ["laps=3", "layout=kestrel_ridge", "latency=80", "jitter=20", "loss=0.02", "pit=1", "timeout=200"])
+	assert_true(r[0].has("results") and r[1].has("results"), str(r))
+	if not r[0].has("results") or not r[1].has("results"):
+		return
+	var host: Dictionary = r[0].results[0]
+	var client: Dictionary = r[1].results[0]
+	assert_eq(int(client.pit_car), int(host.pit_car), "the same rival on both computers")
+	assert_gte(int(host.pit_stops[int(host.pit_car)]), 1, "the damaged rival made a pit stop on the host")
+	assert_gt(int(client.pit_progress_seen), 20, "the client saw the service progress in the snapshots")
+	for k in ["order", "times", "condition", "dnf"]:
+		assert_eq(client[k], host[k], "pit race: %s agree" % k)

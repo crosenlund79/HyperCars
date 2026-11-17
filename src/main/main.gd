@@ -1762,8 +1762,7 @@ func _refresh_player_hud(view_hud: Hud, id: int) -> void:
 func _ticket_banner(id: int, fine: int) -> void:
 	if hud == null or not session.human_ids.has(id) or (net != null and id != local_player_id):
 		return
-	var price := ("FINE $%d" % fine) if fine > 0 else ("PENALTY %d s AT THE LIMITER" % roundi(pit_rules.penalty_time))
-	hud.flash_banner("PIT LANE VIOLATION!\nSPEEDING TICKET  -  %s" % price, HyperTheme.RED, 1.6)
+	hud.flash_banner("PIT LANE VIOLATION!\nSPEEDING TICKET ISSUED", HyperTheme.RED, 1.6, 56)  # (the price: the pit line below)
 
 
 ## The pit line for a human's car: service progress with the repair it brings,
@@ -1786,7 +1785,8 @@ func _refresh_pit(view_hud: Hud, id: int) -> void:
 		var price := ("FINE $%d" % pit_rules.fine) if pits != null and pits.pays_fines[id] == 1 else ("PENALTY %d s" % roundi(pit_rules.penalty_time))
 		view_hud.update_pit(PlayerControls.fmt("PIT LIMITER  -  %d%%\nDOUBLE-TAP {fire} TO OVERRIDE  -  %s" % [roundi(pit_rules.limiter_share * 100.0), price]))
 	elif over and in_lane:
-		view_hud.update_pit("LIMITER OVERRIDDEN  -  SPEEDING TICKET", HyperTheme.RED)
+		var cost := ("FINE $%d" % pit_rules.fine) if pits != null and pits.pays_fines[id] == 1 else ("%d s PENALTY AFTER THE LANE" % roundi(pit_rules.penalty_time))
+		view_hud.update_pit("LIMITER OVERRIDDEN  -  SPEEDING TICKET\n%s" % cost, HyperTheme.RED)
 	elif penalty:
 		view_hud.update_pit("PIT LANE PENALTY  -  LIMITED", HyperTheme.RED)
 	else:

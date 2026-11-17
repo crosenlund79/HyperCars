@@ -2,7 +2,9 @@ extends SceneTree
 ## Test helper: one side of a LAN race, run as its own Godot process.
 ##   godot --headless --path <project> -s res://tests/support/net_probe.gd -- \
 ##         role=host|client port=24690 laps=1 weapons=0 style=0 out=<file> \
-##         latency=0 loss=0 races=1 fire_every=0 layout=<id> jitter=0 fall=0
+##         latency=0 loss=0 races=1 fire_every=0 layout=<id> jitter=0 fall=0 pit=0
+## pit=1: the host damages the first racing rival on the grid at the start so
+## it makes a pit stop (pit_car: the same car on both computers).
 ## Both humans are driven by an autopilot (an AiDriver steering the human's
 ## car through the normal input path: the host's local player input, and the
 ## client's INPUT messages). Each side writes the final result it shows
@@ -10,7 +12,7 @@ extends SceneTree
 
 var opts := {"role": "host", "port": "24690", "laps": "1", "weapons": "0", "style": "0", "out": "",
 	"latency": "0", "loss": "0", "races": "1", "fire_every": "0", "timeout": "120", "track": "1", "night": "0", "jitter": "0",
-	"mode": "0", "predict": "1", "fall": "0", "shots": ""}
+	"mode": "0", "predict": "1", "fall": "0", "shots": "", "pit": "0"}
 var link: NetLink
 var main: Node2D
 var autopilot: AiDriver
@@ -22,6 +24,10 @@ var finished_at := -1
 var shots := 0
 var tick := 0
 var waiting_next := false
+## pit=1: the damage was applied (host) / the highest service progress of rival 1 seen (client, 0 .. 31).
+var _pit_damaged := false
+var pit_progress_seen := 0
+var pit_car := -1
 ## J5: per car, takeoffs and falls into a jump's gap seen on this computer.
 var takeoffs := {}
 var falls := {}
@@ -133,6 +139,17 @@ func _tick() -> void:
 	var s: RaceSession = main.session
 	_count_jumps()
 	_jump_shots()
+	if opts.pit == "1" and s.state == RaceSession.State.RACING:
+		if pit_car < 0:
+			for id in main.grid_order:
+				if id != RaceSession.PLAYER_ID and id != RaceSession.PLAYER_2_ID:
+					pit_car = id
+					break
+		if opts.role == "host" and not _pit_damaged:
+			_pit_damaged = true
+			main.damage.condition[pit_car] = 10.0  # (below every rival's pit threshold)
+		if main.pit_state.size() > pit_car:
+			pit_progress_seen = maxi(pit_progress_seen, main.pit_state[pit_car] >> 3)
 	if opts.role == "host":
 		if waiting_next and s.state == RaceSession.State.MODE_SELECT:
 			waiting_next = false
@@ -236,6 +253,8 @@ func _result() -> Dictionary:
 		"sitting_out": s.sitting_out.duplicate(), "fired": fired, "destroyed": destroyed,
 		"condition": condition, "ammo": ammo, "dnf": dnf, "takeoffs": takeoffs.duplicate(), "falls": falls.duplicate(),
 		"variant": main.track_variant, "night": main.night,
+		"pit_stops": Array(main.pits.stops) if main.pits != null and opts.role == "host" else [],
+		"pit_progress_seen": pit_progress_seen, "pit_car": pit_car,
 		"handling": [main.driving_params.max_speed, main.driving_params.acceleration, main.driving_params.grip]}
 
 

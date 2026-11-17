@@ -131,6 +131,7 @@ func decide(me: Dictionary, others: Array, delta: float) -> Dictionary:
 	if line.layout != null:
 		_plan_branches(me, others)
 		_update_pit_latch(s, me)
+		_update_beside(s, me)
 	var target_lateral := own_line(s)
 	var blocked := false
 	var lift := false
@@ -692,6 +693,11 @@ func route_at(s: float) -> int:
 	var k := line.layout.branch_at(s, line.center.length)
 	if k < 0:
 		return RacingLine.ROUTE_MAIN
+	if k == _beside_branch:  # beside the divider: the lane it is really in, whatever the plan said
+		var kind: String = line.layout.branches[k].kind
+		if kind == "pit":
+			return RacingLine.ROUTE_PIT if _beside_lane == 1 else RacingLine.ROUTE_MAIN
+		return RacingLine.ROUTE_ALT if _beside_lane == 1 else RacingLine.ROUTE_MAIN
 	if line.layout.branches[k].kind == "pit":
 		return RacingLine.ROUTE_PIT if (pitting or _pit_latched) else RacingLine.ROUTE_MAIN
 	return route_choice.get(k, RacingLine.ROUTE_MAIN)
@@ -804,6 +810,25 @@ func _update_pit_latch(s: float, me: Dictionary) -> void:
 			_pit_latched = false
 			pitting = false
 			missed_pits += 1
+
+
+## Beside a divider, the car is committed to the lane it is in: its route
+## follows that lane until the branch ends (a plan dropped or changed while in
+## the other lane - a missed stop, a shove, a respawn - must never steer it
+## into the divider).
+var _beside_branch := -1
+var _beside_lane := 0
+
+
+func _update_beside(s: float, me: Dictionary) -> void:
+	var d := line.layout.divider_at(s, line.center.length)
+	var k := line.layout.branch_at(s, line.center.length)
+	if d == Vector2.INF or k < 0:
+		if k != _beside_branch:
+			_beside_branch = -1
+		return  # (on the ramps before / after the divider: keep the last lane until the branch ends)
+	_beside_branch = k
+	_beside_lane = 1 if float(me.lateral) > (d.x + d.y) * 0.5 else 0
 
 
 ## Speed limit for a stop: brake to a standstill at the service box, hold

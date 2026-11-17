@@ -788,13 +788,15 @@ static func results_text(standings: Array[RacerState], footer: String = "{confir
 
 ## Big animated banner ("GO!", "FINISH!"). Purely visual. Results waiting
 ## for it appear once it has faded.
-func flash_banner(text: String, color: Color = HyperTheme.GOLD, hold: float = BANNER_HOLD) -> void:
+## font_size > 0: a smaller banner for a longer message (two lines that must fit).
+func flash_banner(text: String, color: Color = HyperTheme.GOLD, hold: float = BANNER_HOLD, font_size: int = 0) -> void:
 	if _results_up and _message.visible:
 		return  # never over the results (e.g. a late finisher after the stuck-player net)
 	if _banner_tween != null and _banner_tween.is_valid():
 		_banner_tween.kill()
 	_banner.text = text
 	_banner.add_theme_color_override("font_color", color)
+	_banner.add_theme_font_size_override("font_size", font_size if font_size > 0 else 96)
 	_banner.modulate.a = 1.0
 	_banner.scale = Vector2(0.6, 0.6)
 	var tw := create_tween()
