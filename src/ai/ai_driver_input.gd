@@ -46,10 +46,11 @@ func drive(race: Node, step: float) -> Dictionary:
 			"position": race.session.position_of(id), "in_lane": pits.in_lane[id] == 1,
 			"in_bay": layout.bay_at(progress[id].distance, length, progress[id].lateral),
 			"served": pits.served[id] == 1}
-		me.pit["bay"] = _choose_bay(pits, layout, fposmod(progress[id].distance, length))
-		if not driver.wants_bay(me):
+		if driver.stopping() and me.pit.open and not me.pit.served:
+			me.pit["bay"] = _choose_bay(pits, layout, fposmod(progress[id].distance, length))
+		else:
 			pits.release_reservation(id)
-			me.pit["bay"] = -1
+			me.pit["bay"] = pits.bay_of(id)
 	return driver.decide(me, others, step)
 
 
@@ -60,8 +61,6 @@ func _choose_bay(pits: PitWorld, layout: TrackLayout, w: float) -> int:
 	var held := pits.bay_of(racer_id)
 	if held >= 0:
 		return held
-	if not driver.pitting:
-		return -1
 	var b: Dictionary = layout.branches[layout.pit_branch()]
 	var usable: Array[bool] = []
 	for k in pits.bay_count():

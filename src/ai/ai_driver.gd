@@ -792,6 +792,7 @@ func _choose_split(k: int, me: Dictionary, others: Array) -> int:
 func _plan_pit(me: Dictionary) -> void:
 	var pit: Dictionary = me.get("pit", {})
 	pitting = false
+	_gave_up = false
 	_override_wanted = false
 	if pit.is_empty() or not pit.get("open", false):
 		return
@@ -858,6 +859,11 @@ func wants_bay(me: Dictionary) -> bool:
 	return _pit_latched and pitting and not _gave_up and pit.get("open", false) and not pit.get("served", false)
 
 
+## Still heading for a stop (also just before the pit branch, when the bay is chosen).
+func stopping() -> bool:
+	return pitting and not _gave_up
+
+
 ## Speed limit for a stop: brake to a standstill in its service bay, hold there
 ## during service, then drive on. With every bay taken: wait short of the bays
 ## (personality: pit_patience) for one to come free, else give up the stop.
@@ -902,6 +908,11 @@ func _bay_aim(s: float, me: Dictionary) -> float:
 	var strip := line.layout.bay_strip(b, line.center.length)
 	var through := strip.x - float(b.lane) * 0.5 * signf(float(b.side))
 	var c := TrackLayout.bay_centre(b, bay)
-	var t := smoothstep(c - 240.0, c - 70.0, fposmod(s, line.center.length))
-	return lerpf(through, (strip.x + strip.y) * 0.5, t)
+	var w := fposmod(s, line.center.length)
+	var t := smoothstep(c - 240.0, c - 70.0, w)
+	var lateral := lerpf(through, (strip.x + strip.y) * 0.5, t)
+	# never aim past the wall: the apron only opens up around the bays
+	var sw := line.layout.side_widths_at(w, line.center.length)
+	var edge := (sw.y - 30.0) if int(b.side) > 0 else (-sw.x + 30.0)
+	return minf(lateral, edge) if int(b.side) > 0 else maxf(lateral, edge)
 
