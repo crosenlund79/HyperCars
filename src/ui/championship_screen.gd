@@ -26,6 +26,9 @@ var _reward_car: TextureRect
 var _continue: Button
 var _abandon: Button
 var _final := false
+## Racing for Keeps: what abandoning costs ("" = nothing); ABANDON asks twice.
+var warning := ""
+var _confirming := false
 var _hint: Label
 var _icons := {}
 
@@ -94,7 +97,7 @@ func setup(resolver: AssetResolver) -> void:
 	buttons.add_theme_constant_override("separation", 16)
 	_root.add_child(buttons)
 	_continue = _button("CONTINUE", func() -> void: _on_continue())
-	_abandon = _button("ABANDON", func() -> void: abandon_requested.emit())
+	_abandon = _button("ABANDON", _on_abandon)
 	buttons.add_child(_continue)
 	buttons.add_child(_abandon)
 	_hint = HyperTheme.label("", 16, HyperTheme.CREAM_DIM, 500)
@@ -142,7 +145,7 @@ func set_icons(icons: Dictionary) -> void:
 
 
 ## Standings after a round. reward: the final message ("" = none yet).
-## reward_car: the won car's picture (in the player's red), or null.
+## reward_car: the won (or lost) car's picture, or null.
 func show_standings(champ: Championship, reward: String = "", reward_car: Texture2D = null) -> void:
 	_final = champ.finished()
 	var done_rounds := champ.results.size()
@@ -180,6 +183,13 @@ func show_standings(champ: Championship, reward: String = "", reward_car: Textur
 		_continue.text = "START ROUND %d" % (done_rounds + 1)
 		_abandon.visible = true
 	_hint.text = "Fire / Enter / Esc: main menu" if _final else "Fire / Enter: next round      Esc: abandon the championship"
+	_confirming = false
+	_abandon.text = "ABANDON"
+	if not _final and warning != "":
+		_sub.text += "      %s" % warning
+		_sub.add_theme_color_override("font_color", Color("ff8a6a"))
+	else:
+		_sub.remove_theme_color_override("font_color")
 	visible = true
 	_continue.grab_focus()
 
@@ -188,6 +198,15 @@ func show_standings(champ: Championship, reward: String = "", reward_car: Textur
 static func round_text(r: Dictionary) -> String:
 	return "%s\n%s  -  %s  -  %d laps" % [DevLayouts.display_name(r.layout).to_upper(),
 		TrackTheme.load_variant(r.variant).display_name, "NIGHT" if r.night else "DAY", r.laps]
+
+
+func _on_abandon() -> void:
+	if warning != "" and not _confirming:
+		_confirming = true
+		_abandon.text = "CONFIRM FORFEIT"
+		_abandon.grab_focus()
+		return
+	abandon_requested.emit()
 
 
 func close() -> void:
@@ -212,7 +231,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		if _final:
 			done.emit()
 		else:
-			abandon_requested.emit()
+			_on_abandon()
 	elif event.is_action_pressed(PlayerControls.FIRE) and not (_continue.has_focus() or _abandon.has_focus()):
 		get_viewport().set_input_as_handled()
 		_on_continue()

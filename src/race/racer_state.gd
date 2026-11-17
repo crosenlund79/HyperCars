@@ -18,6 +18,10 @@ var lap_start := 0.0
 ## M6: out of the race at zero condition (did not finish). Classified after
 ## every car still running, once the race is over.
 var dnf := false
+## Knockout: the lap after which this racer was eliminated by position (0: not).
+var knockout_lap := 0
+## Shown instead of the time / DNF in the results (Battle Royale: "OUT 1:23").
+var result_note := ""
 ## Race clock when the car retired (-1 while running).
 var retire_time := -1.0
 

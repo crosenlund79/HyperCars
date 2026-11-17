@@ -195,6 +195,20 @@ func _classify_retired() -> void:
 	state = State.FINISHED
 
 
+## Knockout: the last racer standing wins now (finishes at the current time);
+## the eliminated and retired cars are then classified behind.
+func finish_now(racer_id: int) -> void:
+	var r := racers[racer_id]
+	if state == State.MODE_SELECT or r.is_done():
+		return
+	finish_order.append(racer_id)
+	r.finish_position = finish_order.size()
+	r.finish_time = elapsed
+	if (not spectator and human_ids.has(racer_id) and humans_finished()) or all_finished():
+		state = State.FINISHED
+	_classify_retired()
+
+
 ## Ends a race that cannot complete normally (spectator safety net): unfinished
 ## participants are classified in running order without a finish time.
 func classify_remaining() -> void:

@@ -15,6 +15,9 @@ const WALL := "track/wall"
 const START_LINE := "track/start_line"
 const HUD_PANEL := "ui/hud_panel"
 const STAR_GOLD := "ui/star_gold"
+## Kill feed / rankings: a permanent elimination, and a collision kill.
+const TOMBSTONE := "ui/tombstone"
+const CRASH := "ui/crash"
 const STAR_SILVER := "ui/star_silver"
 const STAR_BRONZE := "ui/star_bronze"
 const BUTTON := "ui/button"
@@ -111,6 +114,10 @@ const SPECS := {
 		"notes": "Start/finish strip, long axis across the road; stretched to road width."},
 	HUD_PANEL: {"template_size": Vector2i(96, 96), "patch_margin": 24,
 		"notes": "Nine-patch panel; 24 px corners are not stretched (scaled with the texture)."},
+	TOMBSTONE: {"template_size": Vector2i(48, 48), "display_size": Vector2(20, 20),
+		"notes": "Kill feed and rankings: a permanent elimination (DNF) caused by a driver; square, centred, transparent."},
+	CRASH: {"template_size": Vector2i(48, 48), "display_size": Vector2(20, 20),
+		"notes": "Kill feed: a car put out of the race by collisions (no weapon); square, centred, transparent."},
 	STAR_GOLD: {"template_size": Vector2i(48, 48), "display_size": Vector2(22, 22),
 		"notes": "1st place marker in the race history; square, centred, transparent background."},
 	STAR_SILVER: {"template_size": Vector2i(48, 48), "display_size": Vector2(22, 22),

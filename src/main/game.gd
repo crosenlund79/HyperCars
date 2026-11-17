@@ -43,6 +43,8 @@ var champ: Championship
 var champ_screen: ChampionshipScreen
 var _champ_choice := 0
 var last_reward := -1
+## Racing for Keeps: the won car lost in the last championship (0 none), for tests.
+var last_lost := 0
 var reward_rng := RandomNumberGenerator.new()
 
 
@@ -67,6 +69,8 @@ func _ready() -> void:
 	title.championship = ChampionshipSchedule.for_run(cars.championships_run)
 	add_child(title)
 	title.setup(resolver, settings)
+	if cars.forfeited_on_load > 0:  # the game was closed during a championship for keeps
+		title.show_notice(lost_text(cars.forfeited_on_load, true))
 	title.start_requested.connect(start_race)
 	title.two_player_requested.connect(func(devices: Array[int]) -> void: start_race(0, false, devices))
 	title.lan_host_requested.connect(func() -> void: host_lan())
@@ -74,6 +78,11 @@ func _ready() -> void:
 	title.lan_cancel_requested.connect(close_lan)
 	title.quit_requested.connect(quit_game)
 	title.championship_requested.connect(start_championship)
+	title.mode_requested.connect(func(mode: String, choice: int) -> void:
+		if mode == "battle":
+			start_battle(choice)
+		else:
+			start_race(choice, false, [], null, -1, "", false, {}, mode))
 	champ_screen = ChampionshipScreen.new()
 	champ_screen.name = "ChampionshipScreen"
 	add_child(champ_screen)
@@ -108,7 +117,7 @@ func _ready() -> void:
 ## net_night: the host's time of day (client). round: a championship round
 ## (Championship.next_round(); empty = not a championship race).
 func start_race(choice: int, with_garage: bool = false, devices: Array[int] = [], net: NetRace = null, net_track: int = -1,
-		net_layout: String = "", net_night: bool = false, round: Dictionary = {}) -> void:
+		net_layout: String = "", net_night: bool = false, round: Dictionary = {}, mode: String = "race") -> void:
 	if race != null or _starting:
 		return  # a race is already running or starting: never create a second one
 	_starting = true
@@ -125,8 +134,9 @@ func start_race(choice: int, with_garage: bool = false, devices: Array[int] = []
 		race.player_devices = devices
 	elif with_garage and choice != 2:
 		race.garage = garage
-	if not two:
+	if not two and mode == "race":  # (Knockout is not counted for achievements)
 		race.achievements = achievements
+	race.race_mode = mode
 	var client := net != null and net.is_client()
 	race.track_variant = net_track if client else title.track_variant
 	race.night = net_night if client else title.night
@@ -142,7 +152,12 @@ func start_race(choice: int, with_garage: bool = false, devices: Array[int] = []
 		race.layout_override = DevLayouts.load_layout(round.layout)
 		race.championship_round = champ.round_index()
 		race.championship_grid = champ.next_grid()
+		race.championship_points = champ.points.duplicate()
+		race.championship_scoring = champ.schedule.points
 		race.championship_label = "ROUND %d OF %d" % [champ.round_index() + 1, champ.schedule.round_count()]
+		if cars.stake > 0:
+			race.championship_label += "  -  FOR KEEPS: %s'S CAR" % RivalRoster.short_name(cars.stake).to_upper()
+			race.forfeit_warning = "Leaving forfeits the championship: %s takes the car back." % RivalRoster.short_name(cars.stake)
 	add_child(race)
 	race.garage_requested.connect(_open_garage)
 	race.camera.make_current()
@@ -151,6 +166,8 @@ func start_race(choice: int, with_garage: bool = false, devices: Array[int] = []
 		race.set_weapons_enabled(title.weapons_on)
 		race.set_combat_style(title.combat_style)
 		race.set_lap_count(title.laps if round.is_empty() else int(round.laps))
+		if mode == "knockout":
+			race.set_lap_count(race.cars.size() - 1)  # one elimination per lap until one is left
 	race.exit_requested.connect(back_to_title)
 	if not round.is_empty():
 		race.championship_round_done.connect(_on_round_done)
@@ -176,6 +193,7 @@ func back_to_title() -> void:
 	await _fade_to(1.0)
 	garage_screen.close()
 	champ_screen.close()
+	_forfeit_championship()
 	champ = null  # leaving a championship round abandons the championship
 	close_lan()
 	if race != null:
@@ -183,6 +201,39 @@ func back_to_title() -> void:
 		race = null
 	title.show_title()
 	await _fade_to(0.0)
+
+
+# -------------------------------------------------------------- Battle Royale
+
+## GO RACING! > BATTLE ROYALE: the arena with the title's biome, time and car.
+func start_battle(choice: int) -> void:
+	if race != null or _starting:
+		return
+	_starting = true
+	await _fade_to(1.0)
+	title.hide_title()
+	var b := BattleRoyale.new()
+	b.name = "BattleRoyale"
+	b.track_variant = title.track_variant
+	b.night = title.night
+	b.player_car = title.player_car if cars.owns(title.player_car) else CarCollection.OWN_CAR
+	b.displaced = cars.owned.duplicate()
+	b.base_seed = reward_rng.randi()
+	race = b
+	add_child(b)
+	if choice == 1:
+		b.cars[0].model.control_mode = CarModel.ControlMode.FIRE_TO_BRAKE
+	b.exit_requested.connect(back_to_title)
+	b.restart_requested.connect(func() -> void: _restart_battle(choice))
+	_starting = false
+	await _fade_to(0.0)
+
+
+func _restart_battle(choice: int) -> void:
+	if race != null:
+		race.queue_free()
+		race = null
+	start_battle(choice)
 
 
 # ---------------------------------------------------------------- Championship
@@ -194,6 +245,8 @@ func start_championship(choice: int) -> void:
 	champ = Championship.new(title.championship)
 	_champ_choice = choice
 	last_reward = -1
+	last_lost = 0
+	cars.put_at_stake(title.player_car)  # Racing for Keeps (the own car is never at stake)
 	cars.count_championship()
 	title.championship = ChampionshipSchedule.for_run(cars.championships_run)  # the one after this
 	start_race(choice, false, [], null, -1, "", false, champ.next_round())
@@ -213,13 +266,21 @@ func _on_round_done(order: Array, dnf: Array) -> void:
 	var reward_car: Texture2D = null
 	if champ.finished():
 		if champ.champion() == Championship.PLAYER:
+			cars.clear_stake()  # the car entered with stays
 			last_reward = cars.unlock_random(reward_rng)
 			reward = reward_text(last_reward, cars.all_owned())
 			if last_reward > 0:
-				reward_car = CarPaint.repaint(CarArt.icon(resolver, AssetCatalog.ai_car(last_reward)))
+				reward_car = CarArt.icon(resolver, AssetCatalog.ai_car(last_reward))
+		elif cars.stake > 0:
+			last_lost = cars.stake
+			cars.lose(last_lost)
+			reward = lost_text(last_lost)
+			reward_car = CarArt.icon(resolver, AssetCatalog.ai_car(last_lost))
 		else:
 			reward = "Win the championship to take one of your rivals' cars."
 		title.refresh_car_choice()
+	champ_screen.warning = "FOR KEEPS: abandoning gives %s's car back." % RivalRoster.short_name(cars.stake) \
+		if cars.stake > 0 and not champ.finished() else ""
 	champ_screen.show_standings(champ, reward, reward_car)
 	await _fade_to(0.0)
 
@@ -228,17 +289,23 @@ func _on_round_done(order: Array, dnf: Array) -> void:
 static func reward_text(rival: int, all_owned: bool) -> String:
 	if rival < 1:
 		return "CHAMPIONSHIP WON!\nYou already own all nine rival cars - the collection is complete."
-	var text := "CHAMPIONSHIP WON - YOU UNLOCKED %s!\n%s's car is yours, in your red. %s races a junker from now on." % [
+	var text := "CHAMPIONSHIP WON - YOU UNLOCKED %s!\n%s's car is yours, in its original colours. %s races a junker from now on." % [
 		RivalRoster.nickname(rival).to_upper(), RivalRoster.short_name(rival), RivalRoster.short_name(rival)]
 	if all_owned:
 		text += "\nALL NINE RIVAL CARS COLLECTED!"
 	return text
 
 
+## Racing for Keeps: the result when the car at stake goes back.
+static func lost_text(rival: int, forfeit: bool = false) -> String:
+	return "%s\n%s RECLAIMS THE CAR!\nWin it back in a later championship." % [
+		"CHAMPIONSHIP FORFEITED" if forfeit else "CHAMPIONSHIP LOST", RivalRoster.short_name(rival).to_upper()]
+
+
 ## Car pictures for the standings, as the cars race (junkers, the player's car).
 func car_icons(player_car: int) -> Dictionary:
 	var icons := {}
-	icons[RaceSession.PLAYER_ID] = CarPaint.repaint(CarArt.icon(resolver, AssetCatalog.ai_car(player_car))) \
+	icons[RaceSession.PLAYER_ID] = CarArt.icon(resolver, AssetCatalog.ai_car(player_car)) \
 		if player_car > 0 else CarArt.icon(resolver, AssetCatalog.CAR_PLAYER)
 	for id in range(1, 10):
 		icons[id] = CarArt.icon(resolver, AssetCatalog.CAR_JUNKER if cars.displaced(id) else AssetCatalog.ai_car(id))
@@ -253,10 +320,24 @@ func _next_round() -> void:
 
 
 ## Abandon (or, after the final, finish) the championship: back to the menu.
+## Abandoning an unfinished championship for keeps forfeits the car at stake
+## (the screens ask for confirmation first).
 func abandon_championship() -> void:
 	if race != null:
 		return
 	back_to_title()
+
+
+## Leaving an unfinished championship: a car at stake goes back to its rival.
+func _forfeit_championship() -> void:
+	if champ == null or champ.finished():
+		return
+	if cars.stake > 0:
+		last_lost = cars.stake
+		cars.lose(last_lost)
+		title.refresh_car_choice()
+		title.show_notice(lost_text(last_lost, true))
+	cars.clear_stake()
 
 
 # ---------------------------------------------------------------- LAN (M5.1)

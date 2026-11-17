@@ -116,6 +116,25 @@ var weapons_enabled := false
 ## Pre-race option: Classic / Tactical combat. Kept across races.
 var combat_style: WeaponRules.Style = WeaponRules.Style.CLASSIC
 var combat_view: CombatView
+## Race kind: "race" (normal) or "knockout" (last place out at every lap
+## the leader completes; the last car standing wins). Set before _ready.
+@export var race_mode := "race"
+var _ko_lap := 0
+## Finished, the rivals still racing (single local player): a short
+## celebration, then live spectating of the rest of the race; the results come
+## when everyone is in. watch_enabled = false keeps the old behaviour (tests).
+const CELEBRATION_TIME := 5.0
+const SKIP_SPEED := 8
+var watch_enabled := true
+var watching := false
+var _celebrate_left := -1.0
+var _watch_started := false
+var _skipping := false
+## Kills / deaths / tombstones and the kill feed's entries (this race).
+var stats: CombatStats
+## Client: combat events and retirements already turned into statistics.
+var _stats_event_index := 0
+var _stats_dnf := PackedByteArray()
 ## P2: the images each car is drawn with (index = racer id), see CarArt.look.
 var _car_looks: Array[Dictionary] = []
 ## P2: shared wheel positions and motion (presentation only).
@@ -146,6 +165,8 @@ var damage_view: DamageView = null
 var voice: VoiceDirector = null
 ## Rival taunt card when a rival destroys a local player's car (presentation).
 var defeat_popup: DefeatPopup = null
+## CS-style kill feed (top right).
+var kill_feed: KillFeed = null
 var voice_enabled := true
 var voice_params: VoiceParams = preload("res://src/audio/default_voice_params.tres")
 ## Barrier / car contacts reported by the cars during their physics step,
@@ -176,7 +197,7 @@ var _race_open := false
 var night := false
 ## Championship rewards (single-player and spectating; never in couch or
 ## network races): the rival car the player drives (0 = the player's own car,
-## n = rival n's car repainted red) and the rivals whose cars the player has
+## n = rival n's car in its own colours) and the rivals whose cars the player has
 ## won - they race in the shared junker body, with their identity unchanged.
 var player_car := 0
 ## Championship round (0-based) this race scene runs, -1 outside a championship;
@@ -184,12 +205,15 @@ var player_car := 0
 var championship_round := -1
 var championship_grid: Array[int] = []
 var championship_label := ""
+## Championship points before this round and the points per position (for
+## the provisional standings while watching); empty outside a championship.
+var championship_points := {}
+var championship_scoring := PackedInt32Array()
+var provisional_panel: ProvisionalPanel
+## Racing for Keeps: what leaving costs (the race menu asks twice), "" = nothing.
+var forfeit_warning := ""
 var _round_reported := false
 var displaced: Array[int] = []
-## Slight per-rival tints for the junker (index = racer id).
-const JUNKER_TINTS: Array[Color] = [Color(1, 1, 1), Color(1, 0.92, 0.9), Color(0.92, 0.95, 1),
-	Color(0.96, 1, 0.9), Color(1, 0.97, 0.86), Color(0.94, 0.9, 1), Color(1, 0.9, 0.96),
-	Color(0.9, 1, 0.98), Color(1, 0.95, 0.92), Color(0.9, 0.94, 0.94)]
 ## M4 two-player races: number of humans (1 or 2), set before the scene starts.
 ## With 2, Player 2 is racer 10, the field stays 10 cars (2 humans + 8 rivals,
 ## one rival sitting out per race in a fixed rotation), and the garage and
@@ -246,6 +270,8 @@ func _ready() -> void:
 	hud_track_name = "%s  -  %s" % [track_theme.display_name, DevLayouts.display_name(DevLayouts.id_of(layout_override))]
 	if night:
 		hud_track_name += "  -  NIGHT"
+	if race_mode == "knockout":
+		hud_track_name = "KNOCKOUT  -  " + hud_track_name
 	if championship_label != "":
 		hud_track_name = "%s  -  %s" % [championship_label, hud_track_name]
 	track.checkpoint_reached.connect(_on_checkpoint_reached)
@@ -268,6 +294,7 @@ func _ready() -> void:
 	race_menu.setup(HyperTheme.build(resolver))
 	if championship_round >= 0:
 		race_menu.set_leave_text("ABANDON CHAMPIONSHIP")
+		race_menu.warning = forfeit_warning
 	race_menu.resume_requested.connect(resume_race)
 	race_menu.leave_requested.connect(leave_race)
 	hud.follow_requested.connect(follow_driver)
@@ -305,7 +332,7 @@ func _ready() -> void:
 		_car_looks.append(CarArt.look(resolver, _rival_car(i)))
 		ai_car.setup(driving_params, CarModel.ControlMode.FIRE_TO_ACCELERATE, _car_looks[i].body)
 		if _rival_car(i) == AssetCatalog.CAR_JUNKER:
-			ai_car.sprite.modulate = JUNKER_TINTS[i % JUNKER_TINTS.size()]
+			ai_car.sprite.modulate = CarArt.JUNKER_TINTS[i % CarArt.JUNKER_TINTS.size()]
 		cars.append(ai_car)
 		var params: AiParams = load(RivalRoster.params_path(i)) if RivalRoster.has_personality(i) else ai_params
 		drivers.append(AiDriver.new(racing_line, params))
@@ -341,6 +368,7 @@ func _ready() -> void:
 			jump_rules = track.layout.jump_rules  # tuned for this circuit's jump
 		jumps = JumpWorld.new(track.layout, jump_rules, track.path, cars.size())
 	combat = CombatWorld.new(weapon_rules, cars.size(), track.path, track.layout.road_width * 0.5)
+	stats = CombatStats.new(cars.size())
 	if track.layout.has_elevation() or track.layout.has_jumps():
 		combat.layout = track.layout
 	history = RaceHistory.new(rival_ids)
@@ -351,6 +379,7 @@ func _ready() -> void:
 		car_textures[RaceSession.PLAYER_2_ID] = CarArt.icon(resolver, AssetCatalog.CAR_PLAYER_2)
 		full_names[RaceSession.PLAYER_2_ID] = "PLAYER 2"
 	hud.set_field(car_textures, full_names)
+	hud.stats = stats
 	if presentation_enabled:
 		effects = RaceEffects.new()
 		effects.name = "Effects"
@@ -381,6 +410,10 @@ func _ready() -> void:
 		defeat_popup.name = "DefeatPopup"
 		add_child(defeat_popup)
 		defeat_popup.setup(self, resolver, car_textures)
+		kill_feed = KillFeed.new()
+		kill_feed.name = "KillFeed"
+		add_child(kill_feed)
+		kill_feed.setup(stats, resolver, feed_names(), feed_colors())
 		damage_view = DamageView.new()
 		damage_view.name = "DamageView"
 		add_child(damage_view)
@@ -533,6 +566,29 @@ static func first_grid(field_size: int, player_slot: int) -> Array[int]:
 ## Simulation throughput multiplier. Every physics tick still advances the race by
 ## exactly Car.FIXED_STEP with the same AI inputs and collision calculations; fast
 ## mode only runs more ticks per real second.
+## Short names for the kill feed (the humans: YOU, or P1 / P2).
+func feed_names() -> Dictionary:
+	var names := {}
+	for c in cars:
+		names[c.racer_id] = RivalRoster.short_name(c.racer_id) if c.racer_id >= 1 and c.racer_id <= 9 else ""
+	var two := is_two_player()
+	names[RaceSession.PLAYER_ID] = "P1" if two else "YOU"
+	if two:
+		names[RaceSession.PLAYER_2_ID] = "P2"
+	if net != null:
+		names[local_player_id] = "YOU"
+	return names
+
+
+func feed_colors() -> Dictionary:
+	var colors := {}
+	for k in session.human_ids.size():
+		colors[session.human_ids[k]] = HyperTheme.player_color(k)
+	if net != null:
+		colors[local_player_id] = HyperTheme.GOLD
+	return colors
+
+
 ## Championship rewards apply to single-player races and spectating only.
 func _rewards_apply() -> bool:
 	return human_count == 1 and net == null
@@ -545,19 +601,17 @@ func _rival_car(id: int) -> String:
 	return AssetCatalog.ai_car(id)
 
 
-## The player's car look: their own red car, or a won rival car repainted red.
+## The player's car look: their own red car, or a won rival car as the rival raced it.
 func _player_look() -> Dictionary:
 	if not _rewards_apply() or player_car <= 0:
 		return CarArt.look(resolver, AssetCatalog.CAR_PLAYER)
-	var look := CarArt.look(resolver, AssetCatalog.ai_car(player_car))
-	look.body = CarPaint.repaint(look.body)
-	return look
+	return CarArt.look(resolver, AssetCatalog.ai_car(player_car))
 
 
 func _player_icon() -> Texture2D:
 	if not _rewards_apply() or player_car <= 0:
 		return CarArt.icon(resolver, AssetCatalog.CAR_PLAYER)
-	return CarPaint.repaint(CarArt.icon(resolver, AssetCatalog.ai_car(player_car)))
+	return CarArt.icon(resolver, AssetCatalog.ai_car(player_car))
 
 
 func set_sim_speed(multiplier: int) -> void:
@@ -625,6 +679,12 @@ func reset_race() -> void:
 	if garage != null and garage.race_pending():
 		garage.abandon_race()
 	_garage_settled = false
+	stats.reset()
+	_ko_lap = 0
+	_end_watch()
+	_watch_started = false
+	_stats_event_index = 0
+	_stats_dnf.clear()
 	session.reset()
 	if is_two_player():
 		session.set_sitting_out([sitting_out_rival(multiplayer_round)] as Array[int])
@@ -809,7 +869,25 @@ func _client_physics(step: float) -> void:
 			exit_requested.emit()
 	net.client_tick(step)
 	damage.step(step)  # presentation timers only: condition comes from the host
+	_client_stats()
 	_update_camera_target(step)
+
+
+## Client: statistics from the host's combat events and retirements (the
+## host's collision attribution is not sent: such retirements show unattributed).
+func _client_stats() -> void:
+	if _stats_event_index > combat.events.size():
+		_stats_event_index = 0
+	for k in range(_stats_event_index, combat.events.size()):
+		var e: Dictionary = combat.events[k]
+		if e.kind == "destroyed":
+			stats.on_destroyed(e.car, e.owner, e.type, session.elapsed)
+	_stats_event_index = combat.events.size()
+	_stats_dnf.resize(cars.size())
+	for id in cars.size():
+		if session.racers[id].dnf and _stats_dnf[id] == 0:
+			_stats_dnf[id] = 1
+			stats.on_retired(id, session.elapsed, true)
 
 
 ## Reports the race result once it is final (see race_concluded). Only a race
@@ -904,6 +982,7 @@ func _physics_process(_delta: float) -> void:
 		_client_physics(step)
 		return
 	_settle_garage()
+	_watch_tick(step)
 	match session.state:
 		RaceSession.State.MODE_SELECT:
 			if garage_open:
@@ -930,7 +1009,11 @@ func _physics_process(_delta: float) -> void:
 				exit_requested.emit()
 			return
 		RaceSession.State.FINISHED:
-			if not session.spectator:
+			if _watch_active():
+				_watch_input()  # the rest of the race goes on below
+			elif not session.spectator:
+				if watching or _celebrate_left >= 0.0:
+					_end_watch()  # everyone is in: the results
 				var skip_garage := garage != null and _menu_pressed(PlayerControls.HISTORY_VIEW)
 				if championship_round >= 0:
 					if _menu_pressed(PlayerControls.FIRE) and not _round_reported:
@@ -964,6 +1047,8 @@ func _physics_process(_delta: float) -> void:
 		_combat_tick(step)
 		_update_wreck_passes(step)
 	session.tick(step)
+	if race_mode == "knockout":
+		_knockout_tick()
 	if is_two_player():
 		_human_safety(step)
 	_settle_garage()
@@ -1230,14 +1315,184 @@ func _follow_last_starter() -> void:
 
 ## Spectator: follow this driver (clicked in the standings). Presentation only.
 func follow_driver(id: int) -> void:
-	if session.spectator and session.is_participating(id) and grid_order.has(id):
+	if (session.spectator or watching) and session.is_participating(id) and grid_order.has(id):
 		director.follow(id)
 
 
-## Spectator: previous (-1) / next (+1) driver in this race's starting-grid order.
+## Spectator: previous (-1) / next (+1) driver in this race's starting-grid order
+## (watching after the finish: the next car still racing).
 func follow_step(direction: int) -> void:
 	if session.spectator:
 		follow_driver(SpectatorDirector.grid_neighbour(spectator_start_grid, director.target_id, direction))
+	elif watching:
+		var id := director.target_id
+		for k in grid_order.size():
+			id = SpectatorDirector.grid_neighbour(grid_order, id, direction)
+			if id >= 0 and not session.racers[id].is_done() and not session.human_ids.has(id):
+				follow_driver(id)
+				return
+
+
+# ------------------------------------------------- finished: watch the rest
+
+func _watch_applies() -> bool:
+	return watch_enabled and not session.spectator and human_count == 1 and net == null
+
+
+## The local player is done (finished or out) and rivals are still racing.
+func _watch_active() -> bool:
+	return _watch_started and not session.all_finished()
+
+
+## Celebration countdown, live spectating, the end of the watch; a stuck
+## field is classified as in spectator races (never invented positions).
+func _watch_tick(step: float) -> void:
+	if not _watch_applies() or session.state != RaceSession.State.FINISHED:
+		return
+	if not _watch_started:
+		if session.all_finished():
+			return  # everyone in already: straight to the results
+		_watch_started = true
+		_celebrate_left = CELEBRATION_TIME
+		_best_progress = -INF
+		_stuck_time = 0.0
+		var me := session.racers[local_player_id]
+		if me.dnf:
+			hud.show_caption(out_caption(), "RACE CONTINUES - WATCH YOUR RIVALS!", HyperTheme.RED)
+		else:
+			hud.show_caption("%s PLACE - YOU FINISHED!" % Hud.ordinal(me.finish_position).to_upper(),
+				"RACE CONTINUES - WATCH YOUR RIVALS!")
+		hud.set_watch_hint("Fire: watch now      Tab: skip to the results")
+	if session.all_finished():
+		_end_watch()
+		return
+	if _celebrate_left > 0.0:
+		_celebrate_left -= step / maxf(1.0, sim_speed)  # real seconds, also when skipping
+		if _celebrate_left <= 0.0:
+			_begin_watching()
+	# the same stuck net as spectator races: a field with no progress for a minute is classified
+	var furthest := -INF
+	for r in session.participants():
+		if not r.is_done():
+			furthest = maxf(furthest, r.progress + r.tracker.laps_completed * 100000.0)
+	if furthest > _best_progress + 1.0:
+		_best_progress = furthest
+		_stuck_time = 0.0
+	else:
+		_stuck_time += step
+	if _stuck_time > STUCK_RACE_TIMEOUT:
+		session.classify_remaining()
+
+
+## The caption when the local player is out.
+func out_caption() -> String:
+	if race_mode == "knockout" and session.racers[local_player_id].knockout_lap > 0:
+		return "ELIMINATED AFTER LAP %d!" % session.racers[local_player_id].knockout_lap
+	return "OUT - DNF!"
+
+
+# ------------------------------------------------------------------ Knockout
+
+## Racers still in a Knockout race (not finished, eliminated or retired).
+func knockout_remaining() -> Array[int]:
+	var out: Array[int] = []
+	for r in session.standings():
+		if not r.is_done():
+			out.append(r.id)
+	return out
+
+
+## Each time the leader completes a lap, the last-placed racer still in is
+## eliminated (live standings: laps and checkpoints); combat retirements just
+## leave earlier. The last one standing wins at once.
+func _knockout_tick() -> void:
+	if session.state == RaceSession.State.MODE_SELECT:
+		return
+	var leader_laps := 0
+	for r in session.participants():
+		leader_laps = maxi(leader_laps, r.tracker.laps_completed)
+	while _ko_lap < leader_laps:
+		_ko_lap += 1
+		var left := knockout_remaining()
+		if left.size() >= 2:
+			var out: int = left[-1]
+			session.racers[out].knockout_lap = _ko_lap
+			_retire(out, false, true)
+			if hud != null and (not session.human_ids.has(out) or not _watch_applies()):
+				hud.flash_banner("%s OUT!" % ("YOU ARE" if session.human_ids.has(out) and not is_two_player()
+					else session.racers[out].display_name.to_upper()), HyperTheme.RED, 1.2)
+	var left := knockout_remaining()
+	if left.size() == 1 and not session.all_finished():
+		session.finish_now(left[0])
+
+
+## The Knockout line on the HUD ("" outside Knockout).
+func knockout_text() -> String:
+	if race_mode != "knockout" or session.state == RaceSession.State.MODE_SELECT:
+		return ""
+	var left := knockout_remaining().size()
+	if session.all_finished() or left <= 1:
+		return "KNOCKOUT  -  WINNER: %s" % (session.standings()[0].display_name.to_upper())
+	return "KNOCKOUT  -  %d LEFT  -  LAST PLACE OUT AT THE END OF LAP %d" % [left, _ko_lap + 1]
+
+
+## The provisional championship standings, while watching a championship round.
+func _refresh_watch_panel() -> void:
+	var show := watching and championship_round >= 0 and not championship_scoring.is_empty()
+	if not show:
+		if provisional_panel != null:
+			provisional_panel.visible = false
+		return
+	if provisional_panel == null:
+		provisional_panel = ProvisionalPanel.new()
+		provisional_panel.setup(HyperTheme.build(resolver))
+		hud.add_child(provisional_panel)
+	provisional_panel.refresh(championship_points, championship_scoring, session.standings(), feed_names(), local_player_id)
+	provisional_panel.visible = true
+	provisional_panel.reset_size()
+	provisional_panel.position = Vector2(1280.0 - provisional_panel.get_combined_minimum_size().x - 14.0, 230.0)
+
+
+func _watch_input() -> void:
+	if _menu_pressed(PlayerControls.HISTORY_VIEW) and not _skipping:
+		_skipping = true  # fast-forward the real race (nothing is invented)
+		if not watching:
+			_begin_watching()
+		set_sim_speed(SKIP_SPEED)
+		hud.set_watch_hint("Skipping to the results...")
+		return
+	if not watching:
+		if _menu_pressed(PlayerControls.FIRE):
+			_begin_watching()
+		return
+	if _menu_pressed(PlayerControls.STEER_LEFT):
+		follow_step(-1)
+	elif _menu_pressed(PlayerControls.STEER_RIGHT):
+		follow_step(1)
+
+
+func _begin_watching() -> void:
+	if watching:
+		return
+	watching = true
+	_celebrate_left = 0.0
+	director.locked = false
+	hud.hide_caption()
+	if not _skipping:
+		hud.set_watch_hint("WATCHING THE RACE      Left / Right: switch car      Tab: skip to the results")
+	_update_camera_target()
+
+
+func _end_watch() -> void:
+	if _skipping:
+		set_sim_speed(1)
+	_skipping = false
+	watching = false
+	_celebrate_left = -1.0
+	if hud != null:
+		hud.hide_caption()
+		hud.set_watch_hint("")
+	director.locked = false
 
 
 func _update_camera_target(step: float = 0.0) -> void:
@@ -1245,14 +1500,16 @@ func _update_camera_target(step: float = 0.0) -> void:
 		camera.target = _park
 		camera.position_smoothing_enabled = false
 		return
-	if not session.spectator:
+	if not session.spectator and not watching:
 		camera.target = cars[local_player_id]
 		camera.position_smoothing_enabled = false
 		camera.zoom = Vector2.ONE
 		return
 	var view: Array = []
 	for r in session.participants():
-		view.append({"id": r.id, "progress": r.progress, "finished": r.is_finished()})
+		view.append({"id": r.id, "progress": r.progress, "finished": r.is_done() if watching else r.is_finished()})
+	if watching and director.locked and director.target_id >= 0 and session.racers[director.target_id].is_done():
+		director.locked = false  # the followed car is in (or out): back to the closest battle
 	var id := director.update(view, step)
 	if id > 0:
 		camera.target = cars[id]
@@ -1292,6 +1549,12 @@ func _present_finishers() -> void:
 			continue  # classified at the end, not a finish
 		var human := session.human_ids.has(id) and not session.spectator
 		var celebrate := human or (session.spectator and k == 0)
+		if human and _watch_applies() and not session.all_finished():
+			celebrate = false  # the finish caption says it (and that the race goes on)
+			if effects != null:
+				effects.celebrate(track.checkpoint_transform(0).origin)
+			if race_audio != null:
+				race_audio.play_cue("race/finish")
 		if celebrate:
 			var text := "FINISH!"
 			if session.spectator:
@@ -1317,13 +1580,16 @@ func _present_retirements() -> void:
 	for id in session.human_ids:
 		if session.racers[id].dnf and not _seen_dnf.has(id):
 			_seen_dnf.append(id)
+			if _watch_applies() and not session.all_finished():
+				continue  # the out caption says it
 			hud.flash_banner("%s OUT!" % session.racers[id].display_name if is_two_player() else "OUT - DNF!", HyperTheme.RED)
 
 
 func _refresh_hud() -> void:
 	if network_lost:
 		return
-	hud.set_follow(session.spectator, director.target_id)
+	hud.set_follow(session.spectator or watching, director.target_id)
+	hud.set_mode_line(knockout_text())
 	hud.update_tower(session.standings())
 	if session.spectator:
 		var leader := session.standings()[0] if session.racer_count() > 0 else null
@@ -1353,7 +1619,8 @@ func _refresh_hud() -> void:
 		_cooldown_fraction(CombatWorld.FRONT, me), _cooldown_fraction(CombatWorld.REAR, me))
 	_refresh_condition(hud, me)
 	hud.set_weapons_locked(combat.enabled and combat.locked and session.state != RaceSession.State.FINISHED)
-	if session.state == RaceSession.State.FINISHED:
+	_refresh_watch_panel()
+	if session.state == RaceSession.State.FINISHED and not _watch_active():
 		if net != null:
 			hud.show_results(session.standings(), "Fire: next race" if net.is_host() else "Waiting for the host to continue")
 		elif championship_round >= 0:
@@ -1411,6 +1678,8 @@ func _takes_damage(id: int) -> bool:
 ## retired cars' timers (a retired wreck leaves the road after a while).
 func _apply_impacts(step: float) -> void:
 	damage.step(step)
+	if session.state == RaceSession.State.FINISHED and session.all_finished():
+		_impacts.clear()  # everyone is in: the race is over, bumps after it change nothing
 	for imp in _impacts:
 		var id: int = imp[0]
 		var other: int = imp[1]
@@ -1418,7 +1687,13 @@ func _apply_impacts(step: float) -> void:
 			if _takes_damage(id) and damage.wall_impact(id, imp[2]):
 				_retire(id)
 		else:
-			for out in damage.car_impact(id, other, imp[2], _takes_damage(id), _takes_damage(other)):
+			var before := [damage.condition[id], damage.condition[other]]
+			var outs := damage.car_impact(id, other, imp[2], _takes_damage(id), _takes_damage(other))
+			if damage.condition[id] < before[0]:
+				stats.on_contact(id, other, session.elapsed)
+			if damage.condition[other] < before[1]:
+				stats.on_contact(other, id, session.elapsed)
+			for out in outs:
 				_retire(out)
 	_impacts.clear()
 	for id in grid_order:
@@ -1428,7 +1703,11 @@ func _apply_impacts(step: float) -> void:
 
 ## Zero condition: the car is out of the race (DNF). It stops where it is, no
 ## longer collides or takes part in combat, and leaves the road shortly after.
-func _retire(id: int) -> void:
+func _retire(id: int, by_weapon := false, eliminated := false) -> void:
+	if eliminated:
+		stats.on_eliminated(id, session.elapsed)  # by position: no statistics
+	else:
+		stats.on_retired(id, session.elapsed, by_weapon)
 	var c := cars[id]
 	c.active = false
 	c.model.velocity = Vector2.ZERO
@@ -1480,8 +1759,11 @@ func _combat_tick(step: float) -> void:
 	var result := combat.step(step, states)
 	for k in range(first_event, combat.events.size()):  # M6: a destruction also wears the car down
 		var e: Dictionary = combat.events[k]
-		if e.kind == "destroyed" and _takes_damage(e.car) and damage.weapon_hit(e.car, e.type):
-			_retire(e.car)
+		if e.kind != "destroyed":
+			continue
+		stats.on_destroyed(e.car, e.owner, e.type, session.elapsed)
+		if _takes_damage(e.car) and damage.weapon_hit(e.car, e.type):
+			_retire(e.car, true)
 	for k in range(first_event, combat.events.size()):  # Micro Nemesis: who did it
 		var ev: Dictionary = combat.events[k]
 		if ev.kind == "destroyed":

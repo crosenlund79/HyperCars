@@ -13,6 +13,10 @@ var _note: Label
 var _resume: Button
 var _leave: Button
 var _opened_frame := -1
+## Racing for Keeps: leaving costs a car, so the first press only warns.
+var warning := ""
+var _confirming := false
+var _leave_text := "LEAVE RACE"
 
 
 func setup(theme: Theme) -> void:
@@ -36,7 +40,7 @@ func setup(theme: Theme) -> void:
 	_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(_note)
 	_resume = _button("RESUME RACE", func() -> void: resume_requested.emit())
-	_leave = _button("LEAVE RACE", func() -> void: leave_requested.emit())
+	_leave = _button("LEAVE RACE", _on_leave)
 	box.add_child(_resume)
 	box.add_child(_leave)
 	var hint := HyperTheme.label("Up / Down: choose    Enter / Space / A: select    Esc: resume", 15, HyperTheme.CREAM_DIM, 500)
@@ -56,6 +60,9 @@ func _button(text: String, action: Callable) -> Button:
 
 ## network: the race goes on for the other player while the menu is open.
 func open(network: bool) -> void:
+	_confirming = false
+	_leave.text = _leave_text
+	_note.remove_theme_color_override("font_color")
 	_title.text = "RACE MENU" if network else "RACE PAUSED"
 	_note.text = "The race goes on for the other player: your car brakes." if network else "The race is paused."
 	visible = true
@@ -67,7 +74,20 @@ func open(network: bool) -> void:
 
 ## The leave button's label (a championship round abandons the championship).
 func set_leave_text(text: String) -> void:
+	_leave_text = text
 	_leave.text = text
+
+
+func _on_leave() -> void:
+	if warning != "" and not _confirming:
+		_confirming = true
+		_note.text = warning
+		_note.add_theme_color_override("font_color", Color("ff8a6a"))
+		_leave.text = "CONFIRM: FORFEIT"
+		_panel.reset_size()
+		_panel.position = (Vector2(1280, 720) - _panel.get_combined_minimum_size()) * 0.5
+		return
+	leave_requested.emit()
 
 
 func close() -> void:

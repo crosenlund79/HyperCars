@@ -48,7 +48,9 @@ func setup(track: Track, cars: Array[Car], combat: CombatWorld, resolver: AssetR
 	_ambient.color = ambient
 	add_child(_ambient)
 	var radial := _radial_texture(256)
-	_place_lamps(track, resolver, radial)
+	_light_texture = radial
+	if track != null:  # (the Battle Royale arena places its own lamps: add_lamp)
+		_place_lamps(track, resolver, radial)
 	var car_tex := _car_light_texture()
 	for c in cars:
 		var l := PointLight2D.new()
@@ -144,22 +146,34 @@ func _place_lamps(track: Track, resolver: AssetResolver, tex: Texture2D) -> void
 		var pos := c[i] + outside * (half + 34.0)
 		if track.layout.has_elevation() and not _clear_of_roads(pos, c, half + 20.0):
 			continue  # J2: never on the other road of a crossing layout
-		var spr := Sprite2D.new()
-		spr.texture = lamp_tex
-		spr.scale = AssetCatalog.scale_for(lamp_tex, AssetCatalog.SPECS[AssetCatalog.LAMP_POST].display_size)
-		spr.position = pos
-		spr.rotation = (-outside).angle() + PI * 0.5
-		spr.z_index = 2
-		add_child(spr)
-		_lamp_sprites.append(spr)
-		var l := PointLight2D.new()
-		l.texture = tex
-		l.color = lamp_color
-		l.energy = lamp_energy
-		l.texture_scale = 2.2
-		l.position = pos - outside * 40.0
-		add_child(l)
-		_lamps.append(l)
+		add_lamp(pos, outside, lamp_tex, tex)
+
+
+var _light_texture: Texture2D
+
+
+## One lamp post at pos, its light thrown towards -outside (the arena uses this).
+func add_lamp(pos: Vector2, outside: Vector2, lamp_tex: Texture2D, tex: Texture2D = null) -> void:
+	if tex == null:
+		tex = _light_texture
+	var spr := Sprite2D.new()
+	spr.texture = lamp_tex
+	spr.scale = AssetCatalog.scale_for(lamp_tex, AssetCatalog.SPECS[AssetCatalog.LAMP_POST].display_size)
+	spr.position = pos
+	spr.rotation = (-outside).angle() + PI * 0.5
+	spr.z_index = 2
+	add_child(spr)
+	_lamp_sprites.append(spr)
+	var l := PointLight2D.new()
+	l.texture = tex
+	l.color = lamp_color
+	l.energy = lamp_energy
+	l.texture_scale = 2.2
+	l.position = pos - outside * 40.0
+	l.enabled = enabled
+	spr.visible = enabled
+	add_child(l)
+	_lamps.append(l)
 
 
 static func _clear_of_roads(pos: Vector2, c: PackedVector2Array, min_distance: float) -> bool:

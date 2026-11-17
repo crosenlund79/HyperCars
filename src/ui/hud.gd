@@ -43,6 +43,12 @@ var _cond_shown := 1.0
 var _lock_label: Label
 var _weapon_textures: Dictionary = {}
 var _tower: VBoxContainer
+## Combat statistics for the TOMBSTONE | K | D columns (null: no columns).
+var stats: CombatStats
+## The results heading ("" = "RESULTS - n LAPS").
+var results_title := ""
+var _tomb_texture: Texture2D
+var _tower_header: Control
 var _tower_box: VBoxContainer
 var _tower_panel: PanelContainer
 var _tower_rows: Array = []
@@ -158,6 +164,7 @@ func setup(resolver: AssetResolver) -> void:
 	_wreck_label.visible = false
 	add_child(_wreck_label)
 	_weapon_textures = weapon_icons(resolver)
+	_tomb_texture = resolver.get_texture(AssetCatalog.TOMBSTONE)
 
 	var tower_box := VBoxContainer.new()
 	_tower_box = tower_box
@@ -282,7 +289,7 @@ static func weapons_text(on: bool) -> String:
 func update_combat(enabled: bool, front: int, front_ammo: int, rear: int, rear_ammo: int, wreck_left: float,
 		front_cooldown: float = 0.0, rear_cooldown: float = 0.0) -> void:
 	_combat_box.visible = enabled
-	_wreck_label.visible = enabled and wreck_left > 0.0 and not _results_up
+	_wreck_label.visible = enabled and wreck_left > 0.0 and not _results_up and not watching
 	if not enabled:
 		return
 	_set_slot(_front_icon, _front_label, _front_bar, front, front_ammo, front_cooldown)
@@ -307,7 +314,7 @@ func weapons_locked_shown() -> bool:
 func update_condition(fraction: float, since_hit: float = 999.0, critical: bool = false, retired: bool = false,
 		show: bool = true, own_car: bool = true) -> void:
 	_cond_row.visible = show
-	_out_label.visible = show and own_car and retired and not _results_up
+	_out_label.visible = show and own_car and retired and not _results_up and not watching
 	if not show:
 		return
 	fraction = clampf(fraction, 0.0, 1.0)
@@ -358,7 +365,7 @@ func _set_slot(icon: TextureRect, label: Label, bar: ColorRect, weapon: int, cou
 	var none := weapon == WeaponRules.Weapon.NONE
 	icon.texture = null if none else _weapon_textures.get(weapon)
 	icon.flip_h = weapon == WeaponRules.Weapon.REAR_MISSILE
-	label.text = "-" if none else "x%d" % count
+	label.text = "-" if none else ("x INF" if count >= 999 else "x%d" % count)  # 999: unlimited (Battle Royale)
 	label.add_theme_color_override("font_color", HyperTheme.CREAM if count > 0 else HyperTheme.CREAM_DIM)
 	var ready := wait <= 0.0 and count > 0
 	bar.size.x = 64.0 * (1.0 - clampf(wait, 0.0, 1.0)) if count > 0 else 0.0
@@ -457,8 +464,31 @@ func update_tower(standings: Array[RacerState]) -> void:
 		row.add_child(pos)
 		row.add_child(icon)
 		row.add_child(name)
+		var cells: Array = []
+		if stats != null and not _split_view:  # TOMBSTONE | K | D (not in the compact split-screen tower)
+			for k in 3:
+				var cell := _stat_cell("0", _row_font - 3, HyperTheme.CREAM_DIM)
+				cell.custom_minimum_size.x = _row_font * 1.3
+				row.add_child(cell)
+				cells.append(cell)
 		_tower.add_child(panel)
-		_tower_rows.append([panel, pos, icon, name])
+		_tower_rows.append([panel, pos, icon, name, cells])
+	if stats != null and not _split_view and _tower_header == null:
+		_tower_header = HBoxContainer.new()
+		_tower_header.alignment = BoxContainer.ALIGNMENT_END
+		_tower_header.add_theme_constant_override("separation", 6 if _row_font >= 18 else 4)
+		var tomb := TextureRect.new()
+		tomb.texture = _tomb_texture
+		tomb.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tomb.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		tomb.custom_minimum_size = Vector2(_row_font * 1.3, _row_font - 4)
+		_tower_header.add_child(tomb)
+		for t in ["K", "D"]:
+			var h := _stat_cell(t, _row_font - 4, HyperTheme.GOLD)
+			h.custom_minimum_size.x = _row_font * 1.3
+			_tower_header.add_child(h)
+		_tower.add_child(_tower_header)
+		_tower.move_child(_tower_header, 0)
 	for i in _tower_rows.size():
 		var parts: Array = _tower_rows[i]
 		var visible_row := i < standings.size()
@@ -469,7 +499,12 @@ func update_tower(standings: Array[RacerState]) -> void:
 		parts[0].set_meta("racer_id", r.id)
 		parts[1].text = str(i + 1)
 		parts[2].texture = _car_textures.get(r.id)
-		parts[3].text = r.display_name + ("  DNF" if r.dnf else "")
+		parts[3].text = r.display_name + (("  OUT" if r.knockout_lap > 0 or r.result_note.begins_with("OUT") else "  DNF") if r.dnf else "")
+		if stats != null and r.id < stats.kills.size():
+			var line := stats.line(r.id)
+			for k in parts[4].size():
+				parts[4][k].text = str(line[k])
+				parts[4][k].add_theme_color_override("font_color", HyperTheme.CREAM if line[k] > 0 else HyperTheme.CREAM_DIM)
 		var followed: bool = _follow_controls.visible and r.id == _followed
 		var col := HyperTheme.GOLD if r.is_player or followed else (HyperTheme.CREAM_DIM if r.is_finished() else HyperTheme.CREAM)
 		if r.dnf and not followed:
@@ -615,12 +650,15 @@ func show_results(standings: Array[RacerState], footer: String = "Fire to race a
 	_menu_key = ""
 	_clear_message()
 	var laps: int = standings[0].tracker.lap_count if not standings.is_empty() else 0
-	_message_box.add_child(_centered(HyperTheme.label("RESULTS  -  %s" % Hud.laps_text(laps), 34, HyperTheme.GOLD, 700)))
+	_message_box.add_child(_centered(HyperTheme.label(results_title if results_title != "" else
+		"RESULTS  -  %s" % Hud.laps_text(laps), 34, HyperTheme.GOLD, 700)))
 	# One row per car (same columns as before); the HUD's own human rows get a
 	# box in their identity colour, other humans their colour.
 	var rows := VBoxContainer.new()
 	rows.add_theme_constant_override("separation", 0)
 	_message_box.add_child(rows)
+	if stats != null:
+		rows.add_child(_stats_header(20))
 	var names: Array[Label] = []
 	var winner_time := standings[0].finish_time if not standings.is_empty() and standings[0].is_finished() else -1.0
 	for i in standings.size():
@@ -651,7 +689,11 @@ func show_results(standings: Array[RacerState], footer: String = "Fire to race a
 		names.append(name_label)
 		grid.add_child(name_label)
 		var time := "running"
-		if r.dnf:
+		if r.result_note != "":
+			time = r.result_note
+		elif r.knockout_lap > 0:
+			time = "OUT L%d" % r.knockout_lap
+		elif r.dnf:
 			time = "DNF"
 		elif r.is_finished():
 			if r.finish_time < 0.0:
@@ -664,6 +706,9 @@ func show_results(standings: Array[RacerState], footer: String = "Fire to race a
 		t.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		t.custom_minimum_size = Vector2(110, 0)
 		grid.add_child(t)
+		if stats != null and r.id < stats.kills.size():
+			for v in stats.line(r.id):
+				grid.add_child(_stat_cell(str(v), 20, HyperTheme.CREAM if v > 0 else HyperTheme.CREAM_DIM))
 	var name_width := 0.0
 	for l in names:
 		name_width = maxf(name_width, l.get_combined_minimum_size().x)
@@ -679,7 +724,11 @@ static func results_text(standings: Array[RacerState], footer: String = "Fire to
 	for i in standings.size():
 		var r := standings[i]
 		var time := "running"
-		if r.dnf:
+		if r.result_note != "":
+			time = r.result_note
+		elif r.knockout_lap > 0:
+			time = "OUT L%d" % r.knockout_lap
+		elif r.dnf:
 			time = "DNF"
 		elif r.is_finished():
 			time = format_time(r.finish_time) if r.finish_time >= 0.0 else "classified"
@@ -795,3 +844,149 @@ func _fade_in_message() -> void:
 ## "1 LAP", "3 LAPS".
 static func laps_text(laps: int) -> String:
 	return "1 LAP" if laps == 1 else "%d LAPS" % laps
+
+
+const STAT_WIDTH := 34.0
+
+
+## A right-aligned statistics cell (tombstones, kills or deaths).
+func _stat_cell(text: String, font: int, color: Color) -> Label:
+	var l := HyperTheme.label(text, font, color, 600)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.custom_minimum_size = Vector2(STAT_WIDTH * font / 20.0, 0)
+	return l
+
+
+## Column heads for the statistics: [tombstone] K D, at the right of a row.
+func _stats_header(font: int) -> Control:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 14 if font >= 20 else 4)
+	row.alignment = BoxContainer.ALIGNMENT_END
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var tomb := TextureRect.new()
+	tomb.texture = _tomb_texture
+	tomb.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tomb.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	tomb.custom_minimum_size = Vector2(STAT_WIDTH * font / 20.0, font)
+	tomb.tooltip_text = "Tombstones: permanent eliminations caused"
+	row.add_child(tomb)
+	row.add_child(_stat_cell("K", font, HyperTheme.GOLD))
+	row.add_child(_stat_cell("D", font, HyperTheme.GOLD))
+	var pad := Control.new()
+	pad.custom_minimum_size = Vector2(8, 0)
+	row.add_child(pad)
+	return row
+
+
+# ------------------------------------------------- finished: watch the rest
+
+var _caption: VBoxContainer
+var _caption_title: Label
+var _caption_sub: Label
+var _watch_hint: Label
+## The player is watching the rest of the race (own status labels hidden).
+var watching := false
+
+
+func _ensure_caption() -> void:
+	if _caption != null:
+		return
+	_caption = VBoxContainer.new()
+	_caption.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_caption.add_theme_constant_override("separation", 2)
+	add_child(_caption)
+	_caption_title = HyperTheme.label("", 54, HyperTheme.GOLD, 700)
+	_caption_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_caption_title.add_theme_constant_override("outline_size", 10)
+	_caption_title.add_theme_color_override("font_outline_color", HyperTheme.OUTLINE)
+	_caption.add_child(_caption_title)
+	_caption_sub = HyperTheme.label("", 28, HyperTheme.CREAM, 700)
+	_caption_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_caption_sub.add_theme_constant_override("outline_size", 7)
+	_caption_sub.add_theme_color_override("font_outline_color", HyperTheme.OUTLINE)
+	_caption.add_child(_caption_sub)
+	_caption.visible = false
+	_watch_hint = HyperTheme.label("", 18, HyperTheme.CREAM, 600)
+	_watch_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_watch_hint.add_theme_constant_override("outline_size", 6)
+	_watch_hint.add_theme_color_override("font_outline_color", HyperTheme.OUTLINE)
+	_watch_hint.size = Vector2(1280, 30)
+	_watch_hint.position = Vector2(0, 672)
+	_watch_hint.visible = false
+	add_child(_watch_hint)
+
+
+## The finish celebration: "1ST PLACE - YOU FINISHED!" over "RACE CONTINUES ...".
+func show_caption(title: String, sub: String, color: Color = HyperTheme.GOLD) -> void:
+	_ensure_caption()
+	_caption_title.text = title
+	_caption_title.add_theme_color_override("font_color", color)
+	_caption_sub.text = sub
+	_caption.visible = true
+	_caption.reset_size()
+	_caption.size.x = 1280
+	_caption.position = Vector2(0, 66)
+
+
+func hide_caption() -> void:
+	if _caption != null:
+		_caption.visible = false
+
+
+func caption_text() -> String:
+	return "" if _caption == null or not _caption.visible else _caption_title.text + " / " + _caption_sub.text
+
+
+## Key hints while watching the rest of the race ("" hides them). While
+## watching, the player's own OUT / DESTROYED labels stay off the screen.
+func set_watch_hint(text: String) -> void:
+	_ensure_caption()
+	_watch_hint.text = text
+	_watch_hint.visible = text != ""
+	watching = text != ""
+	if watching:
+		_out_label.visible = false
+		_wreck_label.visible = false
+
+
+func watch_hint() -> String:
+	return "" if _watch_hint == null or not _watch_hint.visible else _watch_hint.text
+
+
+## 1 -> "1st", 2 -> "2nd", 11 -> "11th".
+static func ordinal(n: int) -> String:
+	var suffix := "th"
+	if n % 100 < 11 or n % 100 > 13:
+		suffix = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+	return "%d%s" % [n, suffix]
+
+
+var _mode_line: Label
+
+
+## A line at the top centre for the race kind (Knockout: cars left and the
+## next elimination; Battle Royale: cars left). "" hides it.
+func set_mode_line(text: String) -> void:
+	if _mode_line == null:
+		_mode_line = HyperTheme.label("", 20, HyperTheme.GOLD, 700)
+		_mode_line.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_mode_line.add_theme_constant_override("outline_size", 7)
+		_mode_line.add_theme_color_override("font_outline_color", HyperTheme.OUTLINE)
+		_mode_line.size = Vector2(760, 30)
+		_mode_line.position = Vector2(260, 14)
+		add_child(_mode_line)
+	_mode_line.text = text
+	_mode_line.visible = text != ""
+
+
+func mode_line() -> String:
+	return "" if _mode_line == null or not _mode_line.visible else _mode_line.text
+
+
+## Battle Royale info panel: cars left, kills, fight time.
+func update_battle(alive: int, total: int, kills: int, elapsed: float) -> void:
+	_pos_label.text = str(alive)
+	_field_label.text = "/ %d LEFT" % total
+	_lap_label.text = "KILLS %d" % kills
+	_time_label.text = format_time(elapsed)
+

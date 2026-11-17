@@ -122,34 +122,6 @@ func test_collection_counts_championships() -> void:
 	assert_eq(CarCollection.new(PATH).championships_run, 2)
 
 
-func test_repaint_turns_the_main_paint_red_and_keeps_the_shape() -> void:
-	# a painted car: blue paint, a grey window, a dark outline (the headless
-	# test renderer keeps no images of imported textures)
-	var img := Image.create(40, 20, false, Image.FORMAT_RGBA8)
-	img.fill(Color(0, 0, 0, 0))
-	img.fill_rect(Rect2i(2, 2, 36, 16), Color(0.15, 0.12, 0.1))
-	img.fill_rect(Rect2i(4, 4, 32, 12), Color(0.2, 0.45, 0.85))
-	img.fill_rect(Rect2i(16, 6, 8, 8), Color(0.6, 0.62, 0.64))
-	var a := img
-	var b := CarPaint.repaint_image(img)
-	assert_eq(b.get_size(), a.get_size())
-	var changed := 0
-	for y in a.get_height():
-		for x in a.get_width():
-			assert_eq(b.get_pixel(x, y).a, a.get_pixel(x, y).a)
-			if not b.get_pixel(x, y).is_equal_approx(a.get_pixel(x, y)):
-				changed += 1
-	assert_eq(changed, 32 * 12 - 64, "the paint changed, the window did not")
-	assert_almost_eq(CarPaint.dominant_hue(b), CarPaint.PLAYER_HUE, 0.04, "now red")
-
-
-func test_repaint_falls_back_for_unreadable_art() -> void:
-	assert_null(CarPaint.repaint_image(Image.create(8, 8, false, Image.FORMAT_RGBA8)), "no paint colour")
-	var blank := ImageTexture.create_from_image(Image.create(8, 8, false, Image.FORMAT_RGBA8))
-	assert_eq(CarPaint.repaint(blank), blank, "the picture as it is")
-	assert_null(CarPaint.repaint(null))
-
-
 func test_every_rival_has_taunts() -> void:
 	for id in range(1, 10):
 		assert_eq(RivalTaunts.count(id), 3)

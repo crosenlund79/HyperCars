@@ -8,6 +8,8 @@ extends Node
 signal start_requested(choice: int, garage: bool)
 ## GO RACING! > CHAMPIONSHIP > START (choice: 0 Fire to Accelerate, 1 Fire to Brake).
 signal championship_requested(choice: int)
+## GO RACING! > KNOCKOUT / BATTLE ROYALE (mode "knockout" / "battle").
+signal mode_requested(mode: String, choice: int)
 ## Two-player split-screen with the joined devices (Player 1 first).
 signal two_player_requested(devices: Array[int])
 ## LAN race (M5.1): the game root hosts / joins / cancels and reports status.
@@ -65,6 +67,9 @@ var _pan := 0.0
 var _ui: CanvasLayer
 var _logo: TextureRect
 var _tagline: Label
+## A notice over the title (e.g. a car lost in a forfeited championship).
+var _notice: Label
+var _notice_tween: Tween
 var _main_menu: VBoxContainer
 var _race_menu: VBoxContainer
 var _settings_panel: SettingsPanel
@@ -110,7 +115,13 @@ func setup(p_resolver: AssetResolver, p_settings: AudioSettings) -> void:
 	_tagline.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_tagline.size = Vector2(1280, 30)
 	_tagline.position = Vector2(0, 214)
+	_notice = HyperTheme.label("", 30, HyperTheme.RED, 700)
+	_notice.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_notice.size = Vector2(1280, 120)
+	_notice.position = Vector2(0, 590)
+	_notice.visible = false
 	root.add_child(_tagline)
+	root.add_child(_notice)
 
 	_load_weapons_pref()
 	_main_menu = _menu(root, [["GO RACING!", _open_modes], ["ACHIEVEMENTS", _open_achievements],
@@ -121,6 +132,8 @@ func setup(p_resolver: AssetResolver, p_settings: AudioSettings) -> void:
 	_mode_menu = _menu(root, [["QUICK RACE", func() -> void: _open_setup("quick")],
 		["GARAGE RACE", func() -> void: _open_setup("garage")],
 		["CHAMPIONSHIP", func() -> void: _open_setup("championship")],
+		["KNOCKOUT", func() -> void: _open_setup("knockout")],
+		["BATTLE ROYALE", func() -> void: _open_setup("battle")],
 		["SPECTATE", func() -> void: _open_setup("spectate")],
 		["MULTIPLAYER", func() -> void: _open_setup("multi")],
 		["BACK", _show_main]], 420, 40, 5)
@@ -334,17 +347,23 @@ func _open_setup(mode: String) -> void:
 	setup_mode = mode
 	var titles := {"quick": "QUICK RACE  -  standard weapons", "garage": "GARAGE RACE  -  prize money, your own weapons",
 		"spectate": "SPECTATE  -  the nine rivals race", "multi": "MULTIPLAYER  -  two players",
-		"championship": "CHAMPIONSHIP  -  three rounds"}
+		"championship": "CHAMPIONSHIP  -  three rounds", "knockout": "KNOCKOUT  -  last place out every lap",
+		"battle": "BATTLE ROYALE  -  last car standing"}
 	_setup_title.text = titles.get(mode, mode.to_upper())
 	var champ := mode == "championship"
+	var battle := mode == "battle"
 	for b in [_layout_button, _track_button, _time_button, _laps_button]:
 		b.visible = not champ
+	_laps_button.visible = not champ and mode != "knockout" and not battle
+	_layout_button.visible = not champ and not battle
+	_weapons_button.visible = not battle  # the arena is always armed (cooldown weapons)
+	_style_button.visible = not battle
 	_control_button.visible = mode != "spectate"
 	_car_button.visible = mode != "spectate" and mode != "multi"
 	_refresh_preview()
 	_show_only(_setup)
 	_setup.reset_size()
-	(_layout_button if not champ else _weapons_button).grab_focus()
+	(_weapons_button if champ else (_track_button if battle else _layout_button)).grab_focus()
 
 
 func _setup_start() -> void:
@@ -356,15 +375,28 @@ func _setup_start() -> void:
 		"championship":
 			_sfx_play("ui/ui_select")
 			championship_requested.emit(control_choice)
+		"knockout", "battle":
+			_sfx_play("ui/ui_select")
+			mode_requested.emit(setup_mode, control_choice)
 
 
 func _refresh_preview() -> void:
 	if _preview == null:
 		return
+	_setup_note.remove_theme_color_override("font_color")
+	_preview.visible = setup_mode != "battle"
 	if setup_mode == "championship" and championship != null:
 		var r := championship.get_round(0)
 		_preview.show_circuit(DevLayouts.load_layout(r.layout), r.variant, r.night)
 		_setup_note.text = championship.describe()
+		var keeps := keeps_text()
+		if keeps != "":
+			_setup_note.text = keeps + "\n\n" + _setup_note.text
+			_setup_note.add_theme_color_override("font_color", Color("ff8a6a"))
+		return
+	if setup_mode == "battle":
+		_setup_note.text = "THE SCRAPYARD  -  %s, %s\nTen cars, one arena, no respawns: the last car standing wins.\nUnlimited missiles and mines on cooldowns (no homing or super missiles).\nAfter a while the safe zone shrinks." % [
+			TrackTheme.load_variant(track_variant).display_name, "night" if night else "day"]
 		return
 	var chosen := DevLayouts.load_layout(layout_id)
 	_preview.show_circuit(chosen if chosen != null else LAYOUT, track_variant, night)
@@ -373,6 +405,28 @@ func _refresh_preview() -> void:
 		3: "Snow: lower grip, longer braking, more sliding."}
 	_setup_note.text = "%s  -  %s, %s\n%s" % [DevLayouts.display_name(layout_id), theme.display_name,
 		"night" if night else "day", feel.get(track_variant, "")]
+
+
+## Racing for Keeps: the warning when the chosen car is a won rival car.
+func keeps_text() -> String:
+	if player_car <= 0 or cars == null or not cars.owns(player_car):
+		return ""
+	return "RACING FOR KEEPS!\nWIN THE CHAMPIONSHIP - OR LOSE %s'S CAR." % RivalRoster.short_name(player_car).to_upper()
+
+
+## A notice over the title for a few seconds (e.g. a forfeited car).
+func show_notice(text: String) -> void:
+	if _notice == null:
+		return
+	_notice.text = text
+	_notice.visible = true
+	_notice.modulate.a = 1.0
+	if _notice_tween != null:
+		_notice_tween.kill()
+	_notice_tween = create_tween()
+	_notice_tween.tween_interval(7.0)
+	_notice_tween.tween_property(_notice, "modulate:a", 0.0, 1.0)
+	_notice_tween.tween_callback(func() -> void: _notice.visible = false)
 
 
 func _cycle_time(_dir: int = 1) -> void:
@@ -403,6 +457,7 @@ func _cycle_car(dir: int = 1) -> void:
 	var options: Array[int] = cars.choices() if cars != null else [CarCollection.OWN_CAR] as Array[int]
 	player_car = options[posmod(options.find(player_car) + dir, options.size())]
 	_update_car_button()
+	_refresh_preview()  # the Racing for Keeps warning follows the car
 	_save_pref("player_car", player_car)
 
 

@@ -16,6 +16,10 @@ const W := WeaponRules.Weapon
 
 var rules: WeaponRules
 var enabled := false
+## Battle Royale: rounds are never used up (only the slot cooldowns limit firing).
+var unlimited := false
+## Battle Royale: is a point inside a wall or obstacle (missiles explode there)?
+var blocked: Callable
 ## Weapons Hot: until the whole starting field has crossed the start line
 ## nobody can fire (no shot, no ammunition, no cooldown, no event).
 var locked := false
@@ -159,7 +163,8 @@ func request(id: int, slot: int, cars: Array) -> bool:
 		events.append({"kind": "empty", "type": weapon, "pos": cars[id].position, "car": id, "owner": id})
 		cooldown[id] = rules.tactical_shared_lock if tactical else rules.fire_cooldown
 		return false
-	ammo[id][slot] -= 1
+	if not unlimited:
+		ammo[id][slot] -= 1
 	if tactical:
 		cooldown[id] = rules.tactical_shared_lock
 		slot_cooldown[id][slot] = rules.tactical_front_cooldown if slot == FRONT else rules.tactical_rear_cooldown
@@ -323,6 +328,8 @@ func _car_at(pos: Vector2, radius: float, cars: Array, ignore: int, item: Dictio
 
 
 func _outside_road(p: Dictionary) -> bool:
+	if blocked.is_valid():
+		return blocked.call(p.pos)  # Battle Royale: arena walls and obstacles stop missiles
 	if path == null:
 		return false
 	var proj := path.project(p.pos, p.get("hint", -1))

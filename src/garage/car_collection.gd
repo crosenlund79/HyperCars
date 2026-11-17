@@ -14,6 +14,12 @@ var path: String
 var owned: Array[int] = []
 ## Championships started so far (the next one's schedule rotates with it).
 var championships_run := 0
+## Racing for Keeps: the won car the player entered the running championship
+## with (0 = none / the own car, which is never at stake). Saved, so quitting
+## the game does not escape it: an open stake found at the next start is a
+## forfeit (forfeited_on_load says which car went back).
+var stake := 0
+var forfeited_on_load := 0
 
 
 func _init(p_path: String = DEFAULT_PATH) -> void:
@@ -28,6 +34,10 @@ func load_from_disk() -> void:
 	if cfg.load(path) != OK:
 		return
 	championships_run = maxi(0, int(cfg.get_value("cars", "championships_run", 0)))
+	stake = int(cfg.get_value("cars", "stake", 0))
+	if stake > 0:  # a championship for keeps was left unfinished (game closed): forfeited
+		forfeited_on_load = stake
+		lose(stake)
 	for id in cfg.get_value("cars", "owned", []):
 		if int(id) >= 1 and int(id) <= 9 and not owned.has(int(id)):
 			owned.append(int(id))
@@ -37,6 +47,7 @@ func save() -> Error:
 	var cfg := ConfigFile.new()
 	cfg.set_value("cars", "owned", owned)
 	cfg.set_value("cars", "championships_run", championships_run)
+	cfg.set_value("cars", "stake", stake)
 	return cfg.save(path)
 
 
@@ -81,8 +92,31 @@ func count_championship() -> void:
 	save()
 
 
+## Racing for Keeps: enter a championship with this car (0: nothing at stake).
+func put_at_stake(car: int) -> void:
+	stake = car if owns(car) else 0
+	save()
+
+
+## The championship ended without losing the car (won, or entered with the own car).
+func clear_stake() -> void:
+	stake = 0
+	save()
+
+
+## The player loses a won car: it goes back to its rival (who drops the
+## junker) and can be won again later. The own car (0) can never be lost.
+func lose(car: int) -> void:
+	owned.erase(car)
+	if stake == car:
+		stake = 0
+	save()
+
+
 ## Forget everything (tests, a reset).
 func clear() -> void:
 	owned.clear()
 	championships_run = 0
+	stake = 0
+	forfeited_on_load = 0
 	save()
