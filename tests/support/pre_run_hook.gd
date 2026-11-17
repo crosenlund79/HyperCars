@@ -16,4 +16,5 @@ func run() -> void:
 	ControlBindings.path = DIR + "controls.cfg"
 	AchievementStore.default_path = DIR + "achievements.cfg"
 	CarCollection.default_path = DIR + "car_collection.cfg"
+	RivalMemory.default_path = DIR + "rival_memory.cfg"
 	PlayerGarage.default_path = ""  # garage careers are not saved unless a test asks

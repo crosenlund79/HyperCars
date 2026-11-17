@@ -13,6 +13,10 @@ const MAIN_SCENE := preload("res://src/main/main.tscn")
 @export var achievements_path := ""  # "" = AchievementStore.default_path
 ## Where the won rival cars are saved (tests use a scratch file).
 @export var cars_path := ""  # "" = CarCollection.default_path
+## Where the rival memory (Nemesis Welcome) is saved ("" = RivalMemory.default_path).
+@export var memory_path := ""
+## Nemesis Welcome on launch (off for screenshots / tests that need a quiet title).
+@export var greetings_enabled := true
 
 var resolver: AssetResolver
 var settings: AudioSettings
@@ -54,6 +58,9 @@ var reward_rng := RandomNumberGenerator.new()
 ## reproducible; tests and probes that build race scenes directly keep the
 ## race scene's fixed default seed.
 var race_rng := RandomNumberGenerator.new()
+## The rival memory and this launch's greeting (null: none this time).
+var memory: RivalMemory
+var welcome: NemesisWelcome = null
 var session_seed := -1
 
 
@@ -84,8 +91,13 @@ func _ready() -> void:
 	title.championship = ChampionshipSchedule.for_run(cars.championships_run)
 	add_child(title)
 	title.setup(resolver, settings)
+	memory = RivalMemory.new(memory_path)
+	memory.load_from_disk()
 	if cars.forfeited_on_load > 0:  # the game was closed during a championship for keeps
 		title.show_notice(lost_text(cars.forfeited_on_load, true))
+		_remember_car_back(cars.forfeited_on_load)
+	if greetings_enabled:
+		_greet()
 	title.start_requested.connect(start_race)
 	title.two_player_requested.connect(func(devices: Array[int]) -> void: start_race(0, false, devices))
 	title.lan_host_requested.connect(func() -> void: host_lan())
@@ -160,6 +172,8 @@ func start_race(choice: int, with_garage: bool = false, devices: Array[int] = []
 		race.garage = garage
 	if not two and mode == "race":  # (Knockout is not counted for achievements)
 		race.achievements = achievements
+		if choice != 2:  # the player's own races (not spectating) are remembered by the rivals
+			race.rival_memory = memory
 	race.race_mode = mode
 	race.watch_enabled = true  # finished early: watch the rest live (single-player only)
 	var client := net != null and net.is_client()
@@ -227,6 +241,41 @@ func back_to_title() -> void:
 		race = null
 	title.show_title()
 	await _fade_to(0.0)
+
+
+# ------------------------------------------------------------ Nemesis Welcome
+
+## Now and then a rival greets the player at the title, about something that
+## really happened (RivalMemory, NemesisLines). Its car as the player sees it
+## in races: its own colours, or the junker while the player owns its car.
+func _greet() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	var e := memory.pick_greeting(rng)
+	memory.save()
+	if e.is_empty():
+		return
+	show_greeting(e, rng)
+
+
+func show_greeting(e: Dictionary, rng: RandomNumberGenerator) -> NemesisWelcome:
+	var g := NemesisLines.greeting(e, rng)
+	var rival: int = g.rival
+	var car := CarArt.icon(resolver, AssetCatalog.CAR_JUNKER if cars.displaced(rival) else AssetCatalog.ai_car(rival))
+	if welcome != null:
+		welcome.queue_free()
+	welcome = NemesisWelcome.new()
+	welcome.name = "NemesisWelcome"
+	add_child(welcome)
+	welcome.setup(resolver, g, car)
+	welcome.show_greeting()
+	return welcome
+
+
+## A rival took its car back (Racing for Keeps): remembered.
+func _remember_car_back(rival: int) -> void:
+	memory.add(RivalMemory.TOOK_CAR_BACK, rival, {"mode": "championship"})
+	memory.save()
 
 
 # -------------------------------------------------------------- Battle Royale
@@ -297,12 +346,16 @@ func _on_round_done(order: Array, dnf: Array) -> void:
 		if champ.champion() == Championship.PLAYER:
 			cars.clear_stake()  # the car entered with stays
 			last_reward = cars.unlock_random(reward_rng)
+			if last_reward > 0:
+				memory.add(RivalMemory.WON_MY_CAR, last_reward, {"mode": "championship"})
+				memory.save()
 			reward = reward_text(last_reward, cars.all_owned())
 			if last_reward > 0:
 				reward_car = CarArt.icon(resolver, AssetCatalog.ai_car(last_reward))
 		elif cars.stake > 0:
 			last_lost = cars.stake
 			cars.lose(last_lost)
+			_remember_car_back(last_lost)
 			reward = lost_text(last_lost)
 			reward_car = CarArt.icon(resolver, AssetCatalog.ai_car(last_lost))
 		else:
@@ -364,6 +417,7 @@ func _forfeit_championship() -> void:
 	if cars.stake > 0:
 		last_lost = cars.stake
 		cars.lose(last_lost)
+		_remember_car_back(last_lost)
 		title.refresh_car_choice()
 		title.show_notice(lost_text(last_lost, true))
 	cars.clear_stake()

@@ -100,6 +100,8 @@ func test_three_rounds_follow_the_schedule_and_reward_the_champion() -> void:
 	var won: int = game.last_reward
 	assert_between(won, 1, 9, "a rival car unlocked")
 	assert_true(CarCollection.new(CARS).owns(won), "ownership saved")
+	var mem: Dictionary = game.memory.events[-1]
+	assert_eq([mem.kind, mem.rival], [RivalMemory.WON_MY_CAR, won], "the rival remembers losing its car")
 	assert_ne(game.title.championship.resource_path, schedule.resource_path, "the next championship differs")
 	# the next race: the rival drives the junker; the player can take the car
 	game.abandon_championship()
@@ -266,6 +268,8 @@ func test_losing_with_a_won_car_returns_it_to_its_rival() -> void:
 	assert_true(saved.owns(9), "other won cars stay")
 	assert_eq(game.title.player_car, 0, "the player falls back to the own car")
 	assert_string_contains(game.lost_text(2), "ROCCO RECLAIMS THE CAR!")
+	var back: Dictionary = game.memory.events[-1]
+	assert_eq([back.kind, back.rival], [RivalMemory.TOOK_CAR_BACK, 2], "Rocco remembers taking it back")
 	# it can be won again later
 	game.abandon_championship()
 	await wait_physics_frames(60)

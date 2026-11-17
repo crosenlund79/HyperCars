@@ -214,6 +214,9 @@ var _grid_input_delay := 0
 ## Achievements (M3.5): persistent store set by the game root before the scene
 ## enters the tree; null = no tracking (tests, tools). The tracker only reads.
 var achievements: AchievementStore
+## Nemesis Welcome: the rival memory a finished single-player race reports to
+## (set by the game root for normal races only; null = not remembered).
+var rival_memory: RivalMemory = null
 var achievement_tracker: AchievementTracker
 var _race_open := false
 ## Start with the lighting pilot on (e.g. for comparison runs).
@@ -979,8 +982,27 @@ func _conclude_race() -> void:
 	for r in session.standings():
 		order.append(r.id)
 	race_concluded.emit(order)
+	_remember_race()
 	if net != null:
 		net.send_results(order)
+
+
+## The race's memorable moments for the Nemesis Welcome, from its own results
+## only: DNFs a rival caused the player (or the player a rival), with the
+## weapon and lap, and a first-second finish closer than RivalMemory.CLOSE_GAP.
+func _remember_race() -> void:
+	if rival_memory == null or session.spectator or is_two_player() or net != null:
+		return
+	var finish: Array = []
+	var laps_at_out := {}
+	for r in session.standings():
+		finish.append([r.id, r.finish_time, r.is_finished(), r.dnf])
+		if r.dnf:
+			laps_at_out[r.id] = r.tracker.laps_completed
+	var mode := "garage" if garage != null else ("championship" if championship_round >= 0 else "quick")
+	var context := {"circuit": track.layout.display_name, "laps": session.lap_count(), "mode": mode}
+	rival_memory.record_race(stats.feed, finish, laps_at_out, RaceSession.PLAYER_ID, context)
+	rival_memory.save()
 
 
 ## Championship: the round's finishing order (retired cars last, as classified)
