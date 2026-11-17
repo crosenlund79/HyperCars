@@ -302,3 +302,152 @@ func test_a_patient_rival_waits_for_a_bay_and_takes_it_when_freed() -> void:
 	assert_eq(_main.pits.stops[1], 1, "it took the freed bay and was serviced")
 	assert_eq(_main.drivers[1].pit_abandons, 0)
 	assert_almost_eq(_main.damage.condition[1], 50.0, 0.5)
+
+
+## A human-style driver: digital keys only (steer left / right / none, Fire to
+## accelerate), aiming a little ahead at a lateral target like a player would:
+## the through-lane, then the bay from turn_at (px before the bay centre), a
+## stop in the bay, and out again once serviced.
+class HumanStyle extends DriverInput:
+	var main: Node
+	var bay_s := 0.0
+	var bay_lat := 0.0
+	var lane_lat := 0.0
+	var approach := 200.0
+	var turn_at := 160.0
+	var leaving := false
+	func drive(race: Node, _step: float) -> Dictionary:
+		var p: RaceProgress = race.progress[0]
+		var car: Car = race.car
+		var len: float = race.track.path.length
+		var w := fposmod(p.distance, len)
+		var to_bay := bay_s - w
+		var target := lane_lat
+		var speed := approach
+		if race.pits.served[0] == 1:
+			leaving = true
+		if leaving:
+			speed = 150.0
+		elif to_bay < turn_at:
+			target = lerpf(lane_lat, bay_lat, clampf(1.0 - (to_bay - 25.0) / (turn_at - 25.0), 0.0, 1.0))
+			speed = 0.0 if race.pits.bay_of(0) >= 0 and absf(to_bay) < 30.0 else (45.0 if to_bay < turn_at * 0.6 else 90.0)
+		var tan: Vector2 = race.track.path.tangent_at(p.distance + 60.0)
+		var want := tan.angle() + atan2(target - p.lateral, 60.0)
+		var diff := wrapf(want - car.model.heading, -PI, PI)
+		var steer := 0.0 if absf(diff) < deg_to_rad(4.0) else signf(diff)
+		return {"steer": steer, "fire": car.model.forward_speed() < speed}
+
+
+func _middle_bay_with_neighbours(approach: float, turn_at: float) -> Dictionary:
+	await _make()
+	_main.set_weapons_enabled(false)
+	_main.start_race()
+	await wait_physics_frames(3)
+	_park_others([3, 4])
+	_park_in_bay(3, 0)
+	_park_in_bay(4, 2)
+	_main.damage.condition[3] = 100.0  # parked, not wanting service: still occupying their bays
+	_main.damage.condition[4] = 100.0
+	var t: Track = _main.track
+	var b: Dictionary = t.layout.branches[t.layout.pit_branch()]
+	var strip := t.layout.bay_strip(b, t.path.length)
+	var input := HumanStyle.new()
+	input.bay_s = TrackLayout.bay_centre(b, 1)
+	input.bay_lat = (strip.x + strip.y) * 0.5
+	input.lane_lat = strip.x - float(b.lane) * 0.5
+	input.approach = approach
+	input.turn_at = turn_at
+	_main.damage.condition[P] = 40.0
+	var s := float(b.from) + float(b.ramp) + 40.0
+	_place_in_lane(s, 1)
+	_main.car.model.velocity = _main.track.path.tangent_at(s) * approach
+	_main.inputs[P] = input
+	var hits := {"car": 0, "wall": 0, "car_gap": INF, "wall_gap": INF}
+	_main.car.car_hit.connect(func(_o: Car, _sp: float) -> void: hits.car += 1)
+	_main.car.wall_hit.connect(func(_n: Vector2, _sp: float) -> void: hits.wall += 1)
+	var watch := func() -> void: _clearance(hits, [3, 4])
+	get_tree().physics_frame.connect(watch)
+	await wait_physics_frames(10)
+	assert_eq(_main.pits.bay_owner[0], 3, "PIT 1 occupied by a parked car")
+	assert_eq(_main.pits.bay_owner[2], 4, "PIT 3 occupied by a parked car")
+	await wait_until(func() -> bool: return _main.pits.stops[P] >= 1, 30.0)
+	var entry := hits.duplicate()
+	await wait_until(func() -> bool: return _main.pits.in_lane[P] == 0, 20.0)
+	get_tree().physics_frame.disconnect(watch)
+	gut.p("clearance: closest to a parked car %.1f px, to the pit barrier %.1f px" % [hits.car_gap, hits.wall_gap])
+	return {"entry": entry, "total": hits, "out": _main.pits.in_lane[P] == 0}
+
+
+## Car capsule (60 x 32: radius 16, axis 28) clearances while the player is in
+## the pit lane: to the parked cars and to the pit's outer barrier.
+func _clearance(hits: Dictionary, parked: Array) -> void:
+	if _main == null or _main.pits == null or _main.pits.in_lane[P] == 0:
+		return
+	var me: Car = _main.car
+	var ax := Vector2.from_angle(me.model.heading) * 14.0
+	for id in parked:
+		var o: Car = _main.cars[id]
+		var oax := Vector2.from_angle(o.model.heading) * 14.0
+		var pts := Geometry2D.get_closest_points_between_segments(me.global_position - ax, me.global_position + ax,
+			o.global_position - oax, o.global_position + oax)
+		hits.car_gap = minf(hits.car_gap, pts[0].distance_to(pts[1]) - 32.0)
+	var t: Track = _main.track
+	var p: RaceProgress = _main.progress[P]
+	var tan := t.path.tangent_at(p.distance)
+	var reach := 16.0 + absf(sin(me.model.heading - tan.angle())) * 14.0
+	hits.wall_gap = minf(hits.wall_gap, t.layout.side_widths_at(p.distance, t.path.length).y - (p.lateral + reach))
+
+
+func test_middle_bay_comfortable_from_the_limiter_with_both_neighbours_parked() -> void:
+	var r: Dictionary = await _middle_bay_with_neighbours(205.0, 170.0)
+	assert_eq(_main.pits.stops[P], 1, "serviced in PIT 2")
+	assert_almost_eq(_main.damage.condition[P], 70.0, 0.5)
+	assert_eq(r.entry.car, 0, "in without touching the neighbours")
+	assert_eq(r.entry.wall, 0, "in without touching a barrier")
+	assert_true(r.out, "out again and on its way")
+	assert_eq(r.total.car, 0, "out without touching the car ahead")
+	assert_eq(r.total.wall, 0)
+	assert_eq(_main.pits.tickets[P], 0)
+	assert_gt(r.total.car_gap, 40.0, "comfortable room to the parked cars (px; the old 90 px bays left 25-29)")
+	assert_gt(r.total.wall_gap, 12.0, "comfortable room to the barrier (px)")
+
+
+func test_middle_bay_comfortable_with_a_slow_late_turn_in() -> void:
+	var r: Dictionary = await _middle_bay_with_neighbours(90.0, 110.0)
+	assert_eq(_main.pits.stops[P], 1, "serviced in PIT 2")
+	assert_eq(r.entry.car + r.entry.wall, 0, "in without any contact")
+	assert_true(r.out)
+	assert_eq(r.total.car + r.total.wall, 0, "out without any contact")
+	assert_gt(r.total.car_gap, 40.0, "comfortable room to the parked cars (px; the old 90 px bays left 25-29)")
+	assert_gt(r.total.wall_gap, 12.0, "comfortable room to the barrier (px)")
+
+
+func test_rival_uses_the_middle_bay_with_both_neighbours_parked() -> void:
+	await _make()
+	_main.set_weapons_enabled(false)
+	_main.set_lap_count(4)
+	_main.set_menu_choice(2)
+	_main.start_race()
+	await wait_physics_frames(3)
+	_park_others([1, 3, 4])
+	_park_in_bay(3, 0)
+	_park_in_bay(4, 2)
+	_main.damage.condition[3] = 100.0
+	_main.damage.condition[4] = 100.0
+	var t: Track = _main.track
+	var b: Dictionary = t.layout.branches[t.layout.pit_branch()]
+	_main.damage.condition[1] = 20.0
+	_main.cars[1].place(Transform2D(t.path.tangent_at(float(b.from) - 400.0).angle(), t.path.point_at(float(b.from) - 400.0)))
+	_main.progress[1].reset(_main.cars[1].global_position)
+	_main.drivers[1].pitting = true
+	_main.drivers[1].pit_entries += 1
+	var hits := {"car": 0, "wall": 0}
+	_main.cars[1].car_hit.connect(func(_o: Car, _sp: float) -> void: hits.car += 1)
+	_main.cars[1].wall_hit.connect(func(_n: Vector2, _sp: float) -> void: hits.wall += 1)
+	await wait_until(func() -> bool: return _main.pits.stops[1] >= 1, 40.0)
+	assert_eq(_main.pits.stops[1], 1, "serviced")
+	assert_eq(_main.pits.bay_of(1), 1, "in PIT 2, the only free bay")
+	await wait_until(func() -> bool: return _main.pits.in_lane[1] == 0, 20.0)
+	assert_eq(_main.pits.in_lane[1], 0, "out and back on the track")
+	assert_eq(hits.car, 0, "never touched the parked cars")
+	assert_eq(hits.wall, 0, "never touched a barrier")

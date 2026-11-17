@@ -940,7 +940,11 @@ func _bay_aim(s: float, me: Dictionary) -> float:
 	var through := strip.x - float(b.lane) * 0.5 * signf(float(b.side))
 	var c := TrackLayout.bay_centre(b, bay)
 	var w := fposmod(s, line.center.length)
-	var t := smoothstep(c - 240.0, c - 70.0, w)
+	# turn in by where the car itself is: only once it is past the bay before
+	# (a car parked there), and fully in line with the bay just short of its centre
+	var at := fposmod(float(me.distance), line.center.length)
+	var half_bay: float = float(b.box_length) * 0.5
+	var t := smoothstep(c - half_bay - 75.0, c - 25.0, at)
 	var lateral := lerpf(through, (strip.x + strip.y) * 0.5, t)
 	# never aim past the wall: the apron only opens up around the bays
 	var sw := line.layout.side_widths_at(w, line.center.length)

@@ -13,8 +13,9 @@ extends RefCounted
 ##
 ## Pit Lane Refinement (2026-11-17): overriding the limiter is allowed and
 ## never punished; meaningful collisions in the pit area earn a ticket
-## instead. Service bays hold one car each: a car claims a free bay by
-## stopping in it and keeps it until it has physically left it.
+## instead. Service bays hold one car each: a car occupies a free bay by
+## being in it (whether it wants service or not) and keeps it until it has
+## physically left it (Personality & Polish, 2026-11-17).
 
 var rules: PitRules
 ## Per car.
@@ -174,8 +175,8 @@ func step(id: int, lane: bool, bay: int, speed: float, condition: float, max_con
 		return 0.0
 	var stopped := speed <= rules.stopped_speed
 	var can_serve := service_enabled and not out and served[id] == 0 and condition < max_condition
-	if held < 0 and stopped and can_serve and bay_owner[bay] == -1:
-		bay_owner[bay] = id  # claimed by stopping in it
+	if held < 0 and bay_owner[bay] == -1 and not out:  # (a retired car collides with nothing: no occupant)
+		bay_owner[bay] = id  # occupied by being in it (serviced or not: a bay holds one car)
 		held = bay
 		release_reservation(id)
 		for k in bay_count():  # a rival that had reserved it chooses again

@@ -172,6 +172,21 @@ func test_three_bays_serve_three_cars_at_once_and_a_fourth_waits() -> void:
 	assert_eq(p.bay_owner[1], 3)
 
 
+func test_a_parked_car_occupies_its_bay_even_without_wanting_service() -> void:
+	var p := PitWorld.new(_rules, 3)
+	p.step(0, true, -1, 100.0, 100.0, 100.0, false, DT)
+	p.step(0, true, 1, 0.0, 100.0, 100.0, false, DT)  # full condition: parked, no service wanted
+	assert_eq(p.bay_owner[1], 0, "physically occupied: not free")
+	assert_eq(p.free_bays(2), 2, "two bays left for others")
+	assert_eq(PitWorld.packed_bay(p.pack(0)), 1, "shown as occupied (red frame) everywhere")
+	p.step(2, true, -1, 100.0, 30.0, 100.0, false, DT)
+	for i in int(_rules.service_time / DT) + 5:
+		assert_eq(p.step(2, true, 1, 0.0, 30.0, 100.0, false, DT), 0.0, "nobody else is serviced in it")
+	assert_eq(p.reserve_bay(2), 0, "a rival reserves a free bay instead")
+	p.step(0, true, -1, 60.0, 100.0, 100.0, false, DT)  # it drives off
+	assert_eq(p.bay_owner[1], -1, "free once it has physically left")
+
+
 func test_bay_reservation_is_one_car_per_bay() -> void:
 	var p := PitWorld.new(_rules, 3)
 	assert_eq(p.reserve_bay(0), 0)

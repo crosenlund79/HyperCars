@@ -549,7 +549,6 @@ func _build_branches(wall_tex: Texture2D) -> void:
 		node.add_child(edge)
 		if b.kind == "pit":
 			_build_pit_marks(node, b)
-			_build_bay_stubs(node, body, b, wall_width, wall_tex)
 
 
 ## Closed outline of branch k's divider (world points), empty if none.
@@ -575,28 +574,6 @@ func divider_outline(k: int) -> PackedVector2Array:
 
 ## The pit's service bay frames (PIT 1, 2, 3), for occupancy colours.
 var bay_frames: Array[Line2D] = []
-
-
-## Short barrier stubs between neighbouring bays, at the outer wall (the back
-## 16 % of the apron): they mark the bays without catching a car that turns in
-## or rolls along the apron.
-func _build_bay_stubs(node: Node2D, body: StaticBody2D, b: Dictionary, wall_width: float, wall_tex: Texture2D) -> void:
-	var side := float(b.side)
-	var strip := layout.bay_strip(b, path.length)
-	var depth: float = float(b.bay_depth) * 0.16
-	for k in TrackLayout.bay_count(b) - 1:
-		var at := (TrackLayout.bay_centre(b, k) + TrackLayout.bay_centre(b, k + 1)) * 0.5
-		var t := path.tangent_at(at)
-		var r := Vector2(-t.y, t.x)
-		var outer := path.point_at(at) + r * strip.y
-		var inner := path.point_at(at) + r * (strip.y - depth * side)
-		var shape := SegmentShape2D.new()
-		shape.a = outer
-		shape.b = inner
-		var cs := CollisionShape2D.new()
-		cs.shape = shape
-		body.add_child(cs)
-		node.add_child(_barrier_line("BayStub%d" % (k + 1), PackedVector2Array([outer, inner]), false, wall_width * 0.6, wall_tex))
 
 
 func _build_pit_marks(node: Node2D, b: Dictionary) -> void:
@@ -628,7 +605,7 @@ func _build_pit_marks(node: Node2D, b: Dictionary) -> void:
 		var c := TrackLayout.bay_centre(b, k)
 		var frame := Line2D.new()
 		frame.name = "ServiceBay%d" % (k + 1)
-		frame.width = 4.0
+		frame.width = 5.0
 		frame.default_color = PIT_MARK
 		frame.closed = true
 		var pts := PackedVector2Array()
@@ -643,13 +620,13 @@ func _build_pit_marks(node: Node2D, b: Dictionary) -> void:
 		var num := Label.new()
 		num.name = "BayNumber%d" % (k + 1)
 		num.text = "PIT %d" % (k + 1)
-		num.add_theme_font_size_override("font_size", 18)
-		num.add_theme_color_override("font_color", Color(1, 1, 1, 0.85))
-		num.size = Vector2(64, 24)
+		num.add_theme_font_size_override("font_size", 22)
+		num.add_theme_color_override("font_color", Color(1, 1, 1, 0.9))
+		num.size = Vector2(80, 28)
 		num.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		num.pivot_offset = num.size * 0.5
 		var ct := path.tangent_at(c)
-		num.position = path.point_at(c) + Vector2(-ct.y, ct.x) * (strip.y - 14.0 * side) - num.pivot_offset
+		num.position = path.point_at(c) + Vector2(-ct.y, ct.x) * (strip.y - 18.0 * side) - num.pivot_offset
 		num.rotation = ct.angle()
 		node.add_child(num)
 	# PIT lettering on the lane just after the divider's nose, and the limiter lines

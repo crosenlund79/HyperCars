@@ -131,7 +131,7 @@ func validate() -> PackedStringArray:
 ## A divider ends in a point over this length (px) at either end.
 const DIVIDER_NOSE := 70.0
 ## The bay apron widens out of the pit lane over this length (px) at either end.
-const BAY_TAPER := 70.0
+const BAY_TAPER := 110.0
 ## Room kept between a branch's outer edge and any other stretch of road.
 const BRANCH_CLEARANCE := 80.0
 
