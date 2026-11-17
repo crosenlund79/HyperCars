@@ -182,7 +182,7 @@ func show_standings(champ: Championship, reward: String = "", reward_car: Textur
 		_reward_car.visible = false
 		_continue.text = "START ROUND %d" % (done_rounds + 1)
 		_abandon.visible = true
-	_hint.text = "Fire / Enter / Esc: main menu" if _final else "Fire / Enter: next round      Esc: abandon the championship"
+	_hint.text = "Enter / Esc: main menu" if _final else "Enter: next round      Esc: abandon the championship"
 	_confirming = false
 	_abandon.text = "ABANDON"
 	if not _final and warning != "":
@@ -232,6 +232,6 @@ func _unhandled_input(event: InputEvent) -> void:
 			done.emit()
 		else:
 			_on_abandon()
-	elif event.is_action_pressed(PlayerControls.FIRE) and not (_continue.has_focus() or _abandon.has_focus()):
+	elif event.is_action_pressed(PlayerControls.CONFIRM) and not (_continue.has_focus() or _abandon.has_focus()):
 		get_viewport().set_input_as_handled()
 		_on_continue()

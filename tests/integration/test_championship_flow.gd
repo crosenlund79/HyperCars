@@ -58,7 +58,7 @@ func _win_round() -> void:
 		await _tap(PlayerControls.HISTORY_VIEW)
 		await wait_until(func() -> bool: return race.session.all_finished(), 600.0)
 		await wait_physics_frames(3)
-	await _tap(PlayerControls.FIRE)
+	await _tap(PlayerControls.CONFIRM)
 	for i in 120:
 		if game.race == null and game.champ_screen.visible:
 			break

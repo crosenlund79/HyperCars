@@ -806,7 +806,7 @@ func on_network_lost(text: String) -> void:
 		c.active = false
 	if race_audio != null:
 		race_audio.play_music("menu")
-	hud.show_notice("CONNECTION LOST", text, "Fire / Esc: back to the menu")
+	hud.show_notice("CONNECTION LOST", text, "Enter / Esc: back to the menu")
 
 
 ## Host: the client readied up or cancelled (shown on the grid panel).
@@ -979,7 +979,7 @@ func set_menu_choice(choice: Choice) -> void:
 func _physics_process(_delta: float) -> void:
 	var step := Car.FIXED_STEP
 	if network_lost:
-		if _menu_pressed(PlayerControls.FIRE) or _menu_pressed(PlayerControls.BACK):
+		if _menu_pressed(PlayerControls.CONFIRM) or _menu_pressed(PlayerControls.BACK):
 			exit_requested.emit()
 		return
 	if net != null and net.is_client():
@@ -1020,10 +1020,10 @@ func _physics_process(_delta: float) -> void:
 					_end_watch()  # everyone is in: the results
 				var skip_garage := garage != null and _menu_pressed(PlayerControls.HISTORY_VIEW)
 				if championship_round >= 0:
-					if _menu_pressed(PlayerControls.FIRE) and not _round_reported:
+					if _menu_pressed(PlayerControls.CONFIRM) and not _round_reported:
 						_report_round()
 					return
-				if _menu_pressed(PlayerControls.FIRE) or skip_garage:
+				if _menu_pressed(PlayerControls.CONFIRM) or skip_garage:
 					if is_two_player():
 						var leaving := sitting_out_rival(multiplayer_round + 1)
 						var returning := sitting_out_rival(multiplayer_round)
@@ -1368,7 +1368,7 @@ func _watch_tick(step: float) -> void:
 		else:
 			hud.show_caption("%s PLACE - YOU FINISHED!" % Hud.ordinal(me.finish_position).to_upper(),
 				"RACE CONTINUES - WATCH YOUR RIVALS!")
-		hud.set_watch_hint("Fire: watch now      Tab: skip to the results")
+		hud.set_watch_hint("Enter: watch now      Tab: skip to the results")
 		hud.hide_message()  # nothing of the results before everyone is in
 		hud.set_results_up(false)
 	if session.all_finished():
@@ -1472,7 +1472,7 @@ func _watch_input() -> void:
 		hud.set_watch_hint("Skipping to the results...")
 		return
 	if not watching:
-		if _menu_pressed(PlayerControls.FIRE):
+		if _menu_pressed(PlayerControls.CONFIRM):
 			_begin_watching()
 		return
 	if _menu_pressed(PlayerControls.STEER_LEFT):
@@ -1632,11 +1632,11 @@ func _refresh_hud() -> void:
 	_refresh_watch_panel()
 	if session.state == RaceSession.State.FINISHED and not _watch_active():
 		if net != null:
-			hud.show_results(session.standings(), "Fire: next race" if net.is_host() else "Waiting for the host to continue")
+			hud.show_results(session.standings(), "Enter: next race" if net.is_host() else "Waiting for the host to continue")
 		elif championship_round >= 0:
-			hud.show_results(session.standings(), "Fire: championship standings")
+			hud.show_results(session.standings(), "Enter: championship standings")
 		elif garage != null and _garage_settled:
-			hud.show_results(session.standings(), "Prize money: $%d     Fire: garage     Tab: skip shopping, next race" % garage.last_prize)
+			hud.show_results(session.standings(), "Prize money: $%d     Enter: garage     Tab: skip shopping, next race" % garage.last_prize)
 		else:
 			hud.show_results(session.standings())
 

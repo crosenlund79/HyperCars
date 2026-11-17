@@ -249,7 +249,7 @@ func _physics_process(_delta: float) -> void:
 		if _skipping:
 			_set_speed(1)
 			_skipping = false
-		if Input.is_action_just_pressed(PlayerControls.FIRE):
+		if Input.is_action_just_pressed(PlayerControls.CONFIRM):
 			exit_requested.emit()
 		elif Input.is_action_just_pressed(PlayerControls.HISTORY_VIEW):
 			restart_requested.emit()
@@ -419,7 +419,7 @@ func _eliminate(id: int, by_weapon: bool, owner: int = -1, weapon: int = -1) -> 
 		follow_id = -1
 	if id == PLAYER and not player_ai and hud != null:
 		hud.show_caption("ELIMINATED!", "THE FIGHT GOES ON - WATCH THE SURVIVORS", HyperTheme.RED)
-		hud.set_watch_hint("Fire: watch now      Tab: skip to the result")
+		hud.set_watch_hint("Enter: watch now      Tab: skip to the result")
 		_celebrate_left = CELEBRATION_TIME
 	elif hud != null:
 		hud.flash_banner("%s OUT!" % session.racers[id].display_name.to_upper(), HyperTheme.RED, 0.8)
@@ -457,7 +457,7 @@ func _watch_tick(step: float) -> void:
 		hud.set_watch_hint("Skipping to the result...")
 	if not watching:
 		_celebrate_left -= step / maxf(1.0, Engine.time_scale)
-		if _celebrate_left <= 0.0 or Input.is_action_just_pressed(PlayerControls.FIRE):
+		if _celebrate_left <= 0.0 or Input.is_action_just_pressed(PlayerControls.CONFIRM):
 			_begin_watching()
 		return
 	if Input.is_action_just_pressed(PlayerControls.STEER_LEFT):
@@ -539,7 +539,7 @@ func _after_tick(_step: float) -> void:
 	if winner >= 0 and not _shown_result:
 		_shown_result = true
 	if winner >= 0 and not hud.banner_showing():
-		hud.show_results(session.standings(), "Fire: back to the menu      Tab: fight again")
+		hud.show_results(session.standings(), "Enter: back to the menu      Tab: fight again")
 
 
 func _cooldown(slot: int) -> float:

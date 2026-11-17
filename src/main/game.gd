@@ -128,6 +128,7 @@ func start_race(choice: int, with_garage: bool = false, devices: Array[int] = []
 	if race != null or _starting:
 		return  # a race is already running or starting: never create a second one
 	_starting = true
+	PlayerControls.set_race_context(true)  # Fire never presses a button from here on
 	await _fade_to(1.0)
 	title.hide_title()
 	race = MAIN_SCENE.instantiate()
@@ -220,6 +221,7 @@ func start_battle(choice: int) -> void:
 	if race != null or _starting:
 		return
 	_starting = true
+	PlayerControls.set_race_context(true)
 	await _fade_to(1.0)
 	title.hide_title()
 	var b := BattleRoyale.new()

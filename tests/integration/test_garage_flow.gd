@@ -84,6 +84,8 @@ func test_results_then_garage_then_next_race() -> void:
 	await _tap(PlayerControls.FIRE)
 	await _finish_player()
 	await _tap(PlayerControls.FIRE)
+	assert_signal_not_emitted(_main, "garage_requested", "Fire does not leave the results")
+	await _tap(PlayerControls.CONFIRM)
 	assert_signal_emitted(_main, "garage_requested")
 	assert_true(_main.garage_open)
 	assert_eq(_main.session.state, RaceSession.State.MODE_SELECT)

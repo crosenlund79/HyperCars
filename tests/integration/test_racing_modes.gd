@@ -13,7 +13,7 @@ func after_each() -> void:
 	Engine.physics_ticks_per_second = 60
 	Engine.time_scale = 1.0
 	Engine.max_physics_steps_per_frame = 8
-	for a in [PlayerControls.FIRE, PlayerControls.HISTORY_VIEW, PlayerControls.STEER_RIGHT]:
+	for a in [PlayerControls.FIRE, PlayerControls.CONFIRM, PlayerControls.HISTORY_VIEW, PlayerControls.STEER_RIGHT]:
 		Input.action_release(a)
 
 
@@ -115,7 +115,9 @@ func test_a_dnf_player_watches_too() -> void:
 	assert_string_contains(_main.hud.caption_text(), "OUT - DNF!")
 	assert_string_contains(_main.hud.caption_text(), "WATCH YOUR RIVALS")
 	await _tap(PlayerControls.FIRE)
-	assert_true(_main.watching, "Fire: watch at once")
+	assert_false(_main.watching, "Fire (shooting) does nothing here")
+	await _tap(PlayerControls.CONFIRM)
+	assert_true(_main.watching, "Enter: watch at once")
 
 
 func test_provisional_championship_standings_while_watching() -> void:
@@ -134,7 +136,7 @@ func test_provisional_championship_standings_while_watching() -> void:
 	_main.start_race()
 	await wait_physics_frames(30)
 	await _finish_player()
-	await _tap(PlayerControls.FIRE)  # watch now
+	await _tap(PlayerControls.CONFIRM)  # watch now
 	await wait_physics_frames(5)
 	var panel: ProvisionalPanel = _main.provisional_panel
 	assert_not_null(panel)

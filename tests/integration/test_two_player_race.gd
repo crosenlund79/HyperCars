@@ -52,10 +52,11 @@ func _finish(id: int) -> void:
 		_main.session.checkpoint_reached(0, id)
 
 
+## Enter on the results (Fire never leaves them).
 func _tap_fire() -> void:
-	Input.action_press(PlayerControls.FIRE)
+	Input.action_press(PlayerControls.CONFIRM)
 	await wait_physics_frames(2)
-	Input.action_release(PlayerControls.FIRE)
+	Input.action_release(PlayerControls.CONFIRM)
 	await wait_physics_frames(1)
 
 

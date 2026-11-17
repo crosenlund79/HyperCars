@@ -228,6 +228,7 @@ func show_title() -> void:
 	_ui.visible = true
 	set_process(true)
 	music.play("music/music_menu")  # (keeps playing when it already is)
+	PlayerControls.set_race_context(false)  # Space / pad A select in the title menus again
 	_show_main()
 
 

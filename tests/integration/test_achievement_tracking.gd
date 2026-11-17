@@ -27,7 +27,7 @@ func after_each() -> void:
 	Engine.physics_ticks_per_second = 60
 	Engine.time_scale = 1.0
 	Engine.max_physics_steps_per_frame = 8
-	for a in [PlayerControls.FIRE, PlayerControls.FIRE_REAR]:
+	for a in [PlayerControls.FIRE, PlayerControls.FIRE_REAR, PlayerControls.CONFIRM]:
 		Input.action_release(a)
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(PATH))
 
@@ -85,7 +85,7 @@ func test_normal_race_counts_once_when_left_after_the_flag() -> void:
 	await _tap(PlayerControls.FIRE)
 	await _finish_player()
 	assert_eq(_rival_races(), 0, "rivals still racing: not final yet")
-	await _tap(PlayerControls.FIRE)  # leave the results: the running order becomes final
+	await _tap(PlayerControls.CONFIRM)  # leave the results: the running order becomes final
 	assert_eq(_rival_races(), 9)
 	assert_true(_store.is_unlocked("first_flag"))
 	await wait_physics_frames(30)
@@ -113,7 +113,7 @@ func test_own_goal_from_real_combat_events() -> void:
 		own = own or (e.kind == "destroyed" and e.car == 0 and e.owner == 0)
 	assert_true(own, "destroyed by its own mine")
 	await _finish_player()
-	await _tap(PlayerControls.FIRE)
+	await _tap(PlayerControls.CONFIRM)
 	assert_true(_store.is_unlocked("own_goal"))
 	assert_false(_store.is_unlocked("rear_view_diplomacy"), "destroying yourself is not a kill")
 

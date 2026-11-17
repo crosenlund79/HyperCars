@@ -31,6 +31,7 @@ func _setup(track: int) -> void:
 
 func after_each() -> void:
 	Input.action_release(PlayerControls.FIRE)
+	Input.action_release(PlayerControls.CONFIRM)
 	for l in [hl, cl]:
 		if is_instance_valid(l):
 			l.close()
@@ -114,9 +115,11 @@ func test_full_tactical_race_client_fire_to_brake_agrees() -> void:
 	# repeated Fire presses (both computers share input in this test): the host
 	# moves to the next grid once, the client readies once, at most one new race
 	var started: int = host.races_started
-	for k in 6:
+	for k in 6:  # Enter moves on from the results, Fire readies on the grid
+		Input.action_press(PlayerControls.CONFIRM)
 		Input.action_press(PlayerControls.FIRE)
 		await wait_physics_frames(3)
+		Input.action_release(PlayerControls.CONFIRM)
 		Input.action_release(PlayerControls.FIRE)
 		await wait_physics_frames(10)
 	assert_lte(host.races_started, started + 1, "never more than one new race")

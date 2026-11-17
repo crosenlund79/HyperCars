@@ -24,8 +24,11 @@ const TOGGLE_STYLE := "toggle_style"
 const STICK_DEADZONE := 0.5
 ## Device id for a player on the keyboard (two-player assignment).
 const KEYBOARD := -1
+## Menu confirmation (results, standings, rewards, prompts): never the Fire
+## button, so shooting can never dismiss a screen.
+const CONFIRM := "confirm"
 ## Per-player driving actions (prefix + name) for two-player races.
-const PLAYER_ACTIONS: Array[String] = [STEER_LEFT, STEER_RIGHT, FIRE, FIRE_FRONT, FIRE_REAR, BACK, HISTORY_VIEW, TOGGLE_STYLE]
+const PLAYER_ACTIONS: Array[String] = [STEER_LEFT, STEER_RIGHT, FIRE, FIRE_FRONT, FIRE_REAR, BACK, HISTORY_VIEW, TOGGLE_STYLE, CONFIRM]
 
 
 ## Prefix of player n's own actions (two-player races), e.g. "p2_".
@@ -34,32 +37,54 @@ static func player_prefix(player_number: int) -> String:
 
 
 ## (Re)binds player n's driving actions to one device only: a joypad id, or
-## KEYBOARD. Joypad events carry the device id, so two pads never share input.
+## KEYBOARD. They are copied from the current (possibly remapped) bindings:
+## the keyboard player gets the keys, a pad player the pad's buttons and
+## sticks with its device id, so two pads never share input.
 static func ensure_player_actions(player_number: int, device: int) -> String:
+	ensure_actions()
 	var prefix := player_prefix(player_number)
 	for a in PLAYER_ACTIONS:
 		if InputMap.has_action(prefix + a):
 			InputMap.erase_action(prefix + a)
 		InputMap.add_action(prefix + a, STICK_DEADZONE)
-	if device == KEYBOARD:
-		_bind(prefix + STEER_LEFT, [_key(KEY_LEFT), _key(KEY_A)])
-		_bind(prefix + STEER_RIGHT, [_key(KEY_RIGHT), _key(KEY_D)])
-		_bind(prefix + FIRE, [_key(KEY_SPACE), _key(KEY_CTRL)])
-		_bind(prefix + FIRE_FRONT, [_key(KEY_UP), _key(KEY_W)])
-		_bind(prefix + FIRE_REAR, [_key(KEY_DOWN), _key(KEY_S)])
-		_bind(prefix + BACK, [_key(KEY_ESCAPE)])
-		_bind(prefix + HISTORY_VIEW, [_key(KEY_TAB)])
-		_bind(prefix + TOGGLE_STYLE, [_key(KEY_C)])
-	else:
-		_bind(prefix + STEER_LEFT, [_joy_button(JOY_BUTTON_DPAD_LEFT, device), _joy_axis(JOY_AXIS_LEFT_X, -1.0, device)])
-		_bind(prefix + STEER_RIGHT, [_joy_button(JOY_BUTTON_DPAD_RIGHT, device), _joy_axis(JOY_AXIS_LEFT_X, 1.0, device)])
-		_bind(prefix + FIRE, [_joy_button(JOY_BUTTON_A, device)])
-		_bind(prefix + FIRE_FRONT, [_joy_button(JOY_BUTTON_DPAD_UP, device), _joy_axis(JOY_AXIS_LEFT_Y, -1.0, device)])
-		_bind(prefix + FIRE_REAR, [_joy_button(JOY_BUTTON_DPAD_DOWN, device), _joy_axis(JOY_AXIS_LEFT_Y, 1.0, device)])
-		_bind(prefix + BACK, [_joy_button(JOY_BUTTON_B, device)])
-		_bind(prefix + HISTORY_VIEW, [_joy_button(JOY_BUTTON_Y, device)])
-		_bind(prefix + TOGGLE_STYLE, [_joy_button(JOY_BUTTON_RIGHT_SHOULDER, device)])
+		for e in InputMap.action_get_events(a):
+			if device == KEYBOARD and e is InputEventKey:
+				InputMap.action_add_event(prefix + a, e.duplicate())
+			elif device != KEYBOARD and (e is InputEventJoypadButton or e is InputEventJoypadMotion):
+				var d: InputEvent = e.duplicate()
+				d.device = device
+				InputMap.action_add_event(prefix + a, d)
 	return prefix
+
+
+## Gameplay context (a race and the screens after it): Godot's ui_accept
+## (focused buttons) loses Space and the pad's A - the Fire buttons - so
+## shooting never presses a button; Enter / Start still do. The title menus
+## restore them.
+static func set_race_context(on: bool) -> void:
+	if on:
+		for e in InputMap.action_get_events("ui_accept"):
+			if _is_fire_event(e):
+				_removed_accept.append(e)
+				InputMap.action_erase_event("ui_accept", e)
+	else:
+		for e in _removed_accept:
+			if not InputMap.action_has_event("ui_accept", e):
+				InputMap.action_add_event("ui_accept", e)
+		_removed_accept.clear()
+
+
+static var _removed_accept: Array[InputEvent] = []
+
+
+## True when an event is bound to Fire (any player).
+static func _is_fire_event(e: InputEvent) -> bool:
+	for f in InputMap.action_get_events(FIRE):
+		if f.is_match(e, true) or e.is_match(f, true):
+			return true
+	if e is InputEventKey and (e.physical_keycode == KEY_SPACE or e.keycode == KEY_SPACE):
+		return true
+	return e is InputEventJoypadButton and e.button_index == JOY_BUTTON_A
 
 
 static func _bind(action: String, events: Array) -> void:
@@ -76,6 +101,7 @@ static func ensure_actions() -> void:
 	_add(HISTORY_VIEW, [_key(KEY_TAB), _joy_button(JOY_BUTTON_Y)])
 	_add(SIM_SPEED, [_key(KEY_F), _joy_button(JOY_BUTTON_X)])
 	_add(BACK, [_key(KEY_ESCAPE), _joy_button(JOY_BUTTON_B)])
+	_add(CONFIRM, [_key(KEY_ENTER), _key(KEY_KP_ENTER), _joy_button(JOY_BUTTON_START)])
 	_add(TOGGLE_PANEL, [_key(KEY_H), _joy_button(JOY_BUTTON_BACK)])
 	_add(TOGGLE_LIGHTING, [_key(KEY_L)])
 	_add(TOGGLE_STYLE, [_key(KEY_C), _joy_button(JOY_BUTTON_RIGHT_SHOULDER)])
