@@ -59,7 +59,7 @@ and night. It ends with a **seven-lap GRAND FINAL**, billed on the standings scr
   nothing and is classified behind the finishers.
 - **Ties**: points, then countback (more wins, then more seconds, ...), then the last
   round's result, then racer id.
-- **Grids**: round 1 = rivals in id order, the player last; afterwards the previous
+- **Grids**: round 1 = the rivals in a shuffled order (race variety, from the race seed), the player last; afterwards the previous
   round's order reversed (the winner starts last), as in normal races.
 - **Between rounds** the standings screen (`src/ui/championship_screen.gd`) shows the
   table (position, car, driver, last result, wins, points) and the next round's circuit,
