@@ -300,6 +300,7 @@ func _ready() -> void:
 		race_menu.set_leave_text("ABANDON CHAMPIONSHIP")
 		race_menu.warning = forfeit_warning
 	race_menu.resume_requested.connect(resume_race)
+	Input.joy_connection_changed.connect(_on_joy_connection)
 	race_menu.leave_requested.connect(leave_race)
 	hud.follow_requested.connect(follow_driver)
 	hud.follow_step_requested.connect(follow_step)
@@ -806,7 +807,7 @@ func on_network_lost(text: String) -> void:
 		c.active = false
 	if race_audio != null:
 		race_audio.play_music("menu")
-	hud.show_notice("CONNECTION LOST", text, "Enter / Esc: back to the menu")
+	hud.show_notice("CONNECTION LOST", text, PlayerControls.fmt("{confirm} / {back}: back to the menu"))
 
 
 ## Host: the client readied up or cancelled (shown on the grid panel).
@@ -1291,6 +1292,25 @@ func open_race_menu() -> void:
 	race_menu.open(net != null)
 
 
+## A controller unplugged during a local race pauses it (couch: only a
+## player's own pad; single player: when no controller is left), so nobody
+## crashes while reaching for the cable. Plugging it back in and resuming is
+## enough: pad bindings follow the device id.
+func _on_joy_connection(device: int, connected: bool) -> void:
+	if connected or net != null or session.spectator or session.state != RaceSession.State.RACING:
+		return
+	var who := ""
+	if is_two_player():
+		var k := player_devices.find(device)
+		if k < 0:
+			return
+		who = "PLAYER %d: " % (k + 1)
+	elif not Input.get_connected_joypads().is_empty():
+		return
+	open_race_menu()
+	race_menu.set_note(who + "CONTROLLER DISCONNECTED  -  reconnect it, then resume", true)
+
+
 ## Back to the same race, exactly where it was.
 func resume_race() -> void:
 	if not menu_open:
@@ -1368,7 +1388,7 @@ func _watch_tick(step: float) -> void:
 		else:
 			hud.show_caption("%s PLACE - YOU FINISHED!" % Hud.ordinal(me.finish_position).to_upper(),
 				"RACE CONTINUES - WATCH YOUR RIVALS!")
-		hud.set_watch_hint("Enter: watch now      Tab: skip to the results")
+		hud.set_watch_hint(PlayerControls.fmt("{confirm}: watch now      {history_view}: skip to the results"))
 		hud.hide_message()  # nothing of the results before everyone is in
 		hud.set_results_up(false)
 	if session.all_finished():
@@ -1501,7 +1521,7 @@ func _begin_watching() -> void:
 	director.locked = false
 	hud.hide_caption()
 	if not _skipping:
-		hud.set_watch_hint("WATCHING THE RACE      Left / Right: switch car      Tab: skip to the results")
+		hud.set_watch_hint(PlayerControls.fmt("WATCHING THE RACE      {steer_left} / {steer_right}: switch car      {history_view}: skip to the results"))
 	_update_camera_target()
 
 
@@ -1647,11 +1667,11 @@ func _refresh_hud() -> void:
 	_refresh_watch_panel()
 	if session.state == RaceSession.State.FINISHED and not _watch_active():
 		if net != null:
-			hud.show_results(session.standings(), "Enter: next race" if net.is_host() else "Waiting for the host to continue")
+			hud.show_results(session.standings(), "{confirm}: next race" if net.is_host() else "Waiting for the host to continue")
 		elif championship_round >= 0:
-			hud.show_results(session.standings(), "Enter: championship standings")
+			hud.show_results(session.standings(), "{confirm}: championship standings")
 		elif garage != null and _garage_settled:
-			hud.show_results(session.standings(), "Prize money: $%d     Enter: garage     Tab: skip shopping, next race" % garage.last_prize)
+			hud.show_results(session.standings(), "Prize money: $%d     {confirm}: garage     {history_view}: skip shopping, next race" % garage.last_prize)
 		else:
 			hud.show_results(session.standings())
 

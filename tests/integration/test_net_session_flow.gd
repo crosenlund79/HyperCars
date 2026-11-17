@@ -69,12 +69,12 @@ func test_host_join_ready_start_and_disconnect() -> void:
 	assert_null(host_game.race.garage)
 	assert_null(client_game.race.achievements)
 	assert_has(_labels(host_game), "Waiting for Player 2 to get ready...")
-	assert_has(_labels(client_game), "Fire: ready (the host starts the race)")
+	assert_has(_labels(client_game), PlayerControls.fmt("{fire}: ready (the host starts the race)"))
 	client_game.race.net.local_ready = true
 	client_game.race.net._send_ready()
 	await _real_wait(3000, func() -> bool: return host_game.race.net.client_ready)
 	await wait_physics_frames(3)
-	assert_has(_labels(host_game), "PLAYER 2 READY  -  Fire: start the race")
+	assert_has(_labels(host_game), PlayerControls.fmt("PLAYER 2 READY  -  {fire}: start the race"))
 	var host_race: Node2D = host_game.race
 	host_race.start_race()
 	await _real_wait(3000, func() -> bool: return client_game.race.session.state == RaceSession.State.RACING)

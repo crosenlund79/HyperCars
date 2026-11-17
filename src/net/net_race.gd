@@ -410,8 +410,8 @@ func _send_ready() -> void:
 ## Grid panel line about readiness (whose turn it is).
 func status_text() -> String:
 	if is_host():
-		return "PLAYER 2 READY  -  Fire: start the race" if client_ready else "Waiting for Player 2 to get ready..."
-	return "YOU ARE READY  -  waiting for the host to start" if local_ready else "Fire: ready (the host starts the race)"
+		return PlayerControls.fmt("PLAYER 2 READY  -  {fire}: start the race") if client_ready else "Waiting for Player 2 to get ready..."
+	return "YOU ARE READY  -  waiting for the host to start" if local_ready else PlayerControls.fmt("{fire}: ready (the host starts the race)")
 
 
 ## Control mode chosen on this computer's grid panel (sent with READY).

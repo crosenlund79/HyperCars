@@ -257,7 +257,7 @@ func show_menu(choice: String, weapons: bool = false, laps: int = 3, style: int 
 		WeaponRules.style_name(style), Hud.laps_text(laps)], 26, HyperTheme.RED if weapons else HyperTheme.CREAM, 700)))
 	if not note.is_empty():
 		_message_box.add_child(_centered(HyperTheme.label(note, 22, HyperTheme.GOLD, 700)))
-	_message_box.add_child(_centered(HyperTheme.label("Left / Right: mode    Up / Down: weapons    C: combat style    Tab: laps    Fire: start    Esc: menu", 17, HyperTheme.CREAM_DIM, 500)))
+	_message_box.add_child(_centered(HyperTheme.label(PlayerControls.fmt("{steer_left} / {steer_right}: mode    {fire_front} / {fire_rear}: weapons    {toggle_style}: combat style\n{history_view}: laps    {fire}: start    {back}: menu"), 17, HyperTheme.CREAM_DIM, 500)))
 	_present_message(Vector2(640, 0))
 
 
@@ -643,7 +643,8 @@ func set_info_visible(on: bool) -> void:
 
 
 ## Results card: podium stars, car icons, names with nicknames, time or gap.
-func show_results(standings: Array[RacerState], footer: String = "Enter: race again (reversed grid)") -> void:
+func show_results(standings: Array[RacerState], footer: String = "{confirm}: race again (reversed grid)") -> void:
+	footer = PlayerControls.fmt(footer)
 	var key := footer
 	for r in standings:
 		key += "|%d:%d:%.3f:%s" % [r.id, r.finish_position, r.finish_time, r.dnf]
@@ -726,7 +727,8 @@ func show_results(standings: Array[RacerState], footer: String = "Enter: race ag
 
 
 ## Plain-text results (kept for logs and tests).
-static func results_text(standings: Array[RacerState], footer: String = "Enter: race again (reversed grid)") -> String:
+static func results_text(standings: Array[RacerState], footer: String = "{confirm}: race again (reversed grid)") -> String:
+	footer = PlayerControls.fmt(footer)
 	var lines := PackedStringArray(["RESULTS"])
 	for i in standings.size():
 		var r := standings[i]

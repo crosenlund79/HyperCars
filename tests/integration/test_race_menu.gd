@@ -104,6 +104,22 @@ func test_couch_race_pauses_for_either_player() -> void:
 	assert_false(get_tree().paused)
 
 
+## A couch player's controller unplugged mid-race pauses the race with a
+## message; another device (not in the race) does not.
+func test_couch_controller_disconnect_pauses() -> void:
+	await _make(2)
+	_main.start_race()
+	await wait_physics_frames(5)
+	_main._on_joy_connection(7, false)
+	assert_false(_main.menu_open, "a pad that is not racing")
+	_main._on_joy_connection(4, false)
+	assert_true(_main.menu_open, "player 2's pad: paused")
+	assert_true(get_tree().paused)
+	assert_string_contains(_main.race_menu._note.text, "PLAYER 2: CONTROLLER DISCONNECTED")
+	_main.resume_race()
+	assert_false(get_tree().paused)
+
+
 func test_leave_returns_to_the_title_cleanly_and_a_new_race_works() -> void:
 	var game: Node = GAME_SCENE.instantiate()
 	game.achievements_path = "user://test_race_menu_ach.cfg"

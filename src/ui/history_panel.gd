@@ -45,7 +45,7 @@ func setup(resolver: AssetResolver, history: RaceHistory, car_textures: Dictiona
 	_title = _label(18, TEXT_COLOR)
 	box.add_child(_title)
 	_hint = _label(13, DIM_COLOR)
-	_hint.text = "Tab: view   Left/Right: scroll   H: hide   F: speed   Esc: menu"
+	_hint.text = PlayerControls.fmt("{history_view}: view   {steer_left} / {steer_right}: scroll   {toggle_panel}: hide   {sim_speed}: speed   {back}: menu")
 	box.add_child(_hint)
 	var row := HBoxContainer.new()
 	row.size_flags_vertical = Control.SIZE_EXPAND_FILL

@@ -205,7 +205,7 @@ func setup(p_resolver: AssetResolver, p_settings: AudioSettings) -> void:
 	for panel in [_settings_panel, _controls_panel]:
 		panel.reset_size()
 		panel.position = Vector2((1280 - panel.size.x) * 0.5, 250 if panel == _settings_panel else (720 - panel.size.y) * 0.5 - 10)
-	var footer := HyperTheme.label("Esc: back    Enter / Space: select", 15, HyperTheme.CREAM_DIM, 500)
+	footer = HyperTheme.label("", 15, HyperTheme.CREAM_DIM, 500)
 	footer.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	footer.size = Vector2(1280, 24)
 	footer.position = Vector2(0, 686)
@@ -653,7 +653,13 @@ func _show_main() -> void:
 	(_main_menu.get_child(0) as Button).grab_focus()
 
 
+## Bottom hint line (rebuilt from the bindings whenever a page opens).
+var footer: Label
+
+
 func _show_only(node: Control) -> void:
+	if footer != null:
+		footer.text = PlayerControls.fmt("{back}: back    Enter / Space / A: select")
 	for n in [_main_menu, _mode_menu, _setup, _race_menu, _settings_panel, _controls_panel, _achievements_panel, _join_panel, lan_panel]:
 		n.visible = n == node
 	_logo.visible = node != _controls_panel and node != _achievements_panel and node != _setup

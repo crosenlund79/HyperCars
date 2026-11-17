@@ -43,7 +43,7 @@ func setup(theme: Theme) -> void:
 	_leave = _button("LEAVE RACE", _on_leave)
 	box.add_child(_resume)
 	box.add_child(_leave)
-	var hint := HyperTheme.label("Up / Down: choose    Enter / Space / A: select    Esc: resume", 15, HyperTheme.CREAM_DIM, 500)
+	var hint := HyperTheme.label(PlayerControls.fmt("Up / Down: choose    {confirm}: select    {back}: resume"), 15, HyperTheme.CREAM_DIM, 500)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(hint)
 	visible = false
@@ -70,6 +70,15 @@ func open(network: bool) -> void:
 	_panel.position = (Vector2(1280, 720) - _panel.get_combined_minimum_size()) * 0.5
 	_resume.grab_focus()
 	_opened_frame = Engine.get_process_frames()
+
+
+## A message in place of the usual note (e.g. a controller disconnected).
+func set_note(text: String, alert := false) -> void:
+	_note.text = text
+	if alert:
+		_note.add_theme_color_override("font_color", Color("ff8a6a"))
+	_panel.reset_size()
+	_panel.position = (Vector2(1280, 720) - _panel.get_combined_minimum_size()) * 0.5
 
 
 ## The leave button's label (a championship round abandons the championship).

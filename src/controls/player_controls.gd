@@ -29,6 +29,8 @@ const KEYBOARD := -1
 const CONFIRM := "confirm"
 ## Per-player driving actions (prefix + name) for two-player races.
 const PLAYER_ACTIONS: Array[String] = [STEER_LEFT, STEER_RIGHT, FIRE, FIRE_FRONT, FIRE_REAR, BACK, HISTORY_VIEW, TOGGLE_STYLE, CONFIRM]
+## (Couch players share TOGGLE_PANEL / TOGGLE_LIGHTING / SIM_SPEED through the
+## base actions: they are not per-player.)
 
 
 ## Prefix of player n's own actions (two-player races), e.g. "p2_".
@@ -67,14 +69,40 @@ static func set_race_context(on: bool) -> void:
 			if _is_fire_event(e):
 				_removed_accept.append(e)
 				InputMap.action_erase_event("ui_accept", e)
+		# Confirm (pad Start, remapped keys) presses focused buttons instead,
+		# so a controller can still use the race menu, garage and standings.
+		for e in InputMap.action_get_events(CONFIRM) if InputMap.has_action(CONFIRM) else []:
+			if not _ui_has("ui_accept", e):
+				InputMap.action_add_event("ui_accept", e)
+				_added_accept.append(e)
 	else:
+		for e in _added_accept:
+			InputMap.action_erase_event("ui_accept", e)
+		_added_accept.clear()
 		for e in _removed_accept:
-			if not InputMap.action_has_event("ui_accept", e):
+			if not _ui_has("ui_accept", e):
 				InputMap.action_add_event("ui_accept", e)
 		_removed_accept.clear()
 
 
+static func _code(k: InputEventKey) -> int:
+	return k.physical_keycode if k.physical_keycode != KEY_NONE else k.keycode
+
+
+## Same key / button / stick direction already in the action (any device).
+static func _ui_has(action: String, e: InputEvent) -> bool:
+	for f in InputMap.action_get_events(action):
+		if f is InputEventKey and e is InputEventKey and _code(f) == _code(e):
+			return true
+		if f is InputEventJoypadButton and e is InputEventJoypadButton and f.button_index == e.button_index:
+			return true
+		if f is InputEventJoypadMotion and e is InputEventJoypadMotion and f.axis == e.axis and signf(f.axis_value) == signf(e.axis_value):
+			return true
+	return false
+
+
 static var _removed_accept: Array[InputEvent] = []
+static var _added_accept: Array[InputEvent] = []
 
 
 ## True when an event is bound to Fire (any player).
@@ -105,10 +133,59 @@ static func ensure_actions() -> void:
 	_add(TOGGLE_PANEL, [_key(KEY_H), _joy_button(JOY_BUTTON_BACK)])
 	_add(TOGGLE_LIGHTING, [_key(KEY_L)])
 	_add(TOGGLE_STYLE, [_key(KEY_C), _joy_button(JOY_BUTTON_RIGHT_SHOULDER)])
+	# Godot's menus accept / cancel only from the keyboard by default: a
+	# controller selects with A or Start and goes back with B.
+	for e in [_joy_button(JOY_BUTTON_A), _joy_button(JOY_BUTTON_START)]:
+		if not _ui_has("ui_accept", e):
+			InputMap.action_add_event("ui_accept", e)
+	if not _ui_has("ui_cancel", _joy_button(JOY_BUTTON_B)):
+		InputMap.action_add_event("ui_cancel", _joy_button(JOY_BUTTON_B))
 
 
 ## Digital steering like a joystick: -1, 0 or +1. prefix selects a player's
 ## own actions ("" = the default single-player actions).
+## The player's current binding for an action, for on-screen hints: the first
+## keyboard key and the first controller input, e.g. "Enter / Start".
+## Couch players' own actions show their own device's half.
+static func key_text(action: String) -> String:
+	var key := ""
+	var pad := ""
+	for e in InputMap.action_get_events(action) if InputMap.has_action(action) else []:
+		if e is InputEventKey and key == "":
+			key = OS.get_keycode_string(e.physical_keycode if e.physical_keycode != KEY_NONE else e.keycode)
+		elif (e is InputEventJoypadButton or e is InputEventJoypadMotion) and pad == "":
+			pad = pad_short(e)
+	if key != "" and pad != "":
+		return "%s / %s" % [key, pad]
+	return key if key != "" else (pad if pad != "" else "?")
+
+
+## "{confirm}: next race" -> "Enter / Start: next race": every {action} in the
+## text becomes the player's binding (key_text).
+static func fmt(text: String) -> String:
+	var out := text
+	for a in [STEER_LEFT, STEER_RIGHT, FIRE, FIRE_FRONT, FIRE_REAR, HISTORY_VIEW, SIM_SPEED, BACK, TOGGLE_PANEL,
+			TOGGLE_LIGHTING, TOGGLE_STYLE, CONFIRM]:
+		out = out.replace("{%s}" % a, key_text(a))
+	return out
+
+
+## Short controller name for hints ("A", "Start", "D-pad up", "L stick").
+static func pad_short(e: InputEvent) -> String:
+	if e is InputEventJoypadButton:
+		var names := {JOY_BUTTON_A: "A", JOY_BUTTON_B: "B", JOY_BUTTON_X: "X", JOY_BUTTON_Y: "Y",
+			JOY_BUTTON_START: "Start", JOY_BUTTON_BACK: "Select", JOY_BUTTON_LEFT_SHOULDER: "LB",
+			JOY_BUTTON_RIGHT_SHOULDER: "RB", JOY_BUTTON_DPAD_UP: "D-pad up", JOY_BUTTON_DPAD_DOWN: "D-pad down",
+			JOY_BUTTON_DPAD_LEFT: "D-pad left", JOY_BUTTON_DPAD_RIGHT: "D-pad right", JOY_BUTTON_LEFT_STICK: "L3",
+			JOY_BUTTON_RIGHT_STICK: "R3"}
+		return names.get(e.button_index, "Button %d" % e.button_index)
+	if e is InputEventJoypadMotion:
+		var axes := {JOY_AXIS_LEFT_X: "L stick", JOY_AXIS_LEFT_Y: "L stick", JOY_AXIS_RIGHT_X: "R stick",
+			JOY_AXIS_RIGHT_Y: "R stick", JOY_AXIS_TRIGGER_LEFT: "LT", JOY_AXIS_TRIGGER_RIGHT: "RT"}
+		return axes.get(e.axis, "Axis %d" % e.axis)
+	return "?"
+
+
 static func steer(prefix: String = "") -> float:
 	var left := Input.is_action_pressed(prefix + STEER_LEFT)
 	var right := Input.is_action_pressed(prefix + STEER_RIGHT)
@@ -133,15 +210,16 @@ static func _key(code: Key) -> InputEventKey:
 	return e
 
 
-## device: the joypad the event belongs to (0 = the single-player default, as before).
-static func _joy_button(button: JoyButton, device: int = 0) -> InputEventJoypadButton:
+## device: the joypad the event belongs to (-1 = any pad: the single player
+## can use whichever controller is connected; couch players get their own).
+static func _joy_button(button: JoyButton, device: int = -1) -> InputEventJoypadButton:
 	var e := InputEventJoypadButton.new()
 	e.button_index = button
 	e.device = device
 	return e
 
 
-static func _joy_axis(axis: JoyAxis, value: float, device: int = 0) -> InputEventJoypadMotion:
+static func _joy_axis(axis: JoyAxis, value: float, device: int = -1) -> InputEventJoypadMotion:
 	var e := InputEventJoypadMotion.new()
 	e.axis = axis
 	e.axis_value = value

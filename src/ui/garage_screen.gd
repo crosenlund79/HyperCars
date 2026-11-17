@@ -104,7 +104,7 @@ func setup(p_garage: PlayerGarage, resolver: AssetResolver) -> void:
 	strip.position = Vector2(0, 680)
 	strip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_root.add_child(strip)
-	var hint := HyperTheme.label("Arrows: move    Enter / Space: choose    Esc: grid panel    Weapons: price per round, selling pays half    Repairs: $%d per 1 %%" % garage.rules.repair_price_per_point,
+	var hint := HyperTheme.label(PlayerControls.fmt("Arrows: move    {confirm}: choose    {back}: grid panel    Weapons: price per round, selling pays half    Repairs: $%d per 1 %%" % garage.rules.repair_price_per_point),
 		17, Color(HyperTheme.CREAM, 0.88), 600)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.vertical_alignment = VERTICAL_ALIGNMENT_CENTER

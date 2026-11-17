@@ -1,28 +1,34 @@
 class_name ControlBindings
 extends RefCounted
-## Remappable controls on top of Godot's InputMap: one keyboard key and one
-## controller input per action, chosen on the CONTROLS screen, saved to
-## user://controls.cfg and applied at start-up. Couch players copy these
-## bindings onto their own device (PlayerControls.ensure_player_actions).
+## Remappable controls on top of Godot's InputMap: up to SLOTS keyboard keys
+## and SLOTS controller inputs per player action, chosen on the CONTROLS
+## screen, saved to user://controls.cfg and applied at start-up. Controller
+## bindings are device-independent (any connected pad drives the single
+## player); couch players copy them onto their own pad
+## (PlayerControls.ensure_player_actions).
 ##
 ## Safety: an input belongs to one action only (a clash is refused with a
 ## message, so Fire can never become Confirm); Enter / keypad Enter always
-## confirm and Esc always goes back (reserved, they cannot be taken away or
-## given to another action).
+## confirm and Esc always goes back (reserved: fixed, outside the slots).
 
 const PATH := "user://controls.cfg"
+## Keyboard and controller slots per action.
+const SLOTS := 2
 
-## [action, label] in screen order.
+## [action, label] in screen order: every player-facing action.
 const ACTIONS := [
 	[PlayerControls.STEER_LEFT, "Steer left"],
 	[PlayerControls.STEER_RIGHT, "Steer right"],
 	[PlayerControls.FIRE, "Fire"],
 	[PlayerControls.FIRE_FRONT, "Front weapon"],
 	[PlayerControls.FIRE_REAR, "Rear weapon"],
-	[PlayerControls.CONFIRM, "Confirm (menus)"],
-	[PlayerControls.BACK, "Back / race menu"],
-	[PlayerControls.HISTORY_VIEW, "Skip / history (Tab)"],
+	[PlayerControls.CONFIRM, "Confirm (+ Enter)"],
+	[PlayerControls.BACK, "Back / race menu (+ Esc)"],
+	[PlayerControls.HISTORY_VIEW, "Skip / laps / history"],
 	[PlayerControls.SIM_SPEED, "Spectator speed"],
+	[PlayerControls.TOGGLE_PANEL, "Hide / show panel"],
+	[PlayerControls.TOGGLE_STYLE, "Combat style (grid)"],
+	[PlayerControls.TOGGLE_LIGHTING, "Lights on / off"],
 ]
 const KEYBOARD := "key"
 const PAD := "pad"
@@ -46,13 +52,20 @@ static func is_remappable(action: String) -> bool:
 	return false
 
 
-## The events of one kind (KEYBOARD or PAD) bound to an action.
+## The remappable events of one kind (KEYBOARD or PAD) bound to an action,
+## in slot order (the reserved Enter / Esc are not in a slot).
 static func events(action: String, kind: String) -> Array[InputEvent]:
 	var out: Array[InputEvent] = []
 	for e in InputMap.action_get_events(action):
-		if _kind_of(e) == kind:
+		if _kind_of(e) == kind and not _is_reserved(e):
 			out.append(e)
 	return out
+
+
+## The input in one slot ("-" when empty).
+static func slot_name(action: String, kind: String, slot: int) -> String:
+	var list := events(action, kind)
+	return event_name(list[slot]) if slot < list.size() else "-"
 
 
 ## "Left / A", "D-pad Left / Left stick left" ...
@@ -83,9 +96,9 @@ static func event_name(e: InputEvent) -> String:
 	return "?"
 
 
-## Binds `event` as the action's input of its kind (replacing that kind's
-## other inputs; Enter / Esc stay on Confirm / Back). Returns "" or why not.
-static func assign(action: String, event: InputEvent) -> String:
+## Binds `event` into one slot of the action (replacing what was there; the
+## other slots keep their inputs). Returns "" or why not.
+static func assign(action: String, event: InputEvent, slot: int = 0) -> String:
 	var kind := _kind_of(event)
 	if kind == "" or not is_remappable(action):
 		return "That input cannot be used."
@@ -99,12 +112,38 @@ static func assign(action: String, event: InputEvent) -> String:
 	for a in ACTIONS:
 		if a[0] != action and _has(a[0], clean):
 			return "%s is already used for %s." % [event_name(clean), a[1]]
-	for e in events(action, kind):
-		if not _is_reserved(e):
-			InputMap.action_erase_event(action, e)
-	if not _has(action, clean):
-		InputMap.action_add_event(action, clean)
+	var list := events(action, kind)
+	for k in list.size():
+		if _same(list[k], clean):
+			return "" if k == slot else "%s is already in the other slot." % event_name(clean)
+	if slot < list.size():
+		list[slot] = clean
+	else:
+		list.append(clean)
+	_set_events(action, kind, list)
 	return ""
+
+
+## Empties one slot. The last input of an action that has no fixed key cannot
+## be removed (the action would become unusable).
+static func clear(action: String, kind: String, slot: int) -> String:
+	var list := events(action, kind)
+	if slot >= list.size():
+		return ""
+	var other := KEYBOARD if kind == PAD else PAD
+	var fixed := action == PlayerControls.CONFIRM or action == PlayerControls.BACK
+	if list.size() == 1 and events(action, other).is_empty() and not fixed:
+		return "%s needs at least one input." % label_of(action)
+	list.remove_at(slot)
+	_set_events(action, kind, list)
+	return ""
+
+
+static func _set_events(action: String, kind: String, list: Array[InputEvent]) -> void:
+	for e in events(action, kind):
+		InputMap.action_erase_event(action, e)
+	for e in list:
+		InputMap.action_add_event(action, e)
 
 
 ## Restores the default bindings (and forgets the saved ones).
@@ -160,7 +199,7 @@ static func _kind_of(e: InputEvent) -> String:
 	return ""
 
 
-## A device-independent copy (device 0 for pads, physical key code for keys).
+## A device-independent copy (all pads, physical key code for keys).
 static func _clean(e: InputEvent) -> InputEvent:
 	if e is InputEventKey:
 		var code: Key = e.physical_keycode if e.physical_keycode != KEY_NONE else e.keycode

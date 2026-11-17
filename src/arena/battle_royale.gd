@@ -421,7 +421,7 @@ func _eliminate(id: int, by_weapon: bool, owner: int = -1, weapon: int = -1) -> 
 		follow_id = -1
 	if id == PLAYER and not player_ai and hud != null:
 		hud.show_caption("ELIMINATED!", "THE FIGHT GOES ON - WATCH THE SURVIVORS", HyperTheme.RED)
-		hud.set_watch_hint("Enter: watch now      Tab: skip to the result")
+		hud.set_watch_hint(PlayerControls.fmt("{confirm}: watch now      {history_view}: skip to the result"))
 		_celebrate_left = CELEBRATION_TIME
 	elif hud != null:
 		hud.flash_banner("%s OUT!" % session.racers[id].display_name.to_upper(), HyperTheme.RED, 0.8)
@@ -474,7 +474,7 @@ func _begin_watching() -> void:
 	watching = true
 	hud.hide_caption()
 	if not _skipping:
-		hud.set_watch_hint("WATCHING      Left / Right: switch car      Tab: skip to the result")
+		hud.set_watch_hint(PlayerControls.fmt("WATCHING      {steer_left} / {steer_right}: switch car      {history_view}: skip to the result"))
 
 
 func _follow_step(dir: int) -> void:
@@ -541,7 +541,7 @@ func _after_tick(_step: float) -> void:
 	if winner >= 0 and not _shown_result:
 		_shown_result = true
 	if winner >= 0 and not hud.banner_showing():
-		hud.show_results(session.standings(), "Enter: back to the menu      Tab: fight again")
+		hud.show_results(session.standings(), "{confirm}: back to the menu      {history_view}: fight again")
 
 
 func _cooldown(slot: int) -> float:
