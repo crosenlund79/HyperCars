@@ -4,7 +4,10 @@ extends RefCounted
 ##
 ## A logical name such as "cars/car_player" resolves to:
 ##   1. user override  <override_root>/graphics/cars/car_player.png
-##   2. packaged fallback  res://assets/graphics/cars/template_car_player.png
+##   2. the user's packaged artwork  res://assets/graphics/cars/car_player.png
+##      (the user's own drawing added to the project under the plain name:
+##      it replaces Claude's template in the packaged game)
+##   3. packaged fallback  res://assets/graphics/cars/template_car_player.png
 ## Audio works the same way under <override_root>/audio/ (OGG Vorbis or WAV,
 ## both loadable at runtime in Godot 4.7) with fallbacks in res://assets/audio/.
 ## Missing or invalid overrides fall back with a warning. Results are cached for
@@ -74,6 +77,18 @@ func has_override(logical_name: String) -> bool:
 	return _overridden.has(logical_name)
 
 
+## The user's own artwork supplies this graphic: a custom/ override or the
+## user's packaged drawing (layer 2), as opposed to Claude's template.
+func has_user_art(logical_name: String) -> bool:
+	return has_override(logical_name) or not packaged_art_path(logical_name).is_empty()
+
+
+## The user's packaged drawing for a logical name (layer 2), "" if none.
+static func packaged_art_path(logical_name: String) -> String:
+	var path := FALLBACK_ROOT.path_join(logical_name + ".png")
+	return path if ResourceLoader.exists(path) else ""
+
+
 func override_path(logical_name: String, extension: String = "png") -> String:
 	return override_root.path_join(GRAPHICS_DIR).path_join(logical_name + "." + extension)
 
@@ -102,6 +117,9 @@ func _load_override(logical_name: String) -> Texture2D:
 
 
 func _load_fallback(logical_name: String) -> Texture2D:
+	var packaged := packaged_art_path(logical_name)
+	if not packaged.is_empty():
+		return load(packaged) as Texture2D
 	var path := fallback_path(logical_name)
 	if not ResourceLoader.exists(path):
 		push_error("AssetResolver: missing template asset '%s'." % path)

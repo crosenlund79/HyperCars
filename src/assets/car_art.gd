@@ -10,10 +10,12 @@ extends RefCounted
 ## the same everywhere.
 ##
 ## Which artwork is the car (artwork precedence, the same everywhere):
-##   1. the user's body override  custom/graphics/cars/body_<car>.png  (+ wheels)
-##   2. the user's older flattened override  custom/graphics/cars/car_<car>.png
-##      (wheels painted in): drawn as it is, never with extra wheels
+##   1. the user's body drawing  body_<car>.png  (+ wheels)
+##   2. the user's older flattened drawing  car_<car>.png (wheels painted in):
+##      drawn as it is, never with extra wheels
 ##   3. the packaged body template  assets/graphics/cars/template_body_<car>.png  (+ wheels)
+## "The user's drawing" = a custom/graphics/cars/ override, or the user's own
+## file added to assets/graphics/cars/ under the plain name (AssetResolver).
 ## The packaged flattened templates (template_car_*.png) are legacy reference
 ## pictures, generated from the bodies and the wheel; the game never shows them.
 
@@ -33,7 +35,7 @@ static var _icons: Dictionary = {}
 ## precedence above.
 static func look(resolver: AssetResolver, car_logical: String) -> Dictionary:
 	var body := AssetCatalog.body_of(car_logical)
-	if resolver.has_override(body) or not resolver.has_override(car_logical):
+	if resolver.has_user_art(body) or not resolver.has_user_art(car_logical):
 		return {"body": resolver.get_texture(body), "wheels": true, "body_logical": body}
 	return {"body": resolver.get_texture(car_logical), "wheels": false, "body_logical": car_logical}
 

@@ -117,10 +117,13 @@ func test_loop_flag_applies_to_templates() -> void:
 func test_new_graphics_have_templates_of_declared_size() -> void:
 	var r := AssetResolver.new(_root)
 	for logical in AssetCatalog.SPECS:
-		var tex := r.get_texture(logical)
-		assert_not_null(tex, logical)
-		if tex != null:
-			assert_eq(Vector2i(tex.get_size()), AssetCatalog.SPECS[logical].template_size, logical)
+		var template := load(AssetResolver.fallback_path(logical)) as Texture2D
+		assert_not_null(template, logical)
+		if template != null:
+			assert_eq(Vector2i(template.get_size()), AssetCatalog.SPECS[logical].template_size, logical)
+		var tex := r.get_texture(logical)  # (the template, or the user's own drawing: any size, same shape)
+		if tex != null and template != null:
+			assert_almost_eq(tex.get_size().aspect(), template.get_size().aspect(), 0.02, "%s: same aspect ratio" % logical)
 
 
 func test_ten_cars_are_visually_distinct() -> void:

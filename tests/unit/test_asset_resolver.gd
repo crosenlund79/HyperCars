@@ -104,10 +104,13 @@ func test_fallback_path_mapping() -> void:
 func test_every_catalogued_asset_has_a_template_of_declared_size() -> void:
 	var r := AssetResolver.new(_root)
 	for logical_name in AssetCatalog.SPECS:
-		var tex := r.get_texture(logical_name)
-		assert_not_null(tex, logical_name)
-		if tex != null:
-			assert_eq(Vector2i(tex.get_size()), AssetCatalog.SPECS[logical_name].template_size, logical_name)
+		var template := load(AssetResolver.fallback_path(logical_name)) as Texture2D
+		assert_not_null(template, logical_name)
+		if template != null:
+			assert_eq(Vector2i(template.get_size()), AssetCatalog.SPECS[logical_name].template_size, logical_name)
+		var tex := r.get_texture(logical_name)  # (the template, or the user's own drawing: any size, same shape)
+		if tex != null and template != null:
+			assert_almost_eq(tex.get_size().aspect(), template.get_size().aspect(), 0.02, "%s: same aspect ratio" % logical_name)
 
 
 func test_override_of_any_resolution_scales_to_display_size() -> void:
@@ -176,3 +179,24 @@ func test_shared_wheel_override_is_used() -> void:
 	assert_eq(wheel.get_width(), 96)
 	assert_eq(Vector2(wheel.get_size()) * AssetCatalog.scale_for(wheel, AssetCatalog.SPECS[AssetCatalog.WHEEL].display_size),
 		AssetCatalog.SPECS[AssetCatalog.WHEEL].display_size, "any resolution, same display size")
+
+
+# --- the user's own drawings added to the project (assets/graphics/<name>.png) ---
+
+func test_users_packaged_drawings_replace_the_templates() -> void:
+	# the user's uploads (2026-11-20): stars, crash, tombstone, grid box
+	var r := AssetResolver.new(_root)
+	for logical in [AssetCatalog.STAR_GOLD, AssetCatalog.STAR_SILVER, AssetCatalog.STAR_BRONZE, AssetCatalog.CRASH,
+			AssetCatalog.TOMBSTONE, AssetCatalog.GRID_BOX]:
+		assert_eq(r.get_texture(logical).resource_path, "res://assets/graphics/%s.png" % logical, "%s: the user's drawing" % logical)
+		assert_true(r.has_user_art(logical))
+		assert_false(r.has_override(logical), "(a packaged drawing, not a custom/ override)")
+	assert_eq(r.get_texture(AssetCatalog.TICKET).resource_path, "res://assets/graphics/ui/template_ticket.png", "no drawing yet: the template")
+
+
+func test_a_custom_override_still_beats_a_packaged_drawing() -> void:
+	DirAccess.make_dir_recursive_absolute(_root.path_join("graphics/ui"))
+	_write_png("graphics/ui/star_gold.png", Vector2i(48, 48))
+	var r := AssetResolver.new(_root)
+	assert_true(r.has_override(AssetCatalog.STAR_GOLD))
+	assert_eq(r.get_texture(AssetCatalog.STAR_GOLD).get_width(), 48, "custom/ first, next to the exported game too")
