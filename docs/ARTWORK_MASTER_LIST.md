@@ -47,6 +47,17 @@ Pick one of two places; restart the game to see it.
 - **Legacy files:** `cars/car_*` are kept only so older flattened drawings keep
   working. Their packaged templates are generated from the bodies and the wheel.
 
+Proof that one drawing shows everywhere: [acceptance_car_art.png](artwork/acceptance_car_art.png)
+(the real game with test drawings in a scratch override folder):
+
+- a green 77 player body in the race, the title, the standings and the
+  championship / results pictures;
+- a legacy flattened car with no extra wheels;
+- both files present (the body wins);
+- a custom body for Hank;
+- a won car and the junker;
+- the packaged default restored when the override is removed.
+
 ## Vehicles
 
 Cars: one wheel-free body per car plus the shared wheel. Draw these. Reference sheet: [sheet_vehicles.png](artwork/sheet_vehicles.png)

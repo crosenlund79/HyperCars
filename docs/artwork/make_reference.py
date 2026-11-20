@@ -196,6 +196,17 @@ def main():
         "- **Legacy files:** `cars/car_*` are kept only so older flattened drawings keep",
         "  working. Their packaged templates are generated from the bodies and the wheel.",
         "",
+        "Proof that one drawing shows everywhere: [acceptance_car_art.png](artwork/acceptance_car_art.png)",
+        "(the real game with test drawings in a scratch override folder):",
+        "",
+        "- a green 77 player body in the race, the title, the standings and the",
+        "  championship / results pictures;",
+        "- a legacy flattened car with no extra wheels;",
+        "- both files present (the body wins);",
+        "- a custom body for Hank;",
+        "- a won car and the junker;",
+        "- the packaged default restored when the override is removed.",
+        "",
     ]
     for key, title, blurb in GROUPS:
         entries = groups[key]
