@@ -12,7 +12,8 @@ custom/audio/footstep.ogg       # user override (audio)
 For a logical asset `player` or `footstep`, use this order:
 
 1. **User override** in `custom/graphics/` or `custom/audio/` under the override root (below).
-2. **Claude fallback** packaged with the game, e.g. `res://assets/graphics/template_player.png` or `res://assets/audio/template_footstep.ogg`.
+2. **The user's packaged drawing** (graphics, HyperCars): the user's own image added to the project under the plain logical name, e.g. `res://assets/graphics/ui/star_gold.png`. It replaces Claude's template in the packaged game; files without the `template_` prefix are the user's and Claude never edits them.
+3. **Claude fallback** packaged with the game, e.g. `res://assets/graphics/template_player.png` or `res://assets/audio/template_footstep.ogg`.
 
 A missing or invalid override falls back to the `template_` asset. Map by logical name, not a fixed full filename; an override may use any **supported** extension for its type. Subfolders under `custom/graphics/` and `custom/audio/` mirror the fallback folder structure.
 
@@ -27,7 +28,7 @@ A missing or invalid override falls back to the `template_` asset. Map by logica
 
 ## Ownership
 
-Files in `custom/` belong to the user. Claude never adds, modifies, renames or deletes files there (other than the template's `.gdignore` and `.gitkeep` placeholders). Claude-created assets live only under `res://assets/` with the `template_` prefix and remain in source control and in exports.
+Files in `custom/` belong to the user. Claude never adds, modifies, renames or deletes files there (other than the template's `.gdignore` and `.gitkeep` placeholders). Claude-created assets live only under `res://assets/` with the `template_` prefix and remain in source control and in exports. The artist's guide to every replaceable picture: `docs/ARTWORK_MASTER_LIST.md`.
 
 ## Small resolver, not a modding system
 
