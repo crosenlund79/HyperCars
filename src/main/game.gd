@@ -69,6 +69,7 @@ func _ready() -> void:
 	settings = AudioSettings.new()
 	settings.load_settings()
 	settings.apply()
+	AssetResolver.templates_only = settings.original_artwork  # Artwork Mode (graphics; read at start)
 	ControlBindings.load_saved()  # the player's remapped controls (CONTROLS screen)
 	resolver = AssetResolver.new()
 	achievements = AchievementStore.new(achievements_path)

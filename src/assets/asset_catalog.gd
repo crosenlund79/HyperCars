@@ -57,27 +57,27 @@ const CAR_JUNKER := "cars/car_junker"
 ## tile_world_size: world pixels covered by one repeat of a seamless tile.
 const SPECS := {
 	CAR_PLAYER: {"template_size": Vector2i(128, 72), "display_size": Vector2(64, 36),
-		"notes": "Top-down, nose pointing right (+X), centred pivot, transparent background. LEGACY flattened car (wheels painted in): only used when no body drawing exists; prefer body_*. The packaged template is generated from the body and wheel."},
+		"notes": "Top-down, nose pointing right (+X), centred pivot, transparent background. LEGACY flattened car (wheels painted in): your own older drawing only, used when no body drawing exists; there is no packaged template. Prefer body_*."},
 	CAR_PLAYER_2: {"template_size": Vector2i(128, 72), "display_size": Vector2(64, 36),
-		"notes": "Player 2 car (two-player races); same contract as the player car. LEGACY flattened car (wheels painted in): only used when no body drawing exists; prefer body_*. The packaged template is generated from the body and wheel."},
+		"notes": "Player 2 car (two-player races); same contract as the player car. LEGACY flattened car (wheels painted in): your own older drawing only, used when no body drawing exists; there is no packaged template. Prefer body_*."},
 	"cars/car_ai_1": {"template_size": Vector2i(128, 72), "display_size": Vector2(64, 36),
-		"notes": "Opponent car 1; same contract as the player car. LEGACY flattened car (wheels painted in): only used when no body drawing exists; prefer body_*. The packaged template is generated from the body and wheel."},
+		"notes": "Opponent car 1; same contract as the player car. LEGACY flattened car (wheels painted in): your own older drawing only, used when no body drawing exists; there is no packaged template. Prefer body_*."},
 	"cars/car_ai_2": {"template_size": Vector2i(128, 72), "display_size": Vector2(64, 36),
-		"notes": "Opponent car 2; same contract as the player car. LEGACY flattened car (wheels painted in): only used when no body drawing exists; prefer body_*. The packaged template is generated from the body and wheel."},
+		"notes": "Opponent car 2; same contract as the player car. LEGACY flattened car (wheels painted in): your own older drawing only, used when no body drawing exists; there is no packaged template. Prefer body_*."},
 	"cars/car_ai_3": {"template_size": Vector2i(128, 72), "display_size": Vector2(64, 36),
-		"notes": "Opponent car 3; same contract as the player car. LEGACY flattened car (wheels painted in): only used when no body drawing exists; prefer body_*. The packaged template is generated from the body and wheel."},
+		"notes": "Opponent car 3; same contract as the player car. LEGACY flattened car (wheels painted in): your own older drawing only, used when no body drawing exists; there is no packaged template. Prefer body_*."},
 	"cars/car_ai_4": {"template_size": Vector2i(128, 72), "display_size": Vector2(64, 36),
-		"notes": "Opponent car 4; same contract as the player car. LEGACY flattened car (wheels painted in): only used when no body drawing exists; prefer body_*. The packaged template is generated from the body and wheel."},
+		"notes": "Opponent car 4; same contract as the player car. LEGACY flattened car (wheels painted in): your own older drawing only, used when no body drawing exists; there is no packaged template. Prefer body_*."},
 	"cars/car_ai_5": {"template_size": Vector2i(128, 72), "display_size": Vector2(64, 36),
-		"notes": "Opponent car 5; same contract as the player car. LEGACY flattened car (wheels painted in): only used when no body drawing exists; prefer body_*. The packaged template is generated from the body and wheel."},
+		"notes": "Opponent car 5; same contract as the player car. LEGACY flattened car (wheels painted in): your own older drawing only, used when no body drawing exists; there is no packaged template. Prefer body_*."},
 	"cars/car_ai_6": {"template_size": Vector2i(128, 72), "display_size": Vector2(64, 36),
-		"notes": "Opponent car 6; same contract as the player car. LEGACY flattened car (wheels painted in): only used when no body drawing exists; prefer body_*. The packaged template is generated from the body and wheel."},
+		"notes": "Opponent car 6; same contract as the player car. LEGACY flattened car (wheels painted in): your own older drawing only, used when no body drawing exists; there is no packaged template. Prefer body_*."},
 	"cars/car_ai_7": {"template_size": Vector2i(128, 72), "display_size": Vector2(64, 36),
-		"notes": "Opponent car 7; same contract as the player car. LEGACY flattened car (wheels painted in): only used when no body drawing exists; prefer body_*. The packaged template is generated from the body and wheel."},
+		"notes": "Opponent car 7; same contract as the player car. LEGACY flattened car (wheels painted in): your own older drawing only, used when no body drawing exists; there is no packaged template. Prefer body_*."},
 	"cars/car_ai_8": {"template_size": Vector2i(128, 72), "display_size": Vector2(64, 36),
-		"notes": "Opponent car 8; same contract as the player car. LEGACY flattened car (wheels painted in): only used when no body drawing exists; prefer body_*. The packaged template is generated from the body and wheel."},
+		"notes": "Opponent car 8; same contract as the player car. LEGACY flattened car (wheels painted in): your own older drawing only, used when no body drawing exists; there is no packaged template. Prefer body_*."},
 	"cars/car_ai_9": {"template_size": Vector2i(128, 72), "display_size": Vector2(64, 36),
-		"notes": "Opponent car 9; same contract as the player car. LEGACY flattened car (wheels painted in): only used when no body drawing exists; prefer body_*. The packaged template is generated from the body and wheel."},
+		"notes": "Opponent car 9; same contract as the player car. LEGACY flattened car (wheels painted in): your own older drawing only, used when no body drawing exists; there is no packaged template. Prefer body_*."},
 	"cars/body_player": {"template_size": Vector2i(128, 72), "display_size": Vector2(64, 36),
 		"notes": "Wheel-free body (P2): same size, orientation and pivot as the car image, transparent where the wheels go; the game adds four shared wheels (also in every static picture of the car). Takes precedence over the flattened car image."},
 	"cars/body_player_2": {"template_size": Vector2i(128, 72), "display_size": Vector2(64, 36),
@@ -101,7 +101,7 @@ const SPECS := {
 	"cars/body_ai_9": {"template_size": Vector2i(128, 72), "display_size": Vector2(64, 36),
 		"notes": "Wheel-free body (P2): same size, orientation and pivot as the car image, transparent where the wheels go; the game adds four shared wheels (also in every static picture of the car). Takes precedence over the flattened car image."},
 	CAR_JUNKER: {"template_size": Vector2i(128, 72), "display_size": Vector2(64, 36),
-		"notes": "Championship: the battered junker a rival drives after the player has won their car; same contract as the player car. LEGACY flattened car (wheels painted in): only used when no body drawing exists; prefer body_*. The packaged template is generated from the body and wheel."},
+		"notes": "Championship: the battered junker a rival drives after the player has won their car; same contract as the player car. LEGACY flattened car (wheels painted in): your own older drawing only, used when no body drawing exists; there is no packaged template. Prefer body_*."},
 	"cars/body_junker": {"template_size": Vector2i(128, 72), "display_size": Vector2(64, 36),
 		"notes": "Wheel-free junker body (championship rewards); same contract as the other bodies. One image for every displaced rival (each gets a slight tint)."},
 	WHEEL: {"template_size": Vector2i(24, 14), "display_size": Vector2(12, 7),
@@ -277,6 +277,13 @@ static func themed(logical: String, variant: int) -> String:
 
 
 ## Wheel-free body for a car image name ("cars/car_ai_3" -> "cars/body_ai_3").
+## Legacy flattened car images ("cars/car_*", wheels painted in): supported as
+## the user's own drawings only; there is no packaged template (the packaged
+## cars are wheel-free bodies plus the shared wheel).
+static func is_legacy(logical: String) -> bool:
+	return logical.begins_with("cars/car_")
+
+
 static func body_of(car_logical: String) -> String:
 	return car_logical.replace("cars/car_", "cars/body_")
 

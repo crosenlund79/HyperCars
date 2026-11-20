@@ -22,7 +22,7 @@ ENVIRONMENTS = {"variant_2": "Wasteland", "variant_3": "Winter", "variant_4": "T
 
 GROUPS = [
     ("vehicles", "Vehicles", "Cars: one wheel-free body per car plus the shared wheel. Draw these."),
-    ("legacy", "Vehicles - legacy flattened cars", "Older format with wheels painted in. Only used when no body drawing exists. Do not draw these for new art."),
+    ("legacy", "Vehicles - legacy flattened cars", "Older format with wheels painted in, kept only so your older drawings keep working (used when no body drawing exists). There is no packaged picture for these names. Do not draw them for new art."),
     ("weapons", "Weapons and effects", "Projectiles, mines, explosions, smoke, dust, sparks, confetti, tyre marks."),
     ("track", "Track and shared scenery (Green Valley and every circuit)", "Road, grass, barriers, start line, pit sign, decals, trees, lamps, grandstands."),
     ("environments", "Environments", "Per-environment replacements (Green Valley uses the shared set above)."),
@@ -153,10 +153,25 @@ def main():
         "(`src/assets/asset_catalog.gd`) by `docs/artwork/make_reference.py`, so it is always",
         "the complete list. Technical contract: `assets/README.md`, `docs/ASSET_SPECS.md`.",
         "",
-        "**%d images to draw** (primary), plus **%d legacy flattened cars** you do not need:"
-        " %d catalogued PNGs in total. Your own drawings already in use: %d." % (primary, legacy, len(catalog), len(drawn)),
+        "**%d images to draw** (primary, each with a packaged `template_` picture), plus **%d"
+        " legacy flattened-car names** you do not need (your older drawings only, no packaged picture):"
+        " %d catalogued names in total. Your own drawings already in use: %d." % (primary, legacy, len(catalog), len(drawn)),
         "",
         "## How to replace a picture",
+        "",
+        "The game looks for each picture in this order (graphics):",
+        "",
+        "1. `custom/graphics/<name>.png`: your override;",
+        "2. `assets/graphics/<name>.png`: your drawing added to the project under the",
+        "   plain name;",
+        "3. `assets/graphics/<folder>/template_<name>.png`: Claude's template, only the",
+        "   fallback.",
+        "",
+        "`template_` files are never your files and are only used where you have not drawn",
+        "something. Files without the prefix (in `custom/` or `assets/`) are yours.",
+        "**Settings > ORIGINAL TEMPLATE ARTWORK** (the Artwork Mode, applied at the next",
+        "start) shows only the templates, to compare; switch it off to see your drawings",
+        "again. Music and voices are not affected.",
         "",
         "Pick one of two places; restart the game to see it.",
         "",
@@ -193,8 +208,9 @@ def main():
         "  1. your body drawing (with wheels);",
         "  2. your older flattened `car_*` drawing (used as it is, never with extra wheels);",
         "  3. Claude's body template (with wheels).",
-        "- **Legacy files:** `cars/car_*` are kept only so older flattened drawings keep",
-        "  working. Their packaged templates are generated from the bodies and the wheel.",
+        "- **Legacy names:** `cars/car_*` exist only so older flattened drawings keep",
+        "  working. There is no packaged picture for them: every packaged car is a",
+        "  wheel-free body plus the shared wheel.",
         "",
         "Proof that one drawing shows everywhere: [acceptance_car_art.png](artwork/acceptance_car_art.png)",
         "(the real game with test drawings in a scratch override folder):",
@@ -212,8 +228,11 @@ def main():
         entries = groups[key]
         if not entries:
             continue
-        rel = sheet(key, title, entries, catalog)
-        lines += ["## %s" % title, "", blurb + " Reference sheet: [%s](%s)" % (rel.split("/")[-1], rel), ""]
+        if any(catalog[k]["template"] or catalog[k]["user_drawing"] for k in entries):
+            rel = sheet(key, title, entries, catalog)
+            lines += ["## %s" % title, "", blurb + " Reference sheet: [%s](%s)" % (rel.split("/")[-1], rel), ""]
+        else:
+            lines += ["## %s" % title, "", blurb, ""]
         lines += ["| Name | What it is / where it appears | Template (px) | Shown at (world px) | Frames | Orientation | Background | Status | Packaged template | Your replacement |",
                   "|---|---|---|---|---|---|---|---|---|---|"]
         for logical in entries:
@@ -226,7 +245,7 @@ def main():
             lines.append("| `%s` | %s | %s | %s | %s | %s | %s | %s | `%s` | `custom/graphics/%s.png` |" % (
                 logical, what, size_text(e["template_size"]), size_text(e["display_size"]),
                 e["frames"] if e["frames"] > 1 else "1", orientation(logical, e["notes"]), transparency(logical),
-                st, e["template"], logical))
+                st, e["template"] or "(none)", logical))
         lines.append("")
     lines += [
         "## Drawn by the game itself (no picture to replace yet)",

@@ -15,6 +15,10 @@ var volume: Dictionary = {}
 var muted: Dictionary = {}
 ## Night vehicle lights: real 2D lights (true) or the cheap glow sprites.
 var vehicle_lights := true
+## Artwork Mode: false = Custom (the user's drawings where present, else the
+## templates); true = Original templates (Claude's template_ graphics only).
+## Applies at the next game start.
+var original_artwork := false
 
 
 ## Where a store without an explicit path saves (tests point this at a
@@ -47,6 +51,7 @@ func load_settings() -> void:
 		volume[bus] = clampf(float(cfg.get_value("audio", bus.to_lower() + "_volume", volume[bus])), 0.0, 1.0)
 		muted[bus] = bool(cfg.get_value("audio", bus.to_lower() + "_muted", muted[bus]))
 	vehicle_lights = bool(cfg.get_value("video", "dynamic_vehicle_lights", vehicle_lights))
+	original_artwork = String(cfg.get_value("video", "artwork_mode", "custom")) == "original"
 
 
 func save_settings() -> Error:
@@ -56,6 +61,7 @@ func save_settings() -> Error:
 		cfg.set_value("audio", bus.to_lower() + "_volume", volume[bus])
 		cfg.set_value("audio", bus.to_lower() + "_muted", muted[bus])
 	cfg.set_value("video", "dynamic_vehicle_lights", vehicle_lights)
+	cfg.set_value("video", "artwork_mode", "original" if original_artwork else "custom")
 	return cfg.save(path)
 
 

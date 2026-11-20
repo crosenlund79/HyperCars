@@ -139,7 +139,7 @@ func test_history_panel_shows_stars_for_podium_and_numbers_below() -> void:
 	var tex := {}
 	var names := {}
 	for id in [1, 2, 3, 4]:
-		tex[id] = load("res://assets/graphics/cars/template_car_ai_%d.png" % id)
+		tex[id] = load("res://assets/graphics/cars/template_body_ai_%d.png" % id)
 		names[id] = RivalRoster.full_name(id)
 	panel.setup(AssetResolver.new(OS.get_user_data_dir().path_join("no_overrides")), h, tex, names)
 	var grid: GridContainer = panel.find_children("*", "GridContainer", true, false)[0]

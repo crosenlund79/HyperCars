@@ -2,12 +2,15 @@ class_name AssetResolver
 extends RefCounted
 ## Single entry point for replaceable graphics and audio (contract: assets/README.md).
 ##
-## A logical name such as "cars/car_player" resolves to:
-##   1. user override  <override_root>/graphics/cars/car_player.png
-##   2. the user's packaged artwork  res://assets/graphics/cars/car_player.png
+## A logical name such as "cars/body_player" resolves to:
+##   1. user override  <override_root>/graphics/cars/body_player.png
+##   2. the user's packaged artwork  res://assets/graphics/cars/body_player.png
 ##      (the user's own drawing added to the project under the plain name:
 ##      it replaces Claude's template in the packaged game)
-##   3. packaged fallback  res://assets/graphics/cars/template_car_player.png
+##   3. packaged fallback  res://assets/graphics/cars/template_body_player.png
+## Artwork Mode "Original templates" (templates_only) skips 1 and 2 for graphics.
+## Legacy names (the flattened cars "cars/car_*", AssetCatalog.is_legacy) have
+## no template: they exist only as the user's own drawings, else resolve to null.
 ## Audio works the same way under <override_root>/audio/ (OGG Vorbis or WAV,
 ## both loadable at runtime in Godot 4.7) with fallbacks in res://assets/audio/.
 ## Missing or invalid overrides fall back with a warning. Results are cached for
@@ -27,6 +30,10 @@ var override_root: String
 ## root uses ("" = the normal custom/ folder). Lets a test give a whole race
 ## scene scratch artwork without touching the player's custom/ folder.
 static var test_root := ""
+## Artwork Mode (Settings): true = Claude's template_ graphics only, ignoring
+## custom/ overrides and the user's packaged drawings. Read when a texture is
+## first resolved (set at game start: a change applies after a restart).
+static var templates_only := false
 var _cache: Dictionary = {}
 var _overridden: Dictionary = {}
 var _audio_cache: Dictionary = {}
@@ -85,6 +92,8 @@ func has_user_art(logical_name: String) -> bool:
 
 ## The user's packaged drawing for a logical name (layer 2), "" if none.
 static func packaged_art_path(logical_name: String) -> String:
+	if templates_only:
+		return ""
 	var path := FALLBACK_ROOT.path_join(logical_name + ".png")
 	return path if ResourceLoader.exists(path) else ""
 
@@ -100,6 +109,8 @@ static func fallback_path(logical_name: String) -> String:
 
 
 func _load_override(logical_name: String) -> Texture2D:
+	if templates_only:
+		return null
 	for extension in GRAPHICS_EXTENSIONS:
 		var path := override_path(logical_name, extension)
 		if not FileAccess.file_exists(path):
@@ -120,6 +131,8 @@ func _load_fallback(logical_name: String) -> Texture2D:
 	var packaged := packaged_art_path(logical_name)
 	if not packaged.is_empty():
 		return load(packaged) as Texture2D
+	if AssetCatalog.is_legacy(logical_name):
+		return null  # (a legacy flattened car: only ever the user's own drawing)
 	var path := fallback_path(logical_name)
 	if not ResourceLoader.exists(path):
 		push_error("AssetResolver: missing template asset '%s'." % path)

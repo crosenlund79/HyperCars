@@ -9,7 +9,7 @@ func _initialize() -> void:
 		out[k] = {"template_size": [s.template_size.x, s.template_size.y],
 			"display_size": [s.display_size.x, s.display_size.y] if s.has("display_size") else null,
 			"frames": s.get("frames", 1), "notes": s.get("notes", ""),
-			"template": AssetResolver.fallback_path(k).replace("res://", ""),
+			"template": AssetResolver.fallback_path(k).replace("res://", "") if ResourceLoader.exists(AssetResolver.fallback_path(k)) else "",
 			"user_drawing": AssetResolver.packaged_art_path(k).replace("res://", "")}
 	var args := OS.get_cmdline_user_args()
 	var f := FileAccess.open(args[0] if args.size() > 0 else "user://catalog.json", FileAccess.WRITE)

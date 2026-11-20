@@ -1,7 +1,8 @@
 class_name SettingsPanel
 extends PanelContainer
 ## Settings: Master, Music, Engine, Effects and Voice volume with mute toggles,
-## and DYNAMIC VEHICLE LIGHTS ON / OFF (night races; off = cheap glow sprites).
+## DYNAMIC VEHICLE LIGHTS ON / OFF (night races; off = cheap glow sprites) and
+## the Artwork Mode (original template artwork only; applies after a restart).
 ## Changes apply immediately and are saved.
 
 signal closed
@@ -11,6 +12,7 @@ var _sliders: Dictionary = {}
 var _mutes: Dictionary = {}
 var _back: Button
 var _lights: CheckButton
+var _artwork: CheckButton
 
 
 func setup(p_settings: AudioSettings) -> void:
@@ -65,6 +67,15 @@ func setup(p_settings: AudioSettings) -> void:
 		settings.vehicle_lights = on
 		settings.save_settings())
 	box.add_child(_lights)
+	_artwork = CheckButton.new()
+	_artwork.text = "ORIGINAL TEMPLATE ARTWORK (after restart)"
+	_artwork.tooltip_text = "Off (Custom): your own drawings where you have made them. On: only the original template graphics."
+	_artwork.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_artwork.button_pressed = settings.original_artwork
+	_artwork.toggled.connect(func(on: bool) -> void:
+		settings.original_artwork = on
+		settings.save_settings())
+	box.add_child(_artwork)
 	var hint := HyperTheme.label("Left / Right adjust the focused slider. Settings are saved automatically.", 16, HyperTheme.CREAM_DIM, 500)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(hint)
@@ -81,6 +92,10 @@ func focus_first() -> void:
 
 func slider(bus: String) -> HSlider:
 	return _sliders[bus]
+
+
+func artwork_toggle() -> CheckButton:
+	return _artwork
 
 
 func lights_toggle() -> CheckButton:

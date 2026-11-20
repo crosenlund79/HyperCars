@@ -2,6 +2,8 @@ extends GutTest
 ## AssetResolver contract (assets/README.md): override precedence, missing and invalid
 ## fallback, supported format, override-root selection, caching, catalogue coverage.
 
+const BODY := "cars/body_player"
+
 var _root: String
 
 
@@ -12,6 +14,8 @@ func before_each() -> void:
 
 
 func after_each() -> void:
+	AssetResolver.templates_only = false
+	CarArt.clear_cache()
 	_remove_dir(_root)
 
 
@@ -39,29 +43,29 @@ func _write_bytes(rel: String, bytes: PackedByteArray) -> void:
 
 
 func test_valid_png_override_takes_precedence() -> void:
-	_write_png("graphics/cars/car_player.png", Vector2i(256, 144))
-	var tex := AssetResolver.new(_root).get_texture(AssetCatalog.CAR_PLAYER)
+	_write_png("graphics/cars/body_player.png", Vector2i(256, 144))
+	var tex := AssetResolver.new(_root).get_texture(BODY)
 	assert_eq(tex.get_size(), Vector2(256, 144))
 
 
 func test_missing_override_uses_template() -> void:
-	var tex := AssetResolver.new(_root).get_texture(AssetCatalog.CAR_PLAYER)
+	var tex := AssetResolver.new(_root).get_texture(BODY)
 	assert_not_null(tex)
-	assert_eq(tex.resource_path, "res://assets/graphics/cars/template_car_player.png")
+	assert_eq(tex.resource_path, "res://assets/graphics/cars/template_body_player.png")
 
 
 func test_non_png_content_falls_back_with_warning() -> void:
-	_write_bytes("graphics/cars/car_player.png", "not an image".to_utf8_buffer())
-	var tex := AssetResolver.new(_root).get_texture(AssetCatalog.CAR_PLAYER)
-	assert_eq(tex.resource_path, "res://assets/graphics/cars/template_car_player.png")
+	_write_bytes("graphics/cars/body_player.png", "not an image".to_utf8_buffer())
+	var tex := AssetResolver.new(_root).get_texture(BODY)
+	assert_eq(tex.resource_path, "res://assets/graphics/cars/template_body_player.png")
 	assert_push_warning_count(1)
 
 
 func test_corrupt_png_falls_back_with_warning() -> void:
 	var bytes := PackedByteArray([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3, 4])
-	_write_bytes("graphics/cars/car_player.png", bytes)
-	var tex := AssetResolver.new(_root).get_texture(AssetCatalog.CAR_PLAYER)
-	assert_eq(tex.resource_path, "res://assets/graphics/cars/template_car_player.png")
+	_write_bytes("graphics/cars/body_player.png", bytes)
+	var tex := AssetResolver.new(_root).get_texture(BODY)
+	assert_eq(tex.resource_path, "res://assets/graphics/cars/template_body_player.png")
 	assert_push_warning_count(1)
 	# The engine's PNG decoder logs its own error for the corrupt buffer.
 	for e in get_errors():
@@ -69,16 +73,16 @@ func test_corrupt_png_falls_back_with_warning() -> void:
 
 
 func test_unsupported_extension_is_not_used() -> void:
-	_write_png("graphics/cars/car_player.jpg", Vector2i(8, 8))
-	var tex := AssetResolver.new(_root).get_texture(AssetCatalog.CAR_PLAYER)
-	assert_eq(tex.resource_path, "res://assets/graphics/cars/template_car_player.png")
+	_write_png("graphics/cars/body_player.jpg", Vector2i(8, 8))
+	var tex := AssetResolver.new(_root).get_texture(BODY)
+	assert_eq(tex.resource_path, "res://assets/graphics/cars/template_body_player.png")
 
 
 func test_results_are_cached_for_the_session() -> void:
 	var r := AssetResolver.new(_root)
-	var first := r.get_texture(AssetCatalog.CAR_PLAYER)
-	_write_png("graphics/cars/car_player.png", Vector2i(16, 16))
-	assert_same(r.get_texture(AssetCatalog.CAR_PLAYER), first, "changes apply after restart only")
+	var first := r.get_texture(BODY)
+	_write_png("graphics/cars/body_player.png", Vector2i(16, 16))
+	assert_same(r.get_texture(BODY), first, "changes apply after restart only")
 
 
 func test_override_root_selection() -> void:
@@ -104,6 +108,8 @@ func test_fallback_path_mapping() -> void:
 func test_every_catalogued_asset_has_a_template_of_declared_size() -> void:
 	var r := AssetResolver.new(_root)
 	for logical_name in AssetCatalog.SPECS:
+		if AssetCatalog.is_legacy(logical_name):
+			continue  # (legacy flattened cars: the user's drawings only, no template)
 		var template := load(AssetResolver.fallback_path(logical_name)) as Texture2D
 		assert_not_null(template, logical_name)
 		if template != null:
@@ -114,9 +120,9 @@ func test_every_catalogued_asset_has_a_template_of_declared_size() -> void:
 
 
 func test_override_of_any_resolution_scales_to_display_size() -> void:
-	var display: Vector2 = AssetCatalog.SPECS[AssetCatalog.CAR_PLAYER].display_size
-	_write_png("graphics/cars/car_player.png", Vector2i(512, 288))
-	var tex := AssetResolver.new(_root).get_texture(AssetCatalog.CAR_PLAYER)
+	var display: Vector2 = AssetCatalog.SPECS[BODY].display_size
+	_write_png("graphics/cars/body_player.png", Vector2i(512, 288))
+	var tex := AssetResolver.new(_root).get_texture(BODY)
 	assert_eq(Vector2(tex.get_size()) * AssetCatalog.scale_for(tex, display), display)
 
 
@@ -200,3 +206,44 @@ func test_a_custom_override_still_beats_a_packaged_drawing() -> void:
 	var r := AssetResolver.new(_root)
 	assert_true(r.has_override(AssetCatalog.STAR_GOLD))
 	assert_eq(r.get_texture(AssetCatalog.STAR_GOLD).get_width(), 48, "custom/ first, next to the exported game too")
+
+
+
+# --- legacy flattened cars and the Artwork Mode ---
+
+func test_legacy_flattened_cars_have_no_template_and_never_error() -> void:
+	var r := AssetResolver.new(_root)
+	for name in ["cars/car_player", "cars/car_player_2", "cars/car_junker", "cars/car_ai_1", "cars/car_ai_9"]:
+		assert_false(ResourceLoader.exists(AssetResolver.fallback_path(name)), "%s: no packaged picture with painted wheels" % name)
+		assert_null(r.get_texture(name), "%s: nothing to show without the user's own drawing" % name)
+		assert_false(r.has_user_art(name))
+	assert_true(CarArt.look(r, "cars/car_player").wheels, "the race draws the body with its wheels")
+
+
+func test_original_templates_mode_ignores_every_user_drawing() -> void:
+	_write_png("graphics/cars/body_player.png", Vector2i(256, 144))
+	DirAccess.make_dir_recursive_absolute(_root.path_join("graphics/ui"))
+	_write_png("graphics/ui/ticket.png", Vector2i(96, 96))
+	AssetResolver.templates_only = true
+	var r := AssetResolver.new(_root)
+	assert_eq(r.get_texture(BODY).resource_path, "res://assets/graphics/cars/template_body_player.png", "custom/ ignored")
+	assert_eq(r.get_texture(AssetCatalog.STAR_GOLD).resource_path, "res://assets/graphics/ui/template_star_gold.png",
+		"the user's packaged drawing ignored")
+	assert_false(r.has_user_art(AssetCatalog.STAR_GOLD))
+	CarArt.clear_cache()
+	assert_eq(CarArt.look(r, AssetCatalog.CAR_PLAYER).body.resource_path, "res://assets/graphics/cars/template_body_player.png")
+	AssetResolver.templates_only = false
+	var custom := AssetResolver.new(_root)
+	assert_eq(custom.get_texture(BODY).get_width(), 256, "Custom mode (default): the user's drawing again")
+	assert_eq(custom.get_texture(AssetCatalog.STAR_GOLD).resource_path, "res://assets/graphics/ui/star_gold.png")
+
+
+func test_artwork_mode_is_a_saved_setting() -> void:
+	var path := _root.path_join("settings.cfg")
+	var a := AudioSettings.new(path)
+	assert_false(a.original_artwork, "Custom by default")
+	a.original_artwork = true
+	a.save_settings()
+	var b := AudioSettings.new(path)
+	b.load_settings()
+	assert_true(b.original_artwork)

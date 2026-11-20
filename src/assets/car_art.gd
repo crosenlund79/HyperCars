@@ -16,8 +16,8 @@ extends RefCounted
 ##   3. the packaged body template  assets/graphics/cars/template_body_<car>.png  (+ wheels)
 ## "The user's drawing" = a custom/graphics/cars/ override, or the user's own
 ## file added to assets/graphics/cars/ under the plain name (AssetResolver).
-## The packaged flattened templates (template_car_*.png) are legacy reference
-## pictures, generated from the bodies and the wheel; the game never shows them.
+## Legacy flattened names (car_*) have no packaged template at all: the
+## packaged cars are only wheel-free bodies plus the shared wheel.
 
 ## Slight per-rival tints for the junker (index = racer id).
 const JUNKER_TINTS: Array[Color] = [Color(1, 1, 1), Color(1, 0.92, 0.9), Color(0.92, 0.95, 1),

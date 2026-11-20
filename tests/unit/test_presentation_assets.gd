@@ -117,6 +117,8 @@ func test_loop_flag_applies_to_templates() -> void:
 func test_new_graphics_have_templates_of_declared_size() -> void:
 	var r := AssetResolver.new(_root)
 	for logical in AssetCatalog.SPECS:
+		if AssetCatalog.is_legacy(logical):
+			continue  # (legacy flattened cars: the user's drawings only, no template)
 		var template := load(AssetResolver.fallback_path(logical)) as Texture2D
 		assert_not_null(template, logical)
 		if template != null:
@@ -132,7 +134,7 @@ func test_ten_cars_are_visually_distinct() -> void:
 		names.append(AssetCatalog.ai_car(i))
 	var averages := []
 	for n in names:
-		var img := (load(AssetResolver.fallback_path(n)) as Texture2D).get_image()
+		var img := (load(AssetResolver.fallback_path(AssetCatalog.body_of(n))) as Texture2D).get_image()
 		img.convert(Image.FORMAT_RGBA8)
 		var sum := Vector3.ZERO
 		var count := 0

@@ -42,7 +42,7 @@ func test_default_icon_is_the_racing_body_with_its_wheels() -> void:
 	assert_true(l.wheels)
 	assert_eq(l.body.resource_path, "res://assets/graphics/cars/template_body_player.png", "races draw the packaged body")
 	var icon := CarArt.icon(r, AssetCatalog.CAR_PLAYER)
-	assert_ne(icon.resource_path, "res://assets/graphics/cars/template_car_player.png", "never the legacy flattened picture")
+	assert_eq(icon.get_size(), l.body.get_size(), "composed at the body's size")
 	assert_eq(_pixel(icon, Vector2i(64, 36)), _pixel(l.body, Vector2i(64, 36)), "the same body in the middle")
 	# a wheel under the body: front-right wheel centre (display +16.5, +12 -> image 97, 60)
 	assert_gt(_pixel(icon, Vector2i(97, 64)).a, _pixel(l.body, Vector2i(97, 64)).a + 0.3,
@@ -106,21 +106,10 @@ func test_higher_resolution_bodies_get_proportionate_wheels() -> void:
 	assert_gt(_pixel(icon, Vector2i(194, 124)).a, 0.5, "the wheel scaled with it")
 
 
-func test_the_packaged_legacy_pictures_match_the_bodies_and_wheel() -> void:
-	# The legacy flattened templates are generated from the bodies and the wheel
-	# (docs/ARTWORK_MASTER_LIST.md): no second, different master of any car.
-	var r := AssetResolver.new(_root)
-	for name in ["player", "player_2", "junker"] + range(1, 10).map(func(i: int) -> String: return "ai_%d" % i):
-		var composed := CarArt.icon(r, "cars/car_" + name).get_image()
-		var legacy := (load("res://assets/graphics/cars/template_car_%s.png" % name) as Texture2D).get_image()
-		if legacy.is_compressed():
-			legacy.decompress()
-		legacy.convert(Image.FORMAT_RGBA8)
-		var diff := 0.0
-		for y in range(0, 72, 3):
-			for x in range(0, 128, 3):
-				var a := composed.get_pixel(x, y)
-				var b := legacy.get_pixel(x, y)
-				# (as seen: colours weighted by opacity; the importer recolours fully transparent pixels)
-				diff += absf(a.r * a.a - b.r * b.a) + absf(a.g * a.a - b.g * b.a) + absf(a.b * a.a - b.b * b.a) + absf(a.a - b.a)
-		assert_lt(diff / (43.0 * 24.0), 0.01, "%s: legacy picture = body + wheels" % name)
+func test_no_packaged_car_picture_has_painted_wheels() -> void:
+	# The packaged cars are wheel-free bodies plus the shared wheel; the legacy
+	# flattened names exist only for the user's own drawings (no template).
+	for f in DirAccess.get_files_at("res://assets/graphics/cars"):
+		if f.ends_with(".png"):
+			assert_true(f.begins_with("template_body_") or f == "template_wheel.png", "%s: only bodies and the wheel" % f)
+	assert_eq(DirAccess.get_files_at("res://assets/graphics/cars").size() > 0, true)

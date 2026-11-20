@@ -5,9 +5,23 @@ it goes, how big, and which way up. Generated from the game's own artwork catalo
 (`src/assets/asset_catalog.gd`) by `docs/artwork/make_reference.py`, so it is always
 the complete list. Technical contract: `assets/README.md`, `docs/ASSET_SPECS.md`.
 
-**80 images to draw** (primary), plus **12 legacy flattened cars** you do not need: 92 catalogued PNGs in total. Your own drawings already in use: 6.
+**80 images to draw** (primary, each with a packaged `template_` picture), plus **12 legacy flattened-car names** you do not need (your older drawings only, no packaged picture): 92 catalogued names in total. Your own drawings already in use: 6.
 
 ## How to replace a picture
+
+The game looks for each picture in this order (graphics):
+
+1. `custom/graphics/<name>.png`: your override;
+2. `assets/graphics/<name>.png`: your drawing added to the project under the
+   plain name;
+3. `assets/graphics/<folder>/template_<name>.png`: Claude's template, only the
+   fallback.
+
+`template_` files are never your files and are only used where you have not drawn
+something. Files without the prefix (in `custom/` or `assets/`) are yours.
+**Settings > ORIGINAL TEMPLATE ARTWORK** (the Artwork Mode, applied at the next
+start) shows only the templates, to compare; switch it off to see your drawings
+again. Music and voices are not affected.
 
 Pick one of two places; restart the game to see it.
 
@@ -44,8 +58,9 @@ Pick one of two places; restart the game to see it.
   1. your body drawing (with wheels);
   2. your older flattened `car_*` drawing (used as it is, never with extra wheels);
   3. Claude's body template (with wheels).
-- **Legacy files:** `cars/car_*` are kept only so older flattened drawings keep
-  working. Their packaged templates are generated from the bodies and the wheel.
+- **Legacy names:** `cars/car_*` exist only so older flattened drawings keep
+  working. There is no packaged picture for them: every packaged car is a
+  wheel-free body plus the shared wheel.
 
 Proof that one drawing shows everywhere: [acceptance_car_art.png](artwork/acceptance_car_art.png)
 (the real game with test drawings in a scratch override folder):
@@ -80,22 +95,22 @@ Cars: one wheel-free body per car plus the shared wheel. Draw these. Reference s
 
 ## Vehicles - legacy flattened cars
 
-Older format with wheels painted in. Only used when no body drawing exists. Do not draw these for new art. Reference sheet: [sheet_legacy.png](artwork/sheet_legacy.png)
+Older format with wheels painted in, kept only so your older drawings keep working (used when no body drawing exists). There is no packaged picture for these names. Do not draw them for new art.
 
 | Name | What it is / where it appears | Template (px) | Shown at (world px) | Frames | Orientation | Background | Status | Packaged template | Your replacement |
 |---|---|---|---|---|---|---|---|---|---|
-| `cars/car_ai_1` | Opponent car 1; same contract as the player car. LEGACY flattened car (wheels painted in): only used when no body drawing exists; prefer body_*. The packaged template is generated from the body and wheel. | 128 x 72 | 64 x 36 | 1 | top-down, nose pointing right (+X), car centred | transparent background | legacy | `assets/graphics/cars/template_car_ai_1.png` | `custom/graphics/cars/car_ai_1.png` |
-| `cars/car_ai_2` | Opponent car 2; same contract as the player car. LEGACY flattened car (wheels painted in): only used when no body drawing exists; prefer body_*. The packaged template is generated from the body and wheel. | 128 x 72 | 64 x 36 | 1 | top-down, nose pointing right (+X), car centred | transparent background | legacy | `assets/graphics/cars/template_car_ai_2.png` | `custom/graphics/cars/car_ai_2.png` |
-| `cars/car_ai_3` | Opponent car 3; same contract as the player car. LEGACY flattened car (wheels painted in): only used when no body drawing exists; prefer body_*. The packaged template is generated from the body and wheel. | 128 x 72 | 64 x 36 | 1 | top-down, nose pointing right (+X), car centred | transparent background | legacy | `assets/graphics/cars/template_car_ai_3.png` | `custom/graphics/cars/car_ai_3.png` |
-| `cars/car_ai_4` | Opponent car 4; same contract as the player car. LEGACY flattened car (wheels painted in): only used when no body drawing exists; prefer body_*. The packaged template is generated from the body and wheel. | 128 x 72 | 64 x 36 | 1 | top-down, nose pointing right (+X), car centred | transparent background | legacy | `assets/graphics/cars/template_car_ai_4.png` | `custom/graphics/cars/car_ai_4.png` |
-| `cars/car_ai_5` | Opponent car 5; same contract as the player car. LEGACY flattened car (wheels painted in): only used when no body drawing exists; prefer body_*. The packaged template is generated from the body and wheel. | 128 x 72 | 64 x 36 | 1 | top-down, nose pointing right (+X), car centred | transparent background | legacy | `assets/graphics/cars/template_car_ai_5.png` | `custom/graphics/cars/car_ai_5.png` |
-| `cars/car_ai_6` | Opponent car 6; same contract as the player car. LEGACY flattened car (wheels painted in): only used when no body drawing exists; prefer body_*. The packaged template is generated from the body and wheel. | 128 x 72 | 64 x 36 | 1 | top-down, nose pointing right (+X), car centred | transparent background | legacy | `assets/graphics/cars/template_car_ai_6.png` | `custom/graphics/cars/car_ai_6.png` |
-| `cars/car_ai_7` | Opponent car 7; same contract as the player car. LEGACY flattened car (wheels painted in): only used when no body drawing exists; prefer body_*. The packaged template is generated from the body and wheel. | 128 x 72 | 64 x 36 | 1 | top-down, nose pointing right (+X), car centred | transparent background | legacy | `assets/graphics/cars/template_car_ai_7.png` | `custom/graphics/cars/car_ai_7.png` |
-| `cars/car_ai_8` | Opponent car 8; same contract as the player car. LEGACY flattened car (wheels painted in): only used when no body drawing exists; prefer body_*. The packaged template is generated from the body and wheel. | 128 x 72 | 64 x 36 | 1 | top-down, nose pointing right (+X), car centred | transparent background | legacy | `assets/graphics/cars/template_car_ai_8.png` | `custom/graphics/cars/car_ai_8.png` |
-| `cars/car_ai_9` | Opponent car 9; same contract as the player car. LEGACY flattened car (wheels painted in): only used when no body drawing exists; prefer body_*. The packaged template is generated from the body and wheel. | 128 x 72 | 64 x 36 | 1 | top-down, nose pointing right (+X), car centred | transparent background | legacy | `assets/graphics/cars/template_car_ai_9.png` | `custom/graphics/cars/car_ai_9.png` |
-| `cars/car_junker` | Championship: the battered junker a rival drives after the player has won their car; same contract as the player car. LEGACY flattened car (wheels painted in): only used when no body drawing exists; prefer body_*. The packaged template is generated from the body and wheel. | 128 x 72 | 64 x 36 | 1 | top-down, nose pointing right (+X), car centred | transparent background | legacy | `assets/graphics/cars/template_car_junker.png` | `custom/graphics/cars/car_junker.png` |
-| `cars/car_player` | Top-down, nose pointing right (+X), centred pivot, transparent background. LEGACY flattened car (wheels painted in): only used when no body drawing exists; prefer body_*. The packaged template is generated from the body and wheel. | 128 x 72 | 64 x 36 | 1 | top-down, nose pointing right (+X), car centred | transparent background | legacy | `assets/graphics/cars/template_car_player.png` | `custom/graphics/cars/car_player.png` |
-| `cars/car_player_2` | Player 2 car (two-player races); same contract as the player car. LEGACY flattened car (wheels painted in): only used when no body drawing exists; prefer body_*. The packaged template is generated from the body and wheel. | 128 x 72 | 64 x 36 | 1 | top-down, nose pointing right (+X), car centred | transparent background | legacy | `assets/graphics/cars/template_car_player_2.png` | `custom/graphics/cars/car_player_2.png` |
+| `cars/car_ai_1` | Opponent car 1; same contract as the player car. LEGACY flattened car (wheels painted in): your own older drawing only, used when no body drawing exists; there is no packaged template. Prefer body_*. | 128 x 72 | 64 x 36 | 1 | top-down, nose pointing right (+X), car centred | transparent background | legacy | `(none)` | `custom/graphics/cars/car_ai_1.png` |
+| `cars/car_ai_2` | Opponent car 2; same contract as the player car. LEGACY flattened car (wheels painted in): your own older drawing only, used when no body drawing exists; there is no packaged template. Prefer body_*. | 128 x 72 | 64 x 36 | 1 | top-down, nose pointing right (+X), car centred | transparent background | legacy | `(none)` | `custom/graphics/cars/car_ai_2.png` |
+| `cars/car_ai_3` | Opponent car 3; same contract as the player car. LEGACY flattened car (wheels painted in): your own older drawing only, used when no body drawing exists; there is no packaged template. Prefer body_*. | 128 x 72 | 64 x 36 | 1 | top-down, nose pointing right (+X), car centred | transparent background | legacy | `(none)` | `custom/graphics/cars/car_ai_3.png` |
+| `cars/car_ai_4` | Opponent car 4; same contract as the player car. LEGACY flattened car (wheels painted in): your own older drawing only, used when no body drawing exists; there is no packaged template. Prefer body_*. | 128 x 72 | 64 x 36 | 1 | top-down, nose pointing right (+X), car centred | transparent background | legacy | `(none)` | `custom/graphics/cars/car_ai_4.png` |
+| `cars/car_ai_5` | Opponent car 5; same contract as the player car. LEGACY flattened car (wheels painted in): your own older drawing only, used when no body drawing exists; there is no packaged template. Prefer body_*. | 128 x 72 | 64 x 36 | 1 | top-down, nose pointing right (+X), car centred | transparent background | legacy | `(none)` | `custom/graphics/cars/car_ai_5.png` |
+| `cars/car_ai_6` | Opponent car 6; same contract as the player car. LEGACY flattened car (wheels painted in): your own older drawing only, used when no body drawing exists; there is no packaged template. Prefer body_*. | 128 x 72 | 64 x 36 | 1 | top-down, nose pointing right (+X), car centred | transparent background | legacy | `(none)` | `custom/graphics/cars/car_ai_6.png` |
+| `cars/car_ai_7` | Opponent car 7; same contract as the player car. LEGACY flattened car (wheels painted in): your own older drawing only, used when no body drawing exists; there is no packaged template. Prefer body_*. | 128 x 72 | 64 x 36 | 1 | top-down, nose pointing right (+X), car centred | transparent background | legacy | `(none)` | `custom/graphics/cars/car_ai_7.png` |
+| `cars/car_ai_8` | Opponent car 8; same contract as the player car. LEGACY flattened car (wheels painted in): your own older drawing only, used when no body drawing exists; there is no packaged template. Prefer body_*. | 128 x 72 | 64 x 36 | 1 | top-down, nose pointing right (+X), car centred | transparent background | legacy | `(none)` | `custom/graphics/cars/car_ai_8.png` |
+| `cars/car_ai_9` | Opponent car 9; same contract as the player car. LEGACY flattened car (wheels painted in): your own older drawing only, used when no body drawing exists; there is no packaged template. Prefer body_*. | 128 x 72 | 64 x 36 | 1 | top-down, nose pointing right (+X), car centred | transparent background | legacy | `(none)` | `custom/graphics/cars/car_ai_9.png` |
+| `cars/car_junker` | Championship: the battered junker a rival drives after the player has won their car; same contract as the player car. LEGACY flattened car (wheels painted in): your own older drawing only, used when no body drawing exists; there is no packaged template. Prefer body_*. | 128 x 72 | 64 x 36 | 1 | top-down, nose pointing right (+X), car centred | transparent background | legacy | `(none)` | `custom/graphics/cars/car_junker.png` |
+| `cars/car_player` | Top-down, nose pointing right (+X), centred pivot, transparent background. LEGACY flattened car (wheels painted in): your own older drawing only, used when no body drawing exists; there is no packaged template. Prefer body_*. | 128 x 72 | 64 x 36 | 1 | top-down, nose pointing right (+X), car centred | transparent background | legacy | `(none)` | `custom/graphics/cars/car_player.png` |
+| `cars/car_player_2` | Player 2 car (two-player races); same contract as the player car. LEGACY flattened car (wheels painted in): your own older drawing only, used when no body drawing exists; there is no packaged template. Prefer body_*. | 128 x 72 | 64 x 36 | 1 | top-down, nose pointing right (+X), car centred | transparent background | legacy | `(none)` | `custom/graphics/cars/car_player_2.png` |
 
 ## Weapons and effects
 
