@@ -20,13 +20,19 @@ const AUDIO_FALLBACK_ROOT := "res://assets/audio"
 const AUDIO_EXTENSIONS: Array[String] = ["ogg", "wav", "mp3"]
 
 var override_root: String
+## Tests only: the override folder every resolver created without an explicit
+## root uses ("" = the normal custom/ folder). Lets a test give a whole race
+## scene scratch artwork without touching the player's custom/ folder.
+static var test_root := ""
 var _cache: Dictionary = {}
 var _overridden: Dictionary = {}
 var _audio_cache: Dictionary = {}
 
 
 func _init(p_override_root: String = "") -> void:
-	if p_override_root.is_empty():
+	if p_override_root.is_empty() and not test_root.is_empty():
+		override_root = test_root
+	elif p_override_root.is_empty():
 		override_root = compute_override_root(
 			OS.has_feature("editor"),
 			OS.get_executable_path(),

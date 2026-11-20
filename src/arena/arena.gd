@@ -34,7 +34,7 @@ func build(resolver: AssetResolver, theme: TrackTheme) -> void:
 	rim.polygon = closed
 	body.add_child(rim)
 	add_child(_line(layout.boundary, true, 26.0, wall))
-	var junker := resolver.get_texture(AssetCatalog.CAR_JUNKER)
+	var junker := CarArt.icon(resolver, AssetCatalog.CAR_JUNKER)  # (the same junker the races draw)
 	var tyres := resolver.get_texture(AssetCatalog.TYRE_STACK)
 	for o in layout.polygons:
 		var shape := CollisionPolygon2D.new()

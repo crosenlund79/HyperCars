@@ -6,6 +6,7 @@ var _root: String
 
 
 func before_each() -> void:
+	CarArt.clear_cache()
 	_root = OS.get_user_data_dir().path_join("test_overrides_%d" % Time.get_ticks_usec())
 	DirAccess.make_dir_recursive_absolute(_root.path_join("graphics/cars"))
 
@@ -124,7 +125,9 @@ func test_template_cars_use_wheel_free_bodies_with_wheels() -> void:
 	assert_true(look.wheels)
 	assert_eq(look.body_logical, "cars/body_ai_3")
 	assert_eq(look.body, r.get_texture("cars/body_ai_3"))
-	assert_eq(CarArt.icon(r, "cars/car_ai_3"), r.get_texture("cars/car_ai_3"), "icons show the complete car")
+	var icon := CarArt.icon(r, "cars/car_ai_3")
+	assert_ne(icon, r.get_texture("cars/car_ai_3"), "icons: the racing body with its wheels, never the legacy picture")
+	assert_eq(icon.get_size(), look.body.get_size())
 
 
 func test_custom_flattened_car_is_drawn_alone_without_extra_wheels() -> void:
@@ -144,14 +147,15 @@ func test_custom_body_gets_the_shared_wheels() -> void:
 	var look := CarArt.look(r, "cars/car_player")
 	assert_true(look.wheels, "a body takes precedence over a flattened image")
 	assert_eq(look.body.get_width(), 512)
-	assert_eq(CarArt.icon(r, "cars/car_player").get_width(), 256, "icon: the complete flattened car")
+	assert_eq(CarArt.icon(r, "cars/car_player").get_width(), 512, "icon: the same body (with wheels), not the older flattened image")
 
 
 func test_custom_body_only_is_also_the_icon() -> void:
 	_write_png("graphics/cars/body_ai_1.png", Vector2i(128, 72))
 	var r := AssetResolver.new(_root)
 	assert_true(CarArt.look(r, "cars/car_ai_1").wheels)
-	assert_eq(CarArt.icon(r, "cars/car_ai_1"), r.get_texture("cars/body_ai_1"))
+	var icon := CarArt.icon(r, "cars/car_ai_1")
+	assert_eq(icon.get_image().get_pixel(64, 36), Color.MAGENTA, "the user's body (composed with the wheels: test_car_art.gd)")
 
 
 func test_invalid_custom_body_falls_back_to_the_template_body() -> void:
