@@ -44,8 +44,9 @@ func test_default_icon_is_the_racing_body_with_its_wheels() -> void:
 	var icon := CarArt.icon(r, AssetCatalog.CAR_PLAYER)
 	assert_eq(icon.get_size(), l.body.get_size(), "composed at the body's size")
 	assert_eq(_pixel(icon, Vector2i(64, 36)), _pixel(l.body, Vector2i(64, 36)), "the same body in the middle")
-	# a wheel under the body: front-right wheel centre (display +16.5, +12 -> image 97, 60)
-	assert_gt(_pixel(icon, Vector2i(97, 64)).a, _pixel(l.body, Vector2i(97, 64)).a + 0.3,
+	# a wheel under the body: front-right wheel centre (display +16.5, +10.5 -> image 97, 57),
+	# its outer edge just below the body's (the body ends at image y 59 there)
+	assert_gt(_pixel(icon, Vector2i(97, 62)).a, _pixel(l.body, Vector2i(97, 62)).a + 0.3,
 		"the wheel peeks out below the body, as on the racing car")
 	assert_eq(CarArt.icon(r, AssetCatalog.CAR_PLAYER), icon, "composed once, then reused")
 

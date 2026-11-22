@@ -43,7 +43,9 @@ Pick one of two places; restart the game to see it.
 
 - **What to draw:** one **wheel-free body** per car (`cars/body_*`) and one shared
   **wheel** (`cars/wheel`). The game adds four wheels to every car: they steer up to
-  ±26° in races, and the same four are composed into every picture of the car (title
+  ±30° in races, the tread rolls as the car drives (the game scrolls your one wheel
+  drawing inside its outline: a tread that repeats along X rolls best), and the same
+  four are composed into every picture of the car (title
   backdrop, standings, results, championship rewards, Nemesis Welcome, arena scrap
   piles). A car drawn once looks the same everywhere.
 - **The body:**
@@ -58,7 +60,8 @@ Pick one of two places; restart the game to see it.
   headlights at its painted tail ([night_lights_before_after.jpg](artwork/night_lights_before_after.jpg),
   last row).
 - **Wheel positions** (display px from the car centre): front axle +16.5, rear
-  axle −16.5, wheels ±12 sideways. For a differently shaped body, set its own
+  axle −16.5, wheels ±10.5 sideways (mostly under the body, about 2 px of tyre showing).
+  For a differently shaped body, set its own
   points in `src/presentation/default_wheel_layout.tres` (`per_car`).
 - **Which artwork wins** (the same on every screen):
   1. your body drawing (with wheels);
@@ -85,7 +88,7 @@ Cars: one wheel-free body per car plus the shared wheel. Draw these. Reference s
 
 | Name | What it is / where it appears | Template (px) | Shown at (world px) | Frames | Orientation | Background | Status | Packaged template | Your replacement |
 |---|---|---|---|---|---|---|---|---|---|
-| `cars/wheel` | Shared wheel (P2), top-down, rolling direction along X (car nose right), centred pivot, transparent background. One image for all ten cars; four instances per car at the positions in src/presentation/default_wheel_layout.tres. | 24 x 14 | 12 x 7 | 1 | top-down, nose pointing right (+X), car centred | transparent background | primary | `assets/graphics/cars/template_wheel.png` | `custom/graphics/cars/wheel.png` |
+| `cars/wheel` | Shared wheel (P2), top-down, rolling direction along X (car nose right), centred pivot, transparent background. One image for all ten cars; four instances per car at the positions in src/presentation/default_wheel_layout.tres. While driving, its colours scroll along X inside its own outline (rolling tread): a tread that repeats seamlessly along X rolls best; one drawing, no extra frames. | 48 x 28 | 12 x 7 | 1 | top-down, nose pointing right (+X), car centred | transparent background | primary | `assets/graphics/cars/template_wheel.png` | `custom/graphics/cars/wheel.png` |
 | `cars/body_ai_1` | Wheel-free body (P2): same size, orientation and pivot as the car image, transparent where the wheels go; the game adds four shared wheels (also in every static picture of the car). Takes precedence over the flattened car image. | 128 x 72 | 64 x 36 | 1 | top-down, nose pointing right (+X), car centred | transparent background | primary | `assets/graphics/cars/template_body_ai_1.png` | `custom/graphics/cars/body_ai_1.png` |
 | `cars/body_ai_2` | Wheel-free body (P2): same size, orientation and pivot as the car image, transparent where the wheels go; the game adds four shared wheels (also in every static picture of the car). Takes precedence over the flattened car image. | 128 x 72 | 64 x 36 | 1 | top-down, nose pointing right (+X), car centred | transparent background | primary | `assets/graphics/cars/template_body_ai_2.png` | `custom/graphics/cars/body_ai_2.png` |
 | `cars/body_ai_3` | Wheel-free body (P2): same size, orientation and pivot as the car image, transparent where the wheels go; the game adds four shared wheels (also in every static picture of the car). Takes precedence over the flattened car image. | 128 x 72 | 64 x 36 | 1 | top-down, nose pointing right (+X), car centred | transparent background | primary | `assets/graphics/cars/template_body_ai_3.png` | `custom/graphics/cars/body_ai_3.png` |

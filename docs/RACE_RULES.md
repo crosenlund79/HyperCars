@@ -29,9 +29,10 @@ and grip unchanged (`DrivingParams`, provisional).
 
 ## Front-wheel steering (visual only)
 
-The front wheels now turn up to 26° (was 10°) with the same smoothing
-(`WheelLayout.max_steer_degrees`); the wheels sit mostly under the body, so the angle
-shows on their outer edges. The driving model is untouched.
+The front wheels turn up to 30° (2026-11-22; was 26°, at first 10°)
+(`WheelLayout.max_steer_degrees`). Since 2026-11-22 the wheels sit further under the
+body (±10.5 display px, about 2 px of tyre showing), so the angle shows on their outer
+edges, and the tread rolls with the distance driven. The driving model is untouched.
 
 ## Race-long ammunition
 
