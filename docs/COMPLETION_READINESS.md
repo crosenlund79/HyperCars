@@ -51,6 +51,7 @@ None of these block a normal session.
 | A1 | Two cars on the same branch can pass through each other for a few frames exactly at an elevation-zone end (J1 design limit). | A rare visual pass-through on bridge circuits. | Known since J0–J2. A fix would touch collision layering. |
 | A2 | Network clients see collision retirements without the culprit in the kill feed: the host's attribution is not sent. | Kill-feed text on the client only. Results, DNFs and K / D deaths agree. | A small protocol addition if wanted. |
 | A3 | A client's car bumps arrive as host corrections: they look slightly late or snappy, with a handful of hard snaps per race at 80–120 ms. | Feel only, online. | The prediction design (M5.2). Needs real two-PC play to judge. |
+| A4 | Test only: `test_net_lan_race` "armed jump race at 170 ms" can time out (140 s wall clock) when rivals take long on Ravenhook. | None in the game: the race just takes longer than the probe allows. | Seen once in four runs on 2026-11-22 (both sides FINISHED, waiting for the field); passed twice re-run alone. |
 
 ## B. Human playtesting (only real play can verify these)
 
