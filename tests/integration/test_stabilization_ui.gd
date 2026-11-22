@@ -24,7 +24,7 @@ func test_couch_pit_ticket_banner_in_the_offenders_view() -> void:
 	await wait_process_frames(2)
 	assert_true(h2.banner_showing(), "in player 2's view")
 	assert_false(h1.banner_showing(), "not in player 1's view")
-	assert_false(m.hud.banner_showing(), "not on the shared screen")
+	assert_false(m.hud._banner.text.contains("PIT LANE"), "not on the shared screen (race banners such as GO! stay there)")
 	assert_string_contains(h2._banner.text, "PIT LANE VIOLATION")
 	var width: float = m.player_views.view_for(P2).base_size.x
 	var b := Rect2(h2._banner.position, h2._banner.size)
@@ -36,7 +36,7 @@ func test_couch_pit_ticket_banner_in_the_offenders_view() -> void:
 	m._ticket_banner(P1, 100)
 	await wait_process_frames(2)
 	assert_true(h1.banner_showing(), "player 1's own ticket in player 1's view")
-	assert_false(m.hud.banner_showing())
+	assert_false(m.hud._banner.text.contains("PIT LANE"))
 
 
 func test_toasts_wait_while_the_standings_are_up() -> void:
