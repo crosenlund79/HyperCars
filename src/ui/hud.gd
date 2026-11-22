@@ -9,6 +9,9 @@ const PLAYER_ID := 0
 ## cars around the camera centre; low between the views in split-screen.
 const BANNER_Y := 56.0
 const BANNER_Y_SPLIT := 530.0
+## A split view's own banner (its player's notices, e.g. a pit ticket): mid-view,
+## clear of the DESTROYED / OUT labels, the pit line and the standings tower.
+const BANNER_Y_VIEW := 262.0
 const BANNER_HOLD := 0.6
 ## Spectator camera: a standings row was clicked (racer id), or an arrow was
 ## pressed (-1 previous / +1 next in the starting-grid order).
@@ -645,10 +648,14 @@ static func _row_highlight(color: Color) -> StyleBoxFlat:
 ## Two-player: a HUD for one player's half of the screen (info panel, weapons,
 ## DESTROYED countdown centred in the view, and a compact standings tower at
 ## the view's outer edge: left for the left view, right for the right one);
-## the shared HUD keeps the menus, banners and results.
+## the shared HUD keeps the menus, race banners and results.
 func configure_player_view(width: float, title: String, index: int = 0, right_edge: bool = false) -> void:
 	_message.visible = false
-	_banner.visible = false
+	# the view's own banner, for its player's notices only (pit tickets); race
+	# banners (GO!, FINISH...) stay on the shared HUD
+	_banner.size.x = width
+	_banner.pivot_offset.x = width * 0.5
+	_banner.position.y = BANNER_Y_VIEW
 	_wreck_label.size.x = width
 	_pit_box.size.x = width
 	_out_label.size.x = width

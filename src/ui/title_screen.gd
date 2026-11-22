@@ -68,6 +68,8 @@ const LAYOUT := preload("res://src/track/circuit_01.tres")
 var resolver: AssetResolver
 var settings: AudioSettings
 var _backdrop: Node2D
+## The player's parked car on the backdrop (the last grid slot).
+var _player_sprite: Sprite2D
 var _camera: Camera2D
 var _path: ClosedPath
 var _pan := 0.0
@@ -491,9 +493,27 @@ func refresh_car_choice() -> void:
 	_build_backdrop()  # the newly displaced rival parks the junker
 
 
+## The car the player races with, as every other screen draws it: their own
+## car, or the chosen won rival car in its original colours (CarArt: body +
+## shared wheels, overrides and Artwork Mode apply).
+func _player_car_name() -> String:
+	if player_car > 0 and cars != null and cars.owns(player_car):
+		return AssetCatalog.ai_car(player_car)
+	return AssetCatalog.CAR_PLAYER
+
+
+## The player's parked car on the backdrop follows the CAR choice at once.
+func _refresh_backdrop_player() -> void:
+	if _player_sprite == null or not is_instance_valid(_player_sprite):
+		return
+	_player_sprite.texture = CarArt.icon(resolver, _player_car_name())
+	_player_sprite.scale = AssetCatalog.scale_for(_player_sprite.texture, AssetCatalog.SPECS[AssetCatalog.CAR_PLAYER].display_size)
+
+
 func _update_car_button() -> void:
 	if cars != null and not cars.owns(player_car):
 		player_car = CarCollection.OWN_CAR
+	_refresh_backdrop_player()
 	var owned := cars.owned.size() if cars != null else 0
 	_car_button.text = "CAR:  %s  (%d of 9 rival cars won)" % ["YOUR OWN" if player_car == CarCollection.OWN_CAR
 		else RivalRoster.short_name(player_car).to_upper() + "'S", owned]
@@ -749,7 +769,7 @@ func _build_backdrop() -> void:
 	var scenery := TrackScenery.new()
 	_backdrop.add_child(scenery)
 	scenery.build(track, resolver, decals)
-	var names := ["cars/car_player"]
+	var names := [_player_car_name()]
 	for i in range(1, 10):
 		# a rival whose car the player has won parks the junker
 		names.append(AssetCatalog.CAR_JUNKER if cars != null and cars.displaced(i) else AssetCatalog.ai_car(i))
@@ -761,6 +781,8 @@ func _build_backdrop() -> void:
 		spr.rotation = t.get_rotation()
 		spr.scale = AssetCatalog.scale_for(spr.texture, AssetCatalog.SPECS[AssetCatalog.CAR_PLAYER].display_size)
 		_backdrop.add_child(spr)
+		if (slot + 1) % names.size() == 0:
+			_player_sprite = spr
 	_path = track.path
 	_pan = _path.length - 700.0
 	_camera = Camera2D.new()

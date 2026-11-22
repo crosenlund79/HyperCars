@@ -118,6 +118,8 @@ func _ready() -> void:
 	champ_screen.continue_requested.connect(_next_round)
 	champ_screen.abandon_requested.connect(abandon_championship)
 	champ_screen.done.connect(abandon_championship)
+	# achievement toasts wait while the standings are up (they overlapped them)
+	champ_screen.visibility_changed.connect(func() -> void: toast.set_held(champ_screen.visible))
 	reward_rng.randomize()
 	if session_seed < 0:
 		session_seed = GameSeed.from_args(OS.get_cmdline_user_args())
