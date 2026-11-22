@@ -371,3 +371,48 @@ func test_wheel_layout_is_configurable_per_car() -> void:
 	assert_eq(layout.positions("cars/body_ai_5"), Vector3(layout.front_x, layout.rear_x, layout.half_track))
 	assert_almost_eq(CarWheels.steer_angle(layout, 5.0), deg_to_rad(layout.max_steer_degrees), 0.0001, "clamped")
 	assert_almost_eq(CarWheels.rear_shift(layout, -3.0), layout.rear_shift_px, 0.0001, "clamped")
+
+
+# --- 2026-11-22: wheels tucked under the body, more steering, a rolling tread ---
+
+func test_wheels_sit_mostly_under_the_body_on_every_car() -> void:
+	var layout: WheelLayout = load("res://src/presentation/default_wheel_layout.tres")
+	var wheel_h: float = AssetCatalog.SPECS[AssetCatalog.WHEEL].display_size.y
+	var body_px_per_display := 2.0  # (128 x 72 templates shown at 64 x 36)
+	for name in ["cars/body_player", "cars/body_player_2", "cars/body_junker"] + range(1, 10).map(func(n: int) -> String: return "cars/body_ai_%d" % n):
+		var img := Image.load_from_file(ProjectSettings.globalize_path(AssetResolver.fallback_path(name)))
+		var at := layout.positions(name)
+		for x in [at.x, at.y]:
+			var col := int(img.get_width() * 0.5 + x * body_px_per_display)
+			var top := -1
+			var bottom := -1
+			for y in img.get_height():
+				if img.get_pixel(col, y).a > 0.15:
+					if top < 0:
+						top = y
+					bottom = y
+			var half_body := (bottom - top + 1) * 0.5 / body_px_per_display
+			var outside := at.z + wheel_h * 0.5 - half_body
+			assert_between(outside, 0.5, 3.0, "%s axle %.1f: %.1f px of tyre showing (not on sticks, not hidden)" % [name, x, outside])
+
+
+func test_the_tread_rolls_with_the_distance_driven() -> void:
+	var layout: WheelLayout = load("res://src/presentation/default_wheel_layout.tres")
+	assert_true(layout.roll_animation)
+	assert_lt(CarWheels.roll_step(layout, 2.0), 0.0, "forward: the tread on top moves towards the nose")
+	assert_gt(CarWheels.roll_step(layout, -2.0), 0.0, "backward: the other way")
+	assert_eq(CarWheels.roll_step(layout, 0.0), 0.0, "standing still: no roll")
+	assert_almost_eq(CarWheels.roll_step(layout, 999.0), -layout.max_roll_per_frame, 0.0001, "capped: never strobes")
+	await _make_presented()
+	_main.start_race()
+	var c: Car = _main.car
+	var w: CarWheels = c.get_node("Wheels")
+	assert_not_null(w._front[0].material, "the rolling tread material")
+	assert_eq(w._front[0].material, w._rear[1].material, "one material per car")
+	var before := w.roll
+	Input.action_press(PlayerControls.FIRE)
+	await wait_seconds(0.5)
+	Input.action_release(PlayerControls.FIRE)
+	assert_ne(w.roll, before, "driving rolls the tread")
+	assert_almost_eq(float(w._front[0].material.get_shader_parameter("roll")), w.roll, 0.0001)
+

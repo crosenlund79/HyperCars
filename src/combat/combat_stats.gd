@@ -89,6 +89,21 @@ func on_retired(victim: int, time: float, by_weapon: bool) -> void:
 		"tombstone": true, "time": time})
 
 
+## Network client: the host named `by` as the culprit of a retirement this
+## computer already counted unattributed (the DNF arrived before the event).
+func attribute_retirement(victim: int, by: int) -> void:
+	if by < 0 or by == victim:
+		return
+	for k in range(feed.size() - 1, -1, -1):
+		var e: Dictionary = feed[k]
+		if e.victim == victim and e.tombstone and e.attacker < 0 and e.weapon == RETIRED:
+			e.attacker = by
+			e.weapon = COLLISION
+			kills[by] += 1
+			tombstones[by] += 1
+			return
+
+
 ## A pit-lane collision ticket: in the feed (offender only), no statistics.
 func on_ticket(offender: int, time: float) -> void:
 	feed.append({"attacker": offender, "victim": -1, "weapon": TICKET, "tombstone": false, "time": time})

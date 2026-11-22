@@ -217,3 +217,29 @@ func test_final_results_carry_retirements_when_every_snapshot_is_lost() -> void:
 	for id in [6, RaceSession.PLAYER_2_ID, RaceSession.PLAYER_ID]:
 		assert_eq(client.stats.deaths[id], host.stats.deaths[id], "D of racer %d agrees (the retirement counts)" % id)
 	host_link.sim_loss = 0.0
+
+
+## 2026-11-22: a collision retirement shows its culprit on the client too (the
+## host's "retired" event), whichever arrives first - the event or the DNF.
+func test_collision_retirement_culprit_reaches_the_client() -> void:
+	await _start_armed(WeaponRules.Style.CLASSIC)
+	await wait_physics_frames(30)
+	host.stats.on_contact(6, 3, host.session.elapsed)  # car 3 rammed car 6
+	host.damage.condition[6] = 0.0
+	host.damage.retired[6] = 1
+	host._retire(6)
+	await wait_until(func() -> bool: return client.stats.tombstones[3] == 1, 5.0)
+	var entry: Dictionary = client.stats.feed.filter(func(e: Dictionary) -> bool: return e.victim == 6)[-1]
+	assert_eq(entry.attacker, 3, "the culprit in the client's kill feed")
+	assert_eq(entry.weapon, CombatStats.COLLISION)
+	assert_eq(client.stats.line(3), host.stats.line(3), "same TOMBSTONE | K | D on both computers")
+	assert_eq(client.stats.line(6), host.stats.line(6))
+	# the other order: the DNF already counted unattributed, then the event
+	var s := CombatStats.new(10)
+	s.on_retired(7, 1.0, false)
+	assert_eq(s.feed[-1].attacker, -1)
+	s.attribute_retirement(7, 2)
+	assert_eq([s.feed[-1].attacker, s.feed[-1].weapon, s.kills[2], s.tombstones[2]], [2, CombatStats.COLLISION, 1, 1])
+	s.attribute_retirement(7, 4)
+	assert_eq(s.kills[4], 0, "attributed once")
+

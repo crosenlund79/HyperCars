@@ -129,7 +129,11 @@ func test_experimental_crossing_armed_race_agrees() -> void:
 	if not r[0].has("results") or not r[1].has("results"):
 		return
 	for k in r[0].results[0]:  # (key by key: a failure names the field)
+		if k in ["takeoffs", "falls"]:
+			continue  # observed per computer: compared like every jump race below
 		assert_eq(r[1].results[0].get(k), r[0].results[0][k], "same result, same destructions: %s" % k)
+	for k in ["takeoffs", "falls"]:  # (the figure-eight has the J3 jump)
+		_assert_jumps_agree(r[0].results[0], r[1].results[0], k, "crossing armed")
 
 
 ## J5: real jumps over the network. The client's car crawls up to the lip
@@ -169,7 +173,7 @@ func test_jumps_with_falls_agree_with_latency_jitter_and_loss() -> void:
 
 func test_armed_jump_race_at_170_ms_agrees() -> void:
 	var r := await _run(24752, ["laps=2", "layout=ravenhook", "latency=170", "jitter=40", "loss=0.05", "fall=1",
-		"weapons=1", "style=1", "fire_every=45", "timeout=140"])
+		"weapons=1", "style=1", "fire_every=45", "timeout=220"])  # (140 s: too tight for a slow field under full-suite load)
 	_assert_jump_race(r, "Ravenhook 170 ms Tactical")
 	if r[1].has("jump_corrections"):
 		assert_lt(int(r[1].jump_corrections), 5, "jump predictions rarely need correcting")

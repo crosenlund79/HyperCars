@@ -960,8 +960,9 @@ func _client_physics(step: float) -> void:
 	_update_camera_target(step)
 
 
-## Client: statistics from the host's combat events and retirements (the
-## host's collision attribution is not sent: such retirements show unattributed).
+## Client: statistics from the host's combat events and retirements; the
+## host names the culprit of a collision retirement with a "retired" event
+## (2026-11-22; before, such retirements showed unattributed on the client).
 func _client_stats() -> void:
 	if _stats_event_index > combat.events.size():
 		_stats_event_index = 0
@@ -972,6 +973,14 @@ func _client_stats() -> void:
 		elif e.kind == "ticket":
 			stats.on_ticket(e.car, session.elapsed)
 			_ticket_banner(e.car, int(e.get("fine", 0)))
+		elif e.kind == "retired":  # the host's culprit for a collision retirement
+			_stats_dnf.resize(cars.size())
+			if _stats_dnf[e.car] == 1:
+				stats.attribute_retirement(e.car, e.by)  # (the DNF arrived first)
+			else:
+				_stats_dnf[e.car] = 1
+				stats.on_contact(e.car, e.by, session.elapsed)
+				stats.on_retired(e.car, session.elapsed, false)
 	_stats_event_index = combat.events.size()
 	_stats_dnf.resize(cars.size())
 	for id in cars.size():
@@ -1979,6 +1988,10 @@ func _retire(id: int, by_weapon := false, eliminated := false) -> void:
 		damage.retired[id] = 1  # out like a DNF: no collisions, never back (also after a weapon wreck)
 	else:
 		stats.on_retired(id, session.elapsed, by_weapon)
+		var last: Dictionary = stats.feed[-1] if not stats.feed.is_empty() else {}
+		if net != null and net.is_host() and last.get("victim", -2) == id and last.get("weapon", -1) == CombatStats.COLLISION:
+			# the culprit of a collision retirement, for the client's kill feed (reliable EVENTS)
+			combat.events.append({"kind": "retired", "car": id, "by": int(last.attacker)})
 	var c := cars[id]
 	c.active = false
 	c.model.velocity = Vector2.ZERO
