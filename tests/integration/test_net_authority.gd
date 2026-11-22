@@ -178,3 +178,39 @@ func test_wrecks_and_recovery_replicate() -> void:
 	assert_false(host.combat.is_wrecked(victim))
 	assert_false(client.combat.is_wrecked(victim), "and the recovery")
 	assert_eq(states.size(), host.cars.size())
+
+
+## Protocol 7: the reliable RESULTS carry every racer's final DNF and every
+## car's final condition, so the client classifies the race exactly as the host
+## even when every snapshot after the retirements is lost (the intermittent
+## test_net_lan_race miss of 2026-11-18).
+func test_final_results_carry_retirements_when_every_snapshot_is_lost() -> void:
+	await _start_armed(WeaponRules.Style.CLASSIC)
+	await wait_physics_frames(40)
+	var healthy := 3
+	host.damage.condition[healthy] = 61.5  # a damaged car that finishes the race damaged
+	await wait_physics_frames(10)
+	host_link.sim_loss = 1.0  # from here on no snapshot reaches the client
+	for id in [6, RaceSession.PLAYER_2_ID, RaceSession.PLAYER_ID]:
+		host.damage.condition[id] = 0.0
+		host.damage.retired[id] = 1
+		host._retire(id)
+	host.session.classify_remaining()  # (the rest of the field: in running order)
+	await wait_until(func() -> bool: return client.net._results_final, 5.0)
+	assert_true(client.net._results_final, "the reliable result arrived")
+	assert_eq(client.session.state, RaceSession.State.FINISHED)
+	assert_eq(client.session.finish_order, host.session.finish_order, "same classification")
+	for r in host.session.racers:
+		var c: RacerState = client.session.racers[r.id]
+		assert_eq(c.dnf, r.dnf, "DNF of racer %d" % r.id)
+		assert_eq(c.finish_position, r.finish_position, "position of racer %d" % r.id)
+		assert_eq(c.finish_time, r.finish_time, "time of racer %d" % r.id)
+	for id in [6, RaceSession.PLAYER_2_ID, RaceSession.PLAYER_ID]:
+		assert_true(client.session.racers[id].dnf, "racer %d retired on the client too" % id)
+		assert_eq(client.damage.condition[id], 0.0)
+		assert_eq(client.damage.retired[id], 1)
+	assert_almost_eq(client.damage.condition[healthy], host.damage.condition[healthy], 0.01, "final condition from the result")
+	await wait_physics_frames(5)
+	for id in [6, RaceSession.PLAYER_2_ID, RaceSession.PLAYER_ID]:
+		assert_eq(client.stats.deaths[id], host.stats.deaths[id], "D of racer %d agrees (the retirement counts)" % id)
+	host_link.sim_loss = 0.0

@@ -923,7 +923,15 @@ func on_network_start(race_number: int = races_started) -> void:
 
 
 ## Client: the host's final result (reliable; overrides any older snapshot).
-func apply_network_results(order: PackedInt32Array, times: PackedFloat64Array) -> void:
+## dnf (per racer) and condition (per car) are the host's final values: they
+## replace whatever the last snapshot that arrived said (protocol 7).
+func apply_network_results(order: PackedInt32Array, times: PackedFloat64Array,
+		dnf: PackedByteArray = PackedByteArray(), condition: PackedFloat32Array = PackedFloat32Array()) -> void:
+	for id in mini(dnf.size(), session.racers.size()):
+		session.racers[id].dnf = dnf[id] == 1
+	for c in mini(condition.size(), damage.car_count()):
+		damage.condition[c] = clampf(condition[c], 0.0, damage.rules.max_condition)
+		damage.retired[c] = 1 if damage.condition[c] <= 0.0 else 0
 	var finish: Array[int] = []
 	for k in order.size():
 		var r := session.racers[order[k]]
@@ -1851,6 +1859,11 @@ func _ticket_banner(id: int, fine: int) -> void:
 	if hud == null or not session.human_ids.has(id) or (net != null and id != local_player_id):
 		return
 	var what := ("PIT COLLISION  -  FINE $%d" % fine) if fine > 0 else "PIT COLLISION  -  TICKET"
+	if player_views != null:  # couch: in the offending player's own view only
+		var v := player_views.view_for(id)
+		if not v.is_empty():
+			v.hud.flash_banner("PIT LANE VIOLATION!\n" + what, HyperTheme.RED, 1.6, 40)
+			return
 	hud.flash_banner("PIT LANE VIOLATION!\n" + what, HyperTheme.RED, 1.6, 56)
 
 

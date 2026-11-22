@@ -13,7 +13,7 @@ enum Role { HOST, CLIENT }
 enum Msg { WELCOME, HELLO, SETUP, READY, START, SNAP, INPUT, RESULTS, EVENTS, BYE, REJECT, JOINED }
 
 ## Wire protocol version and game build: both must match before a session starts.
-const PROTOCOL := 6  # 3: M6 condition / DNF in snapshots; 4: Weapons Hot lock; 5: J5 jumps; 6: pit lanes, proportional steering
+const PROTOCOL := 7  # 3: M6 condition / DNF in snapshots; 4: Weapons Hot lock; 5: J5 jumps; 6: pit lanes, proportional steering; 7: RESULTS carry final DNF / condition
 const GAME_BUILD := "hypercars-r2"
 
 
@@ -174,7 +174,11 @@ func _send_events() -> void:
 		_sent_events = combat.events.size()
 
 
-## Authoritative final result (reliable, so both computers agree).
+## Authoritative final result (reliable, so both computers agree): the
+## finishing order and times, plus every racer's final DNF flag and every car's
+## final condition (protocol 7). The classification never depends on the last,
+## unreliable snapshot: a car that retires just before the flag is a DNF on the
+## client even when the snapshot carrying it was lost.
 func send_results(order: Array) -> void:
 	if not is_host():
 		return
@@ -182,7 +186,13 @@ func send_results(order: Array) -> void:
 	var times := PackedFloat64Array()
 	for id in order:
 		times.append(race.session.racers[id].finish_time)
-	link.send([Msg.RESULTS, PackedInt32Array(order), times], true)
+	var dnf := PackedByteArray()
+	for r in race.session.racers:
+		dnf.append(1 if r.dnf else 0)
+	var condition := PackedFloat32Array()
+	for c in race.damage.car_count():
+		condition.append(race.damage.condition[c])
+	link.send([Msg.RESULTS, PackedInt32Array(order), times, dnf, condition], true)
 
 
 # ---------------------------------------------------------------- client side
@@ -646,11 +656,13 @@ func _on_message(from: int, msg: Array) -> void:
 				if msg[2] == events.size():  # in order, no gaps or repeats
 					events.append_array(msg[3])
 		Msg.RESULTS:
-			if is_client() and valid(msg, [TYPE_PACKED_INT32_ARRAY, TYPE_PACKED_FLOAT64_ARRAY]) \
+			if is_client() and valid(msg, [TYPE_PACKED_INT32_ARRAY, TYPE_PACKED_FLOAT64_ARRAY,
+					TYPE_PACKED_BYTE_ARRAY, TYPE_PACKED_FLOAT32_ARRAY]) \
 					and msg[1].size() == msg[2].size() and msg[1].size() <= race.session.racers.size() \
+					and msg[3].size() == race.session.racers.size() and msg[4].size() == race.damage.car_count() \
 					and state != RaceSession.State.MODE_SELECT:
 				for id in msg[1]:
 					if id < 0 or id >= race.session.racers.size():
 						return
-				race.apply_network_results(msg[1], msg[2])
+				race.apply_network_results(msg[1], msg[2], msg[3], msg[4])
 				_results_final = true
