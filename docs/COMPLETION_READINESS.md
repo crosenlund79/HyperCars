@@ -168,7 +168,7 @@ Nothing else was found. Every approved mode and system is implemented.
 ## Verification of this pass (automated, 2026-11-22)
 
 **Full suite:** 748 tests in 89 scripts, headless with GUT. **746 passed.** The two
-LAN cases in A4 failed under full-suite load and passed when re-run alone.
+LAN cases in A4 failed under full-suite load. Each passed when re-run alone, and the whole `test_net_lan_race` file then passed 11 / 11 on the final code.
 
 **End-to-end runs in the suite** (each drives the real race or game scene):
 
