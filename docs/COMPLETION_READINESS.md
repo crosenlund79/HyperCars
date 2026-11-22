@@ -164,3 +164,31 @@ Nothing else was found. Every approved mode and system is implemented.
 | Title backdrop showed the own car when a won car was chosen | The backdrop always parked `car_player`. It now parks the chosen car (CarArt, original colours) and updates on change. | `test_title_backdrop.gd`; render `docs/artwork/title_backdrop_won_car.jpg` |
 | Couch pit-ticket banner on the shared screen | The ticket used the shared HUD banner. It now shows in the offender's own view, between its info panel and its car. | `test_stabilization_ui.gd`; render `docs/artwork/couch_pit_ticket_view.jpg` |
 | Achievement toasts over the championship standings | The toast's place (top right) is inside the standings layout. Toasts now wait while the standings are up; one on screen leaves and returns later. | `test_stabilization_ui.gd` |
+
+## Verification of this pass (automated, 2026-11-22)
+
+**Full suite:** 748 tests in 89 scripts, headless with GUT. **746 passed.** The two
+LAN cases in A4 failed under full-suite load and passed when re-run alone.
+
+**End-to-end runs in the suite** (each drives the real race or game scene):
+
+| Mode | Tests |
+|---|---|
+| Quick race and menus | `test_race_menu`, `test_layout_selection` |
+| Garage, with its saved career | `test_garage_flow` |
+| Championship progression and car ownership | `test_championship_flow` |
+| Knockout | `test_racing_modes` |
+| Battle Royale | `test_battle_royale` |
+| Spectate | `test_spectator_mode`, `test_spectator_follow` |
+| Pit servicing | `test_pit_lanes` |
+| Couch | `test_split_screen`, `test_two_player_race` |
+| Network host / client final results | `test_net_authority`, `test_net_lan_race` (two processes, simulated latency, jitter, loss and repeated races) |
+
+**Rendered checks** (software OpenGL, real game scenes):
+- the night lights at six headings, before and after;
+- the title backdrop with a won car;
+- the couch ticket banner.
+
+**Not proven by any of this:** real controllers, two computers, real GPU performance,
+audio judged by ear, and human balance (B).
+
