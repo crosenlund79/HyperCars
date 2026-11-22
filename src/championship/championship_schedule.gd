@@ -21,6 +21,14 @@ const SCHEDULES: Array[String] = [
 @export var points: PackedInt32Array = PackedInt32Array([25, 18, 15, 12, 10, 8, 6, 4, 2, 1])
 ## The rounds of the short (three-round) version, in order; it ends with the final.
 @export var short_rounds: PackedInt32Array = PackedInt32Array()
+## The last round is billed as the GRAND FINAL (false: just the last round).
+@export var has_final := true
+## Career stages (src/career/): the combat style the stage is raced with
+## (WeaponRules.Style; -1 = the player's setup choice), the money paid once
+## for winning it, and a one-line description for the career screen.
+@export var career_style := -1
+@export var career_bonus := 0
+@export_multiline var blurb := ""
 
 ## Championship lengths offered on the setup screen.
 const LENGTHS: Array[int] = [6, 3]
@@ -32,7 +40,7 @@ func round_count() -> int:
 
 func get_round(i: int) -> Dictionary:
 	return {"layout": layouts[i], "variant": variants[i], "night": nights[i], "laps": laps[i],
-		"final": i == round_count() - 1 and round_count() > 1}
+		"final": has_final and i == round_count() - 1 and round_count() > 1}
 
 
 ## This schedule with only the short version's rounds (itself when it has no
@@ -43,6 +51,7 @@ func shortened() -> ChampionshipSchedule:
 	var s := ChampionshipSchedule.new()
 	s.title = title
 	s.points = points
+	s.has_final = has_final
 	for i in short_rounds:
 		s.layouts.append(layouts[i])
 		s.variants.append(variants[i])

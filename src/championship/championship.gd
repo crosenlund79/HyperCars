@@ -1,6 +1,6 @@
 class_name Championship
 extends RefCounted
-## A running three-race championship: the player (racer 0) and the nine
+## A running championship: the player (racer 0) and the nine
 ## rivals score schedule points by finishing position after every round; a
 ## DNF scores nothing. Standings: points, then wins, then the countback of
 ## best results, then the last round's result. Pure logic (no scene).
@@ -110,3 +110,41 @@ func next_grid() -> Array[int]:
 		grid.append(id)
 	grid.reverse()
 	return grid
+
+
+## The rounds raced so far, for saving: [orders, retirements] (career).
+func saved_rounds() -> Array:
+	return [results.duplicate(true), _dnfs.duplicate(true)]
+
+
+## Rebuilds a saved championship by recording its rounds again (points,
+## standings and grids follow). False (and nothing restored) when the data
+## does not fit this schedule: a broken or foreign save.
+func restore(orders: Variant, dnfs: Variant) -> bool:
+	if not (orders is Array and dnfs is Array) or orders.size() != dnfs.size() or orders.size() > schedule.round_count():
+		return false
+	for k in orders.size():
+		var o = orders[k]
+		var d = dnfs[k]
+		if not (o is Array and d is Array) or o.size() != 10:
+			return false
+		var seen := {}
+		for id in o:
+			if typeof(id) != TYPE_INT and typeof(id) != TYPE_FLOAT:
+				return false
+			if int(id) < 0 or int(id) > 9 or seen.has(int(id)):
+				return false
+			seen[int(id)] = true
+		for id in d:
+			if not seen.has(int(id)):
+				return false
+	for k in orders.size():
+		var order: Array = []
+		for id in orders[k]:
+			order.append(int(id))
+		var dnf: Array = []
+		for id in dnfs[k]:
+			dnf.append(int(id))
+		record(order, dnf)
+	return true
+
