@@ -20,6 +20,11 @@ var championships_run := 0
 ## forfeit (forfeited_on_load says which car went back).
 var stake := 0
 var forfeited_on_load := 0
+## Racing for Keeps in the career: the won car its running championship was
+## entered with. Kept across launches while the career championship is saved
+## between rounds; the career decides when it is lost (a lost or forfeited
+## attempt, including closing the game mid-race: Career.forfeited_on_load).
+var career_stake := 0
 
 
 ## Where a store without an explicit path saves (tests point this at a
@@ -36,14 +41,18 @@ func load_from_disk() -> void:
 	owned.clear()
 	championships_run = 0
 	stake = 0
+	career_stake = 0
 	var cfg := ConfigFile.new()
-	if cfg.load(path) != OK:
+	if SafeSave.load(cfg, path) != OK:
 		return
 	championships_run = maxi(0, int(cfg.get_value("cars", "championships_run", 0)))
 	for id in cfg.get_value("cars", "owned", []):
 		if int(id) >= 1 and int(id) <= 9 and not owned.has(int(id)):
 			owned.append(int(id))
 	stake = int(cfg.get_value("cars", "stake", 0))
+	career_stake = int(cfg.get_value("cars", "career_stake", 0))
+	if not owned.has(career_stake):
+		career_stake = 0
 	if stake > 0:  # a championship for keeps was left unfinished (game closed): forfeited
 		forfeited_on_load = stake
 		lose(stake)
@@ -54,7 +63,8 @@ func save() -> Error:
 	cfg.set_value("cars", "owned", owned)
 	cfg.set_value("cars", "championships_run", championships_run)
 	cfg.set_value("cars", "stake", stake)
-	return cfg.save(path)
+	cfg.set_value("cars", "career_stake", career_stake)
+	return SafeSave.save(cfg, path)
 
 
 func owns(rival_id: int) -> bool:
@@ -116,6 +126,19 @@ func lose(car: int) -> void:
 	owned.erase(car)
 	if stake == car:
 		stake = 0
+	if career_stake == car:
+		career_stake = 0
+	save()
+
+
+## Career: enter a championship with this car (0 / not owned: nothing at stake).
+func put_career_stake(car: int) -> void:
+	career_stake = car if owns(car) else 0
+	save()
+
+
+func clear_career_stake() -> void:
+	career_stake = 0
 	save()
 
 
@@ -124,5 +147,6 @@ func clear() -> void:
 	owned.clear()
 	championships_run = 0
 	stake = 0
+	career_stake = 0
 	forfeited_on_load = 0
 	save()

@@ -148,6 +148,13 @@ func set_icons(icons: Dictionary) -> void:
 
 ## Standings after a round. reward: the final message ("" = none yet).
 ## reward_car: the won (or lost) car's picture, or null.
+## Career championships (set by the game root): between rounds the second
+## button saves and goes back to the career (nothing is forfeited), CONTINUE
+## goes through the garage, and the subtitle names the career stage.
+var career := false
+var career_stage_text := ""
+
+
 func show_standings(champ: Championship, reward: String = "", reward_car: Texture2D = null) -> void:
 	_final = champ.finished()
 	var done_rounds := champ.results.size()
@@ -187,6 +194,16 @@ func show_standings(champ: Championship, reward: String = "", reward_car: Textur
 	_hint.text = PlayerControls.fmt("{confirm} / {back}: main menu" if _final else "{confirm}: next round      {back}: abandon the championship")
 	_confirming = false
 	_abandon.text = "ABANDON"
+	if career:
+		if career_stage_text != "":
+			_sub.text = "%s      %s" % [career_stage_text, _sub.text]
+		if _final:
+			_continue.text = "CONTINUE"
+			_hint.text = PlayerControls.fmt("{confirm} / {back}: continue")
+		else:
+			_continue.text = "TO THE GARAGE"
+			_abandon.text = "SAVE & EXIT"
+			_hint.text = PlayerControls.fmt("{confirm}: garage, then round %d      {back}: save and return to the career (progress is kept)" % (done_rounds + 1))
 	if not _final and warning != "":
 		_sub.text += "      %s" % warning
 		_sub.add_theme_color_override("font_color", Color("ff8a6a"))
@@ -203,6 +220,9 @@ static func round_text(r: Dictionary) -> String:
 
 
 func _on_abandon() -> void:
+	if career:  # saved between rounds: nothing to forfeit
+		abandon_requested.emit()
+		return
 	if warning != "" and not _confirming:
 		_confirming = true
 		_abandon.text = "CONFIRM FORFEIT"

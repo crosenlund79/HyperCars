@@ -236,7 +236,7 @@ func save() -> void:
 	cfg.set_value("garage", "condition", condition)
 	cfg.set_value("garage", "armour", armour)
 	cfg.set_value("garage", "races", races_settled)
-	cfg.save(save_path)
+	SafeSave.save(cfg, save_path)  # (atomic: never half written)
 
 
 ## The saved career at path, or a fresh one (missing or broken file). Values
@@ -245,7 +245,7 @@ static func load_or_new(p_rules: GarageRules, path: String = "") -> PlayerGarage
 	var g := PlayerGarage.new(p_rules)
 	g.save_path = path if path != "" else default_path
 	var cfg := ConfigFile.new()
-	if cfg.load(g.save_path) != OK:
+	if SafeSave.load(cfg, g.save_path) != OK:
 		return g
 	g.money = maxi(0, int(cfg.get_value("garage", "money", g.money)))
 	var st = cfg.get_value("garage", "stock", {})
@@ -262,6 +262,12 @@ static func load_or_new(p_rules: GarageRules, path: String = "") -> PlayerGarage
 	g.armour = clampi(int(cfg.get_value("garage", "armour", 0)), 0, p_rules.armour_names.size() - 1)
 	g.races_settled = maxi(0, int(cfg.get_value("garage", "races", 0)))
 	return g
+
+
+## Money paid outside a race (a career championship bonus), saved at once.
+func add_money(amount: int) -> void:
+	money += maxi(0, amount)
+	save()
 
 
 ## Starts the career over (starting money and supplies, a repaired car).

@@ -62,6 +62,22 @@ var race_rng := RandomNumberGenerator.new()
 var memory: RivalMemory
 var welcome: NemesisWelcome = null
 var session_seed := -1
+## Career (2026-11-22): its progress (user://career.cfg), its own garage
+## (user://career_garage.cfg; the standalone Garage Race career is separate),
+## the hub, the ending and the credits. _career_mode: the championship being
+## raced is the career's. _career_outcome: what the last career round decided
+## ({outcome, reward, reward_car}) until its standings have been shown.
+@export var career_path := ""  # "" = Career.default_path
+@export var career_garage_path := ""  # "" = CAREER_GARAGE_PATH
+const CAREER_GARAGE_PATH := "user://career_garage.cfg"
+var career: Career
+var career_garage: PlayerGarage
+var career_screen: CareerScreen
+var victory: VictoryScreen
+var credits: CreditsScreen
+var _career_mode := false
+var _career_outcome := {}
+var _career_garage_open := false
 
 
 func _ready() -> void:
@@ -132,6 +148,7 @@ func _ready() -> void:
 	title.garage = garage
 	garage_screen.race_requested.connect(func() -> void: _close_garage(true))
 	garage_screen.closed.connect(func() -> void: _close_garage(false))
+	_setup_career()
 	var layer := CanvasLayer.new()
 	layer.layer = 50
 	add_child(layer)
@@ -172,7 +189,8 @@ func start_race(choice: int, with_garage: bool = false, devices: Array[int] = []
 		race.human_count = 2
 		race.player_devices = devices
 	elif with_garage and choice != 2:
-		race.garage = garage
+		race.garage = career_garage if _career_mode else garage
+		garage_screen.set_garage(race.garage)
 	if not two and mode == "race":  # (Knockout is not counted for achievements)
 		race.achievements = achievements
 		if choice != 2:  # the player's own races (not spectating) are remembered by the rivals
@@ -187,6 +205,8 @@ func start_race(choice: int, with_garage: bool = false, devices: Array[int] = []
 	race.layout_override = DevLayouts.load_layout(net_layout if client else title.layout_id)
 	if not two:  # won rival cars (single-player and spectating only)
 		race.player_car = title.player_car if cars.owns(title.player_car) else CarCollection.OWN_CAR
+		if _career_mode:  # the car the career championship was entered with
+			race.player_car = career.player_car if cars.owns(career.player_car) else CarCollection.OWN_CAR
 		race.displaced = cars.owned.duplicate()
 	if not round.is_empty():
 		race.track_variant = round.variant
@@ -197,7 +217,13 @@ func start_race(choice: int, with_garage: bool = false, devices: Array[int] = []
 		race.championship_points = champ.points.duplicate()
 		race.championship_scoring = champ.schedule.points
 		race.championship_label = ("GRAND FINAL  -  ROUND %d OF %d" if round.get("final", false) else "ROUND %d OF %d") % [champ.round_index() + 1, champ.schedule.round_count()]
-		if cars.stake > 0:
+		if _career_mode:
+			race.championship_label = "%s  -  %s" % [champ.schedule.title.to_upper(), race.championship_label]
+			race.forfeit_warning = "Leaving before you finish forfeits this %s attempt (the rounds so far are lost)." % champ.schedule.title
+			if cars.career_stake > 0:
+				race.championship_label += "  -  FOR KEEPS: %s'S CAR" % RivalRoster.short_name(cars.career_stake).to_upper()
+				race.forfeit_warning += " %s takes the car back." % RivalRoster.short_name(cars.career_stake)
+		elif cars.stake > 0:
 			race.championship_label += "  -  FOR KEEPS: %s'S CAR" % RivalRoster.short_name(cars.stake).to_upper()
 			race.forfeit_warning = "Leaving forfeits the championship: %s takes the car back." % RivalRoster.short_name(cars.stake)
 	add_child(race)
@@ -207,12 +233,19 @@ func start_race(choice: int, with_garage: bool = false, devices: Array[int] = []
 	if net == null or net.is_host():  # a LAN client takes the host's settings
 		race.set_weapons_enabled(title.weapons_on)
 		race.set_combat_style(title.combat_style)
+		if _career_mode:  # career stages are raced armed, in the stage's combat style
+			race.set_weapons_enabled(true)
+			if champ.schedule.career_style >= 0:
+				race.set_combat_style(champ.schedule.career_style)
 		race.set_lap_count(title.laps if round.is_empty() else int(round.laps))
 		if mode == "knockout":
 			race.set_lap_count(race.cars.size() - 1)  # one elimination per lap until one is left
 	race.exit_requested.connect(back_to_title)
 	if not round.is_empty():
 		race.championship_round_done.connect(_on_round_done)
+	if _career_mode:
+		race.race_began.connect(_on_career_race_began)
+		race.race_concluded.connect(_on_career_concluded)
 	if choice == 2:
 		race.start_race()  # spectating starts straight away
 	elif with_garage:
@@ -228,6 +261,13 @@ func _open_garage() -> void:
 
 func _close_garage(start: bool) -> void:
 	garage_screen.close()
+	if _career_garage_open:  # opened from the career hub (no race scene yet)
+		_career_garage_open = false
+		if start:
+			_enter_career_stage(_career_main_stage())
+		else:
+			career_screen.open()
+		return
 	if race != null:
 		race.close_garage(start)
 
@@ -236,13 +276,23 @@ func back_to_title() -> void:
 	await _fade_to(1.0)
 	garage_screen.close()
 	champ_screen.close()
-	_forfeit_championship()
+	var career_notice := ""
+	if _career_mode:
+		career_notice = _leave_career_race()
+	else:
+		_forfeit_championship()
 	champ = null  # leaving a championship round abandons the championship
 	close_lan()
 	if race != null:
 		race.queue_free()
 		race = null
 	title.show_title()
+	if _career_mode:
+		_career_mode = false
+		if not _career_outcome.is_empty():  # the round was decided: its standings first
+			_show_career_standings()
+			return
+		career_screen.open(career_notice)
 	await _fade_to(0.0)
 
 
@@ -334,6 +384,9 @@ func start_championship(choice: int) -> void:
 
 ## A round's result (Enter on the results): record it and show the standings.
 func _on_round_done(order: Array, dnf: Array) -> void:
+	if _career_mode:  # (recorded when the race concluded)
+		_show_career_standings()
+		return
 	if champ == null or race == null:
 		return
 	champ.record(order, dnf)
@@ -364,6 +417,7 @@ func _on_round_done(order: Array, dnf: Array) -> void:
 		else:
 			reward = "Win the championship to take one of your rivals' cars."
 		title.refresh_car_choice()
+	champ_screen.career = false
 	champ_screen.warning = "FOR KEEPS: abandoning gives %s's car back." % RivalRoster.short_name(cars.stake) \
 		if cars.stake > 0 and not champ.finished() else ""
 	champ_screen.show_standings(champ, reward, reward_car)
@@ -398,6 +452,10 @@ func car_icons(player_car: int) -> Dictionary:
 
 
 func _next_round() -> void:
+	if champ_screen.career:
+		champ_screen.close()
+		_enter_career_stage(career.active_stage)
+		return
 	if champ == null or champ.finished() or race != null or _starting:
 		return
 	champ_screen.close()
@@ -409,6 +467,9 @@ func _next_round() -> void:
 ## (the screens ask for confirmation first).
 func abandon_championship() -> void:
 	if race != null:
+		return
+	if champ_screen.career:
+		_leave_career_standings()
 		return
 	back_to_title()
 
@@ -424,6 +485,239 @@ func _forfeit_championship() -> void:
 		title.refresh_car_choice()
 		title.show_notice(lost_text(last_lost, true))
 	cars.clear_stake()
+
+
+# ---------------------------------------------------------------- Career
+
+func _setup_career() -> void:
+	career = Career.new(career_path)
+	career.load_from_disk()
+	career_garage = PlayerGarage.load_or_new(load("res://src/garage/default_garage_rules.tres"),
+		career_garage_path if career_garage_path != "" else CAREER_GARAGE_PATH)
+	career_screen = CareerScreen.new()
+	career_screen.name = "CareerScreen"
+	add_child(career_screen)
+	career_screen.setup(resolver)
+	career_screen.career = career
+	career_screen.garage = career_garage
+	career_screen.cars = cars
+	career_screen.stage_requested.connect(_enter_career_stage)
+	career_screen.garage_requested.connect(_open_career_garage)
+	career_screen.standings_requested.connect(func() -> void:
+		career_screen.close()
+		_show_career_standings())
+	career_screen.new_career_confirmed.connect(new_career)
+	career_screen.car_cycle_requested.connect(func() -> void:
+		title._cycle_car(1)
+		career_screen.chosen_car = _career_car_choice()
+		career_screen.refresh())
+	career_screen.back_requested.connect(func() -> void:
+		career_screen.close()
+		title.focus_main())
+	victory = VictoryScreen.new()
+	victory.name = "Victory"
+	add_child(victory)
+	victory.setup(resolver)
+	victory.done.connect(_after_victory)
+	credits = CreditsScreen.new()
+	credits.name = "Credits"
+	add_child(credits)
+	credits.setup(resolver)
+	credits.closed.connect(title.focus_main)
+	title.career_requested.connect(func() -> void: open_career())
+	title.credits_requested.connect(credits.open)
+	if career.forfeited_on_load >= 0:  # the game closed during a career race
+		var text := "CAREER: THE GAME CLOSED DURING A RACE\nThe %s attempt is forfeited." % Career.stage_title(career.forfeited_on_load)
+		if cars.career_stake > 0:
+			var lost := cars.career_stake
+			cars.lose(lost)
+			_remember_car_back(lost)
+			text += " %s takes the car back." % RivalRoster.short_name(lost)
+		title.show_notice(text)
+	elif cars.career_stake > 0 and not career.in_championship():
+		cars.clear_career_stake()  # (nothing running any more: nothing at stake)
+
+
+## The car a new career stage would be entered with: the CAR choice, if owned.
+func _career_car_choice() -> int:
+	return title.player_car if cars.owns(title.player_car) else CarCollection.OWN_CAR
+
+
+func _career_main_stage() -> int:
+	return career.active_stage if career.in_championship() else career.current_stage()
+
+
+## CAREER on the main menu: the hub (notice: a line in red).
+func open_career(notice: String = "") -> void:
+	if race != null or _starting:
+		return
+	career_screen.chosen_car = _career_car_choice()
+	if achievements != null:
+		career_screen.achievements_unlocked = achievements.unlocked_count() if achievements.has_method("unlocked_count") else 0
+		career_screen.achievements_total = AchievementCatalog.ids().size()
+	career_screen.open(notice)
+
+
+## Enters a career stage: continues its running championship, or starts a
+## new attempt (Racing for Keeps with a won car). The garage opens first.
+func _enter_career_stage(stage: int) -> void:
+	if race != null or _starting:
+		return
+	if career.in_championship():
+		if career.active_stage != stage:
+			return
+	else:
+		var car := _career_car_choice()
+		if not career.start_stage(stage, car):
+			return
+		cars.put_career_stake(car)
+	_career_outcome = {}
+	career_screen.close()
+	champ_screen.career = false
+	_career_mode = true
+	champ = career.champ
+	start_race(title.control_choice, true, [], null, -1, "", false, champ.next_round())
+
+
+func _open_career_garage() -> void:
+	career_screen.close()
+	_career_garage_open = true
+	garage_screen.set_garage(career_garage)
+	garage_screen.open()
+
+
+func _on_career_race_began() -> void:
+	career.begin_race()
+
+
+## A career race concluded (every car in, or the player left after finishing):
+## the round is recorded and, when it decides the championship, the rewards
+## are applied - exactly once, before any screen.
+func _on_career_concluded(order: Array) -> void:
+	if race == null or not career.in_championship() or not _career_mode:
+		return
+	var dnf: Array = []
+	for r in race.session.racers:
+		if r.dnf and order.has(r.id):
+			dnf.append(r.id)
+	var out := career.record_round(order, dnf)
+	if not out.recorded:
+		return
+	if race.garage != null and race._garage_settled:
+		career.add_prize(race.garage.last_prize)
+	var reward := ""
+	var reward_car: Texture2D = null
+	if out.finished:
+		var stage_name := Career.stage_title(out.stage).to_upper()
+		if out.won:
+			career_garage.add_money(out.bonus)
+			cars.clear_career_stake()
+			last_reward = cars.unlock_random(reward_rng)
+			if last_reward > 0:
+				memory.add(RivalMemory.WON_MY_CAR, last_reward, {"mode": "championship"})
+				memory.save()
+				reward_car = CarArt.icon(resolver, AssetCatalog.ai_car(last_reward))
+			reward = "%s WON!  Title bonus $%d.\n%s" % [stage_name, out.bonus, reward_text(last_reward, cars.all_owned())]
+			if out.completed_now:
+				reward += "\nYOU ARE THE HYPERCARS CHAMPION!"
+			elif out.stage < Career.FINAL_STAGE and not career.completed:
+				reward += "\nNEXT: THE %s IS OPEN." % Career.stage_title(out.stage + 1).to_upper()
+		else:
+			reward = "%s WINS THE %s.\nEnter it again from the career screen: your garage, money and cars are kept." % [
+				RivalRoster.full_name(out.champion).to_upper(), stage_name]
+			if cars.career_stake > 0:
+				last_lost = cars.career_stake
+				cars.lose(last_lost)
+				_remember_car_back(last_lost)
+				reward_car = CarArt.icon(resolver, AssetCatalog.ai_car(last_lost))
+				reward += "\n%s RECLAIMS THE CAR!" % RivalRoster.short_name(last_lost).to_upper()
+		title.refresh_car_choice()
+	_career_outcome = {"outcome": out, "reward": reward, "reward_car": reward_car}
+
+
+## Leaving a career race scene (the race menu, or Back on the grid panel):
+## a race the player has finished is recorded; one still running forfeits the
+## attempt. Returns a notice for the career screen ("" none).
+func _leave_career_race() -> String:
+	if race != null and race.session.state == RaceSession.State.FINISHED:
+		race._conclude_race()  # (records the round: _on_career_concluded)
+	if not career.in_race:
+		return ""  # nothing was running (the grid panel or the results): progress is saved
+	var stage := career.forfeit()
+	var text := "You left the race: the %s attempt is forfeited. Enter the stage again when you are ready." % Career.stage_title(stage)
+	if cars.career_stake > 0:
+		last_lost = cars.career_stake
+		cars.lose(last_lost)
+		_remember_car_back(last_lost)
+		title.refresh_car_choice()
+		text += " %s took the car back." % RivalRoster.short_name(last_lost)
+	return text
+
+
+## The career championship's standings: after a round (with what it decided)
+## or from the career screen between rounds.
+func _show_career_standings() -> void:
+	await _fade_to(1.0)
+	if race != null:
+		race.queue_free()
+		race = null
+	_career_mode = false
+	if career.champ == null:
+		career_screen.open()
+		await _fade_to(0.0)
+		return
+	var car := career.player_car if cars.owns(career.player_car) else CarCollection.OWN_CAR
+	champ_screen.set_icons(car_icons(car))
+	champ_screen.career = true
+	champ_screen.warning = ""
+	var stage := career.active_stage if career.in_championship() else int(_career_outcome.get("outcome", {}).get("stage", Career.FINAL_STAGE))
+	champ_screen.career_stage_text = "CAREER STAGE %d OF 3" % (stage + 1)
+	if cars.career_stake > 0:
+		champ_screen.career_stage_text += "  -  FOR KEEPS: %s'S CAR" % RivalRoster.short_name(cars.career_stake).to_upper()
+	music.play("music/music_menu")
+	champ_screen.show_standings(career.champ, _career_outcome.get("reward", ""), _career_outcome.get("reward_car", null))
+	await _fade_to(0.0)
+
+
+## SAVE & EXIT between rounds, or CONTINUE after a decided championship.
+func _leave_career_standings() -> void:
+	champ_screen.close()
+	champ_screen.career = false
+	var out: Dictionary = _career_outcome.get("outcome", {})
+	_career_outcome = {}
+	champ = null
+	var decided := career.champ
+	if decided != null and decided.finished():
+		career.close_championship()
+		if out.get("completed_now", false):
+			var car := career.player_car if cars.owns(career.player_car) else CarCollection.OWN_CAR
+			victory.show_victory(decided, car_icons(car), career)
+			return
+	open_career()
+
+
+## After the ending: the Hall of Fame.
+func _after_victory() -> void:
+	open_career()
+	career_screen.show_fame()
+
+
+## NEW CAREER (confirmed on the career screen): the career's progress, records
+## and garage start over. A car at stake in a running career championship goes
+## back to its rival (as any forfeit: no escape from Racing for Keeps).
+## Achievements, won cars, the Garage Race career and lifetime titles stay.
+func new_career() -> void:
+	var notice := "A new career begins: the Rookie Cup awaits."
+	if career.in_championship() and cars.career_stake > 0:
+		last_lost = cars.career_stake
+		cars.lose(last_lost)
+		_remember_car_back(last_lost)
+		title.refresh_car_choice()
+		notice += " (The championship running for keeps was forfeited: %s took the car back.)" % RivalRoster.short_name(last_lost)
+	cars.clear_career_stake()
+	career.reset()
+	career_garage.reset()
+	open_career(notice)
 
 
 # ---------------------------------------------------------------- LAN (M5.1)

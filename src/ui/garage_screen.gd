@@ -118,6 +118,12 @@ func setup(p_garage: PlayerGarage, resolver: AssetResolver) -> void:
 
 
 ## Opens the screen (refreshes every number) with RACE! focused, so one press skips shopping.
+## Shows another garage (the career's or the standalone garage races').
+func set_garage(g: PlayerGarage) -> void:
+	garage = g
+	refresh()
+
+
 func open() -> void:
 	visible = true
 	refresh()

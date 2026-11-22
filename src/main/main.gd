@@ -1007,7 +1007,7 @@ func _remember_race() -> void:
 		finish.append([r.id, r.finish_time, r.is_finished(), r.dnf])
 		if r.dnf:
 			laps_at_out[r.id] = r.tracker.laps_completed
-	var mode := "garage" if garage != null else ("championship" if championship_round >= 0 else "quick")
+	var mode := "championship" if championship_round >= 0 else ("garage" if garage != null else "quick")
 	var context := {"circuit": track.layout.display_name, "laps": session.lap_count(), "mode": mode}
 	rival_memory.record_race(stats.feed, finish, laps_at_out, RaceSession.PLAYER_ID, context)
 	rival_memory.save()
@@ -1793,6 +1793,9 @@ func _refresh_hud() -> void:
 	if session.state == RaceSession.State.FINISHED and not _watch_active():
 		if net != null:
 			hud.show_results(session.standings(), "{confirm}: next race" if net.is_host() else "Waiting for the host to continue")
+		elif championship_round >= 0 and garage != null and _garage_settled:  # a career round
+			hud.show_results(session.standings(), ("Prize money: $%d" % garage.last_prize) + ("  -  pit collision fines $%d" % garage.last_fine if garage.last_fine > 0 else "")
+				+ "     {confirm}: championship standings")
 		elif championship_round >= 0:
 			hud.show_results(session.standings(), "{confirm}: championship standings")
 		elif garage != null and _garage_settled:

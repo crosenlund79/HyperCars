@@ -61,6 +61,9 @@ var championship: ChampionshipSchedule
 ## Championship length: 6 rounds (the whole schedule) or the 3-round version (saved).
 var championship_rounds := 6
 signal quit_requested
+## CAREER (the game root opens the career screen) and CREDITS.
+signal career_requested
+signal credits_requested
 
 const TRACK_SCRIPT := preload("res://src/track/track.gd")
 const LAYOUT := preload("res://src/track/circuit_01.tres")
@@ -135,8 +138,15 @@ func setup(p_resolver: AssetResolver, p_settings: AudioSettings) -> void:
 	root.add_child(_notice)
 
 	_load_weapons_pref()
-	_main_menu = _menu(root, [["GO RACING!", _open_modes], ["ACHIEVEMENTS", _open_achievements],
-		["SETTINGS", _open_settings], ["CONTROLS", _open_controls], ["QUIT", func() -> void: quit_requested.emit()]],
+	_main_menu = _menu(root, [["CAREER", func() -> void:
+			_sfx_play("ui/ui_select")
+			career_requested.emit()],
+		["GO RACING!", _open_modes], ["ACHIEVEMENTS", _open_achievements],
+		["SETTINGS", _open_settings], ["CONTROLS", _open_controls],
+		["CREDITS", func() -> void:
+			_sfx_play("ui/ui_select")
+			credits_requested.emit()],
+		["QUIT", func() -> void: quit_requested.emit()]],
 		380, 40, 6)
 	(_main_menu.get_child(0) as Button).add_theme_font_size_override("font_size", 28)
 	(_main_menu.get_child(0) as Button).custom_minimum_size.y = 58
@@ -698,6 +708,11 @@ func _open_controls() -> void:
 	_sfx_play("ui/ui_select")
 	_show_only(_controls_panel)
 	_controls_panel.focus_first()
+
+
+## Back on the main menu (the career and credits screens close over it).
+func focus_main() -> void:
+	_show_main()
 
 
 func _show_main() -> void:
