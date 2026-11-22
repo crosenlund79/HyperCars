@@ -128,7 +128,8 @@ func test_experimental_crossing_armed_race_agrees() -> void:
 	assert_true(r[0].has("results") and r[1].has("results"), str(r))
 	if not r[0].has("results") or not r[1].has("results"):
 		return
-	assert_eq(r[1].results[0], r[0].results[0], "same result, same destructions")
+	for k in r[0].results[0]:  # (key by key: a failure names the field)
+		assert_eq(r[1].results[0].get(k), r[0].results[0][k], "same result, same destructions: %s" % k)
 
 
 ## J5: real jumps over the network. The client's car crawls up to the lip
