@@ -9,9 +9,10 @@ const PLAYER_ID := 0
 ## cars around the camera centre; low between the views in split-screen.
 const BANNER_Y := 56.0
 const BANNER_Y_SPLIT := 530.0
-## A split view's own banner (its player's notices, e.g. a pit ticket): mid-view,
-## clear of the DESTROYED / OUT labels, the pit line and the standings tower.
-const BANNER_Y_VIEW := 262.0
+## A split view's own banner (its player's notices, e.g. a pit ticket): below the info
+## panel and above the player's own car (view centre), clear of the DESTROYED / OUT
+## labels, the pit line and the standings tower.
+const BANNER_Y_VIEW := 206.0
 const BANNER_HOLD := 0.6
 ## Spectator camera: a standings row was clicked (racer id), or an arrow was
 ## pressed (-1 previous / +1 next in the starting-grid order).

@@ -158,8 +158,8 @@ Nothing else was found. Every approved mode and system is implemented.
 
 | Fix | Root cause | Test |
 |---|---|---|
-| Night high beam lit the road behind the car ("headlights from the wrong end") | Godot scales a `PointLight2D` texture about its centre without scaling `offset`; the high beam (×1.45) slid ~58 px back, starting behind the car's centre. The offset now grows with the beam. Lamp anchors made explicit and body-relative. | `test_vehicle_lights.gd` |
+| Night high beam lit the road behind the car ("headlights from the wrong end") | Godot scales a `PointLight2D` texture about its centre without scaling `offset`; the high beam (×1.45) slid ~58 px back, starting behind the car's centre. The offset now grows with the beam. Lamp anchors made explicit and body-relative. | `test_vehicle_lights.gd`; renders `docs/artwork/night_lights_before_after.jpg` |
 | Client could miss a DNF / final condition / ammunition at the flag under packet loss | RESULTS carried only order and times; the rest came from the last unreliable snapshot. RESULTS now carry final DNF, condition and ammunition (protocol 7). | `test_net_authority.gd` (every snapshot dropped), `test_net_lan_race.gd` |
-| Title backdrop showed the own car when a won car was chosen | The backdrop always parked `car_player`. It now parks the chosen car (CarArt, original colours) and updates on change. | `test_title_backdrop.gd` |
-| Couch pit-ticket banner on the shared screen | The ticket used the shared HUD banner. It now shows in the offender's own view. | `test_stabilization_ui.gd` |
+| Title backdrop showed the own car when a won car was chosen | The backdrop always parked `car_player`. It now parks the chosen car (CarArt, original colours) and updates on change. | `test_title_backdrop.gd`; render `docs/artwork/title_backdrop_won_car.jpg` |
+| Couch pit-ticket banner on the shared screen | The ticket used the shared HUD banner. It now shows in the offender's own view, between its info panel and its car. | `test_stabilization_ui.gd`; render `docs/artwork/couch_pit_ticket_view.jpg` |
 | Achievement toasts over the championship standings | The toast's place (top right) is inside the standings layout. Toasts now wait while the standings are up; one on screen leaves and returns later. | `test_stabilization_ui.gd` |
