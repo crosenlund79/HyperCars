@@ -157,6 +157,17 @@ stay where they were dropped.
 
 - **Headlights and taillights:** every car has two headlight beams and two red
   taillights. This includes junkers and won cars in their original colours.
+- **Lamp anchors** (`LightingPilot.lamp_anchors()`): front-left, front-right,
+  rear-left and rear-right, placed a little in from the corners of the shared
+  64 × 36 car outline (nose +X), never read from the drawing. Any body drawing gets
+  the same lamps; only its nose direction matters (the art contract: nose right).
+- **Fixed 2026-11-22:** the high beam started about 58 px behind its proper place
+  (behind the car's centre), so on fast clear straights the light seemed to come
+  from the back of the car. Godot scales a light's texture but not its offset; the
+  offset now grows with the beam (`beam_offset`). Evidence:
+  `docs/artwork/night_lights_before_after.jpg`; tests `test_vehicle_lights.gd`
+  (eight headings, both light modes, high beam, a custom body of another size,
+  brake lights).
 - **Brake lights:** brighter while the car slows hard (more than 110 px/s²). This is
   measured from the car's movement, so it also works for a network client's cars.
 - **Automatic high beams:**

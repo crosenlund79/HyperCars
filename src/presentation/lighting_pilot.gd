@@ -35,9 +35,25 @@ const HIGH_BEAM_BEND := deg_to_rad(14.0)
 ## High beam reach and brightness (multipliers of the dipped beam).
 const HIGH_BEAM_SCALE := 1.45
 const HIGH_BEAM_ENERGY := 1.25
-## Head / tail lamp positions on the car (display px, nose +X).
-const HEAD_LAMP := Vector2(29.0, 10.0)
-const TAIL_LAMP := Vector2(-30.0, 11.0)
+## Lamp anchors (body-relative, never read from the drawing). Every car shares
+## one logical outline: CAR_SIZE display px, nose pointing +X, centred (the
+## car art contract, AssetCatalog car display size). The game places the four
+## lamps a little in from the outline's corners, so any body drawing (any
+## resolution, painted lamps or none) gets the same lights; only the nose
+## direction of the drawing matters (+X, as for steering and wheels).
+const CAR_SIZE := Vector2(64.0, 36.0)
+const HEAD_INSET := Vector2(3.0, 8.0)
+const TAIL_INSET := Vector2(2.0, 7.0)
+const HEAD_LAMP := Vector2(CAR_SIZE.x * 0.5 - HEAD_INSET.x, CAR_SIZE.y * 0.5 - HEAD_INSET.y)
+const TAIL_LAMP := Vector2(-(CAR_SIZE.x * 0.5 - TAIL_INSET.x), CAR_SIZE.y * 0.5 - TAIL_INSET.y)
+## Front-left, front-right, rear-left, rear-right (car space: +X ahead, +Y the
+## car's right-hand side).
+const LAMP_ANCHORS: Array[Vector2] = [Vector2(HEAD_LAMP.x, -HEAD_LAMP.y), HEAD_LAMP,
+	Vector2(TAIL_LAMP.x, -TAIL_LAMP.y), TAIL_LAMP]
+const LAMP_NAMES: Array[String] = ["front-left", "front-right", "rear-left", "rear-right"]
+## The headlight texture's origin (the car centre) is this many px from its
+## left edge; the beams start at the head lamps, ahead of it.
+const BEAM_ORIGIN_X := 40.0
 const LAMP_COUNT := 10
 const FLASHES := 4
 
@@ -50,7 +66,7 @@ var _tail_lights: Array[PointLight2D] = []
 ## Fallback (dynamic lights off): additive beam / tail glow sprites per car.
 var _beam_sprites: Array[Sprite2D] = []
 var _tail_sprites: Array[Sprite2D] = []
-## Lamp lenses per car: [head left, head right, tail left, tail right].
+## Lamp lenses per car, in LAMP_ANCHORS order.
 var _lenses: Array = []
 ## Real 2D vehicle lights (DYNAMIC VEHICLE LIGHTS on) or the sprite fallback.
 var dynamic_lights := true
@@ -112,7 +128,7 @@ func setup(track: Track, cars: Array[Car], combat: CombatWorld, resolver: AssetR
 			l.texture = head_tex
 			l.color = HEADLIGHT_COLOR
 			l.energy = headlight_energy
-			l.offset = Vector2(head_tex.get_width() * 0.5 - 40.0, 0)
+			l.offset = beam_offset(head_tex, 1.0)
 			add_child(l)
 			_car_lights.append(l)
 			var t := PointLight2D.new()
@@ -126,7 +142,7 @@ func setup(track: Track, cars: Array[Car], combat: CombatWorld, resolver: AssetR
 			b.texture = head_tex
 			b.material = _additive()
 			b.modulate = Color(HEADLIGHT_COLOR, 0.32)
-			b.offset = Vector2(head_tex.get_width() * 0.5 - 40.0, 0)
+			b.offset = Vector2(head_tex.get_width() * 0.5 - BEAM_ORIGIN_X, 0)
 			b.z_index = 3
 			add_child(b)
 			_beam_sprites.append(b)
@@ -206,7 +222,7 @@ func _process(delta: float) -> void:
 			head.global_transform = xf
 			tail.global_transform = xf.translated_local(Vector2(TAIL_LAMP.x - 6.0, 0))
 			head.texture_scale = lerpf(1.0, HIGH_BEAM_SCALE, hb)
-			head.offset = Vector2(head.texture.get_width() * 0.5 - 40.0, 0)
+			head.offset = beam_offset(head.texture, head.texture_scale)
 			head.energy = headlight_energy * lerpf(1.0, HIGH_BEAM_ENERGY, hb)
 			tail.energy = BRAKE_ENERGY if brake else TAIL_ENERGY
 			if level_of.is_valid():
@@ -230,9 +246,8 @@ func _process(delta: float) -> void:
 		var lenses: Array = _lenses[i]
 		for k in 4:
 			var lens: Sprite2D = lenses[k]
-			var lp := HEAD_LAMP if k < 2 else TAIL_LAMP
 			lens.visible = c.visible
-			lens.global_position = xf * Vector2(lp.x, lp.y * (1.0 if k % 2 == 0 else -1.0))
+			lens.global_position = xf * LAMP_ANCHORS[k]
 			if k >= 2:
 				lens.modulate = Color(TAIL_COLOR.lightened(0.35 if brake else 0.0), 1.0 if brake else 0.7)
 				lens.scale = Vector2.ONE * (0.5 if brake else 0.36)
@@ -252,6 +267,21 @@ func _process(delta: float) -> void:
 	for k in FLASHES:
 		_flash_age[k] = minf(1.0, _flash_age[k] + delta / 0.45)
 		_flashes[k].energy = 1.6 * (1.0 - _flash_age[k])
+
+
+## Headlight offset that keeps the beam's origin (BEAM_ORIGIN_X of the texture)
+## on the car centre at any texture scale. A PointLight2D draws its texture
+## scaled about the texture centre but does NOT scale its offset, so the offset
+## must grow with the scale: with a fixed offset the high beam (scale 1.45)
+## slid about 58 px backwards and started behind the car (the "headlights from
+## the wrong end" report, 2026-11-22).
+static func beam_offset(tex: Texture2D, texture_scale: float) -> Vector2:
+	return Vector2((tex.get_width() * 0.5 - BEAM_ORIGIN_X) * texture_scale, 0.0)
+
+
+## The four lamp anchors in car space (LAMP_ANCHORS order).
+static func lamp_anchors() -> Array[Vector2]:
+	return LAMP_ANCHORS
 
 
 ## Brake lights and high beams from what the car visibly does (works for every
@@ -388,12 +418,12 @@ static func _radial_texture(size: int) -> GradientTexture2D:
 
 ## Headlights: two beams from the lamps (y = +-HEAD_LAMP.y, a little apart)
 ## merging ahead, plus a faint pool so the car's own nose stays readable.
-## Origin (the car centre) at x = 40 of the texture.
+## Origin (the car centre) at x = BEAM_ORIGIN_X of the texture.
 static func _car_light_texture() -> ImageTexture:
 	var w := 340
 	var h := 200
 	var img := Image.create(w, h, false, Image.FORMAT_RGBA8)
-	var origin := Vector2(40, h * 0.5)
+	var origin := Vector2(BEAM_ORIGIN_X, h * 0.5)
 	for y in h:
 		for x in w:
 			var p := Vector2(x, y) - origin

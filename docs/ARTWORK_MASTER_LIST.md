@@ -51,6 +51,12 @@ Pick one of two places; restart the game to see it.
   - no wheels painted in;
   - leave the wheel areas transparent, or let the body edge cover their inner half
     as the templates do.
+- **Night lights need nothing painted:** the game places two headlights and two
+  red lights a little in from the corners of the car outline (front at +X). Painted
+  lamps are decoration only. The one thing that matters is the nose direction: a
+  drawing with its nose to the left looks as if it drives backwards, with the
+  headlights at its painted tail ([night_lights_before_after.jpg](artwork/night_lights_before_after.jpg),
+  last row).
 - **Wheel positions** (display px from the car centre): front axle +16.5, rear
   axle −16.5, wheels ±12 sideways. For a differently shaped body, set its own
   points in `src/presentation/default_wheel_layout.tres` (`per_car`).
