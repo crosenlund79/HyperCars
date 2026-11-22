@@ -42,6 +42,7 @@ var _back_button: Button
 var _hint: Label
 var _notice: Label
 var _fame: PanelContainer
+var _fame_bg: ColorRect
 var _fame_text: Label
 var _fame_cars: HBoxContainer
 var _confirm_new := false
@@ -76,6 +77,7 @@ func setup(resolver: AssetResolver) -> void:
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		b.add_theme_font_size_override("font_size", 17)
+		b.add_theme_color_override("font_disabled_color", Color(HyperTheme.CREAM, 0.72))  # (won / locked cards stay readable)
 		var stage := i
 		b.pressed.connect(func() -> void: stage_requested.emit(stage))
 		b.mouse_entered.connect(b.grab_focus)
@@ -122,6 +124,11 @@ func setup(resolver: AssetResolver) -> void:
 	_hint.position = Vector2(34, 680)
 	_root.add_child(_hint)
 
+	_fame_bg = ColorRect.new()  # (the hub behind the Hall of Fame is dimmed away)
+	_fame_bg.color = Color(0.11, 0.09, 0.08, 0.92)
+	_fame_bg.size = Vector2(1280, 720)
+	_fame_bg.visible = false
+	_root.add_child(_fame_bg)
 	_fame = PanelContainer.new()
 	_fame.position = Vector2(90, 70)
 	_fame.custom_minimum_size = Vector2(1100, 580)
@@ -155,6 +162,7 @@ func _button(text: String, action: Callable) -> Button:
 func open(notice: String = "") -> void:
 	_confirm_new = false
 	_fame.visible = false
+	_fame_bg.visible = false
 	_notice.text = notice
 	refresh()
 	visible = true
@@ -257,6 +265,7 @@ func show_fame() -> void:
 
 func _toggle_fame() -> void:
 	_fame.visible = not _fame.visible
+	_fame_bg.visible = _fame.visible
 	if _fame.visible:
 		_fame_text.text = fame_text()
 		for c in _fame_cars.get_children():

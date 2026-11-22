@@ -78,9 +78,10 @@ func show_victory(champ: Championship, icons: Dictionary, career: Career) -> voi
 
 	var record := HyperTheme.label("Career: %d races, %d wins, %d podiums. Rookie Cup, Pro Series and Grand Championship won." % [
 		career.races, career.race_wins, career.podiums], 18, HyperTheme.CREAM, 600)
-	record.position = Vector2(30, 160)
-	record.size = Vector2(290, 300)
 	record.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	record.custom_minimum_size = Vector2(270, 0)
+	record.position = Vector2(24, 160)
+	record.size = Vector2(270, 300)
 	_root.add_child(record)
 
 	_confetti = CPUParticles2D.new()

@@ -159,6 +159,7 @@ func show_standings(champ: Championship, reward: String = "", reward_car: Textur
 	_final = champ.finished()
 	var done_rounds := champ.results.size()
 	_title.text = "%s  -  %s" % [champ.schedule.title.to_upper(), "FINAL STANDINGS" if _final else "STANDINGS"]
+	_title.add_theme_font_size_override("font_size", 46 if _title.text.length() <= 34 else 34)  # (long titles stay on screen)
 	_sub.text = "After round %d of %d" % [done_rounds, champ.schedule.round_count()]
 	for c in _rows.get_children():
 		c.queue_free()
@@ -203,7 +204,7 @@ func show_standings(champ: Championship, reward: String = "", reward_car: Textur
 		else:
 			_continue.text = "TO THE GARAGE"
 			_abandon.text = "SAVE & EXIT"
-			_hint.text = PlayerControls.fmt("{confirm}: garage, then round %d      {back}: save and return to the career (progress is kept)" % (done_rounds + 1))
+			_hint.text = PlayerControls.fmt("{confirm}: garage, round %d    {back}: save & exit" % (done_rounds + 1))
 	if not _final and warning != "":
 		_sub.text += "      %s" % warning
 		_sub.add_theme_color_override("font_color", Color("ff8a6a"))
