@@ -11,6 +11,13 @@ A top-down combat racing game in Godot 4.7, mechanically faithful to *Super Cars
 
 ## What is in the game
 
+**CAREER** is the heart of the game: start as an unknown racer and win the Rookie Cup,
+the Pro Series and the HyperCars Grand Championship (with its seven-lap Grand Final) to
+become the HyperCars Champion. You race with your own saved garage between rounds,
+your progress is saved after every round, and the career ends with a victory ceremony
+and the Hall of Fame. Afterwards you can replay any championship or play every other
+mode. See `docs/CAREER.md`.
+
 **GO RACING!** opens a shared setup screen with a rotating circuit preview. The modes are:
 
 | Mode | What it is |
