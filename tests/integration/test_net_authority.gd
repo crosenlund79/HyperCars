@@ -191,6 +191,7 @@ func test_final_results_carry_retirements_when_every_snapshot_is_lost() -> void:
 	host.damage.condition[healthy] = 61.5  # a damaged car that finishes the race damaged
 	await wait_physics_frames(10)
 	host_link.sim_loss = 1.0  # from here on no snapshot reaches the client
+	host.combat.ammo[healthy] = [1, 2]  # rounds spent after the last snapshot that arrived
 	for id in [6, RaceSession.PLAYER_2_ID, RaceSession.PLAYER_ID]:
 		host.damage.condition[id] = 0.0
 		host.damage.retired[id] = 1
@@ -210,6 +211,8 @@ func test_final_results_carry_retirements_when_every_snapshot_is_lost() -> void:
 		assert_eq(client.damage.condition[id], 0.0)
 		assert_eq(client.damage.retired[id], 1)
 	assert_almost_eq(client.damage.condition[healthy], host.damage.condition[healthy], 0.01, "final condition from the result")
+	for c in host.cars.size():
+		assert_eq(client.combat.ammo[c], host.combat.ammo[c], "final ammunition of car %d from the result" % c)
 	await wait_physics_frames(5)
 	for id in [6, RaceSession.PLAYER_2_ID, RaceSession.PLAYER_ID]:
 		assert_eq(client.stats.deaths[id], host.stats.deaths[id], "D of racer %d agrees (the retirement counts)" % id)

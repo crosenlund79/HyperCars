@@ -50,6 +50,17 @@ Port forwarding cannot work if the internet provider shares one public address b
 - **Two computers, same network:** join the host's local address (no forwarding needed).
 - **Over the internet:** only after port forwarding; if it fails, test the forwarding with a friend first on LAN, then from outside.
 
+## Final results (protocol 7, 2026-11-22)
+
+The host's RESULTS message is reliable and authoritative. It carries:
+- the finishing order and times;
+- every racer's DNF flag;
+- every car's final condition and ammunition.
+
+The client takes these in place of the last snapshot it received, so a car retiring
+just before the flag is classified the same on both computers even when the final
+snapshots are lost. Protocol 6 builds cannot join protocol 7 games.
+
 ## Pit lanes in network races (protocol 6)
 
 The host decides everything in the pit lanes: limiter, overrides, collision tickets,

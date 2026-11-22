@@ -13,7 +13,7 @@ enum Role { HOST, CLIENT }
 enum Msg { WELCOME, HELLO, SETUP, READY, START, SNAP, INPUT, RESULTS, EVENTS, BYE, REJECT, JOINED }
 
 ## Wire protocol version and game build: both must match before a session starts.
-const PROTOCOL := 7  # 3: M6 condition / DNF in snapshots; 4: Weapons Hot lock; 5: J5 jumps; 6: pit lanes, proportional steering; 7: RESULTS carry final DNF / condition
+const PROTOCOL := 7  # 3: M6 condition / DNF in snapshots; 4: Weapons Hot lock; 5: J5 jumps; 6: pit lanes, proportional steering; 7: RESULTS carry final DNF / condition / ammunition
 const GAME_BUILD := "hypercars-r2"
 
 
@@ -77,6 +77,8 @@ var _last_rx_ms := -1
 ## CLIENT: the host's final result arrived; later snapshots must not overwrite it
 ## (snapshots carry times at lower precision).
 var _results_final := false
+## The host's final ammunition from RESULTS (2 per car).
+var _final_ammo := PackedByteArray()
 ## HOST: combat events already sent for the current race.
 var _sent_events := 0
 var _events_race := -1
@@ -176,7 +178,7 @@ func _send_events() -> void:
 
 ## Authoritative final result (reliable, so both computers agree): the
 ## finishing order and times, plus every racer's final DNF flag and every car's
-## final condition (protocol 7). The classification never depends on the last,
+## final condition and ammunition (protocol 7). The classification never depends on the last,
 ## unreliable snapshot: a car that retires just before the flag is a DNF on the
 ## client even when the snapshot carrying it was lost.
 func send_results(order: Array) -> void:
@@ -192,7 +194,10 @@ func send_results(order: Array) -> void:
 	var condition := PackedFloat32Array()
 	for c in race.damage.car_count():
 		condition.append(race.damage.condition[c])
-	link.send([Msg.RESULTS, PackedInt32Array(order), times, dnf, condition], true)
+	var ammo := PackedByteArray()
+	for c in race.combat.car_count():
+		ammo.append_array([clampi(race.combat.ammo[c][0], 0, 255), clampi(race.combat.ammo[c][1], 0, 255)])
+	link.send([Msg.RESULTS, PackedInt32Array(order), times, dnf, condition, ammo], true)
 
 
 # ---------------------------------------------------------------- client side
@@ -505,6 +510,11 @@ func _push_snapshot(snap: Array) -> void:
 		RaceSnapshot.apply_race(race, snap)
 
 
+func _apply_final_ammo() -> void:
+	for c in mini(race.combat.car_count(), _final_ammo.size() >> 1):
+		race.combat.ammo[c] = [int(_final_ammo[c * 2]), int(_final_ammo[c * 2 + 1])]
+
+
 ## Cars shown INTERP_DELAY ticks behind the newest snapshot, blended between
 ## the two snapshots around that moment (smooth despite 30 Hz / jitter / loss).
 func _interpolate_cars() -> void:
@@ -529,6 +539,8 @@ func _interpolate_cars() -> void:
 		b = a
 	if not b[6].is_empty():
 		RaceSnapshot.apply_combat(race.combat, b[6])  # weapons and wrecks at the moment shown
+		if _results_final:
+			_apply_final_ammo()  # the result's ammunition stays (older snapshots may still be shown)
 	var span := float(RaceSnapshot.tick_of(b) - RaceSnapshot.tick_of(a))
 	var t := 0.0 if span <= 0.0 else clampf((render_tick - RaceSnapshot.tick_of(a)) / span, 0.0, 1.0)
 	for c in race.cars.size():
@@ -634,6 +646,7 @@ func _on_message(from: int, msg: Array) -> void:
 				_fall_tick = -1
 				_was_predicting = false
 				_results_final = false
+				_final_ammo = PackedByteArray()
 				race.apply_network_setup(msg[1])
 		Msg.START:
 			# a newer race number only (a snapshot may already have shown RACING:
@@ -657,12 +670,15 @@ func _on_message(from: int, msg: Array) -> void:
 					events.append_array(msg[3])
 		Msg.RESULTS:
 			if is_client() and valid(msg, [TYPE_PACKED_INT32_ARRAY, TYPE_PACKED_FLOAT64_ARRAY,
-					TYPE_PACKED_BYTE_ARRAY, TYPE_PACKED_FLOAT32_ARRAY]) \
+					TYPE_PACKED_BYTE_ARRAY, TYPE_PACKED_FLOAT32_ARRAY, TYPE_PACKED_BYTE_ARRAY]) \
 					and msg[1].size() == msg[2].size() and msg[1].size() <= race.session.racers.size() \
 					and msg[3].size() == race.session.racers.size() and msg[4].size() == race.damage.car_count() \
+					and msg[5].size() == race.combat.car_count() * 2 \
 					and state != RaceSession.State.MODE_SELECT:
 				for id in msg[1]:
 					if id < 0 or id >= race.session.racers.size():
 						return
 				race.apply_network_results(msg[1], msg[2], msg[3], msg[4])
+				_final_ammo = msg[5]
+				_apply_final_ammo()
 				_results_final = true
