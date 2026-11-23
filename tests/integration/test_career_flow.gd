@@ -236,6 +236,9 @@ func test_the_whole_career_with_a_lost_stage_the_ending_and_after() -> void:
 	assert_string_contains(game.champ_screen._reward.text, "NEXT: THE PRO SERIES IS OPEN.")
 	assert_eq(game.career_garage.money, start_money + 500, "the title bonus, once (decided rounds pay no prize)")
 	assert_eq(game.cars.owned.size(), 1, "a rival's car as the championship reward")
+	var last: int = game.career.champ.standings()[-1]
+	assert_eq(game.cars.owned, [last] as Array[int], "the last-placed rival's car (none owned before)")
+	assert_string_contains(game.champ_screen._reward.text, "YOU CLAIMED %s'S CAR!" % RivalRoster.short_name(last).to_upper())
 	game.champ_screen._on_continue()  # CONTINUE after the final standings
 	await wait_physics_frames(5)
 	assert_true(game.career_screen.visible)

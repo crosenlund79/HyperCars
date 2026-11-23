@@ -52,7 +52,6 @@ var _champ_choice := 0
 var last_reward := -1
 ## Racing for Keeps: the won car lost in the last championship (0 none), for tests.
 var last_lost := 0
-var reward_rng := RandomNumberGenerator.new()
 ## Race variety: every new race scene gets its own AI seed from this
 ## generator, so players do not see the same rival decisions every session.
 ## `-- --seed=N` (or setting it before _ready) makes a whole session
@@ -141,7 +140,6 @@ func _ready() -> void:
 	champ_screen.done.connect(abandon_championship)
 	# achievement toasts wait while the standings are up (they overlapped them)
 	champ_screen.visibility_changed.connect(func() -> void: toast.set_held(champ_screen.visible))
-	reward_rng.randomize()
 	if session_seed < 0:
 		session_seed = GameSeed.from_args(OS.get_cmdline_user_args())
 	race_rng.seed = session_seed
@@ -419,7 +417,7 @@ func _on_round_done(order: Array, dnf: Array) -> void:
 	if champ.finished():
 		if champ.champion() == Championship.PLAYER:
 			cars.clear_stake()  # the car entered with stays
-			last_reward = cars.unlock_random(reward_rng)
+			last_reward = cars.claim_lowest(champ.standings())
 			if last_reward > 0:
 				memory.add(RivalMemory.WON_MY_CAR, last_reward, {"mode": "championship"})
 				memory.save()
@@ -447,8 +445,9 @@ func _on_round_done(order: Array, dnf: Array) -> void:
 static func reward_text(rival: int, all_owned: bool) -> String:
 	if rival < 1:
 		return "CHAMPIONSHIP WON!\nYou already own all nine rival cars - the collection is complete."
-	var text := "CHAMPIONSHIP WON - YOU UNLOCKED %s!\n%s's car is yours, in its original colours. %s races a junker from now on." % [
-		RivalRoster.nickname(rival).to_upper(), RivalRoster.short_name(rival), RivalRoster.short_name(rival)]
+	var text := ("CHAMPIONSHIP WON - YOU CLAIMED %s'S CAR!\nThe lowest-placed rival whose car you did not own yet: %s's car is yours, "
+		+ "in its original colours. %s races a junker from now on.") % [
+		RivalRoster.short_name(rival).to_upper(), RivalRoster.full_name(rival), RivalRoster.short_name(rival)]
 	if all_owned:
 		text += "\nALL NINE RIVAL CARS COLLECTED!"
 	return text
@@ -652,7 +651,7 @@ func _on_career_concluded(order: Array) -> void:
 		if out.won:
 			career_garage.add_money(out.bonus)
 			cars.clear_career_stake()
-			last_reward = cars.unlock_random(reward_rng)
+			last_reward = cars.claim_lowest(career.champ.standings())
 			if last_reward > 0:
 				memory.add(RivalMemory.WON_MY_CAR, last_reward, {"mode": "championship"})
 				memory.save()
@@ -744,7 +743,7 @@ func _round_milestones(out: Dictionary, order: Array, dnf: Array, wins_before: i
 		cards.append({"title": "%s CHAMPION" % s.title.to_upper(), "subtitle": next,
 			"detail": "Title bonus $%d." % out.bonus, "car": _player_car_icon(), "accent": s.career_accent})
 	if out.won and last_reward > 0:
-		cards.append({"title": "YOU WON %s'S CAR" % RivalRoster.short_name(last_reward).to_upper(),
+		cards.append({"title": "YOU CLAIMED %s'S CAR" % RivalRoster.short_name(last_reward).to_upper(),
 			"subtitle": RivalRoster.full_name(last_reward).to_upper(),
 			"detail": "Yours, in its original colours. %s races the junker from now on." % RivalRoster.short_name(last_reward),
 			"car": CarArt.icon(resolver, AssetCatalog.ai_car(last_reward)), "accent": HyperTheme.GOLD})

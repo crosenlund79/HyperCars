@@ -89,17 +89,26 @@ func choices() -> Array[int]:
 
 ## Championship reward: one random rival car the player does not own yet
 ## (saved at once). Returns its racer id, or -1 when all nine are owned.
-func unlock_random(rng: RandomNumberGenerator) -> int:
-	var left: Array[int] = []
+## Championship reward (2026-11-23): the car of the lowest-ranked rival in the
+## final standings (championship order, best first) whose car is not owned
+## yet - deterministic, never a duplicate. A rival missing from the standings
+## counts as below everyone. -1 when all nine are owned (collection complete).
+func claim_lowest(standings: Array) -> int:
+	var order: Array[int] = []
 	for id in range(1, 10):
+		if not standings.has(id):
+			order.append(id)  # (not ranked: below every ranked rival)
+	var ranked := standings.duplicate()
+	ranked.reverse()
+	for id in ranked:
+		if int(id) >= 1 and int(id) <= 9:
+			order.append(int(id))
+	for id in order:
 		if not owned.has(id):
-			left.append(id)
-	if left.is_empty():
-		return -1
-	var id := left[rng.randi_range(0, left.size() - 1)]
-	owned.append(id)
-	save()
-	return id
+			owned.append(id)
+			save()
+			return id
+	return -1
 
 
 ## A championship started: the next one uses the next schedule (saved).

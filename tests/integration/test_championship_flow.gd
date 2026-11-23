@@ -99,6 +99,9 @@ func test_three_rounds_follow_the_schedule_and_reward_the_champion() -> void:
 	assert_eq(game.champ.points[0], 75)
 	var won: int = game.last_reward
 	assert_between(won, 1, 9, "a rival car unlocked")
+	assert_eq(won, game.champ.standings()[-1], "the car of the last-placed rival in the final standings")
+	assert_string_contains(game.champ_screen._reward.text,
+		"YOU CLAIMED %s'S CAR" % RivalRoster.short_name(won).to_upper())
 	assert_true(CarCollection.new(CARS).owns(won), "ownership saved")
 	var mem: Dictionary = game.memory.events[-1]
 	assert_eq([mem.kind, mem.rival], [RivalMemory.WON_MY_CAR, won], "the rival remembers losing its car")
@@ -187,7 +190,8 @@ func test_a_lost_championship_gives_nothing() -> void:
 
 
 func test_reward_texts() -> void:
-	assert_string_contains(game.reward_text(9, false), "YOU UNLOCKED THE HUNTER!")
+	assert_string_contains(game.reward_text(6, false), "YOU CLAIMED DANTE'S CAR!")
+	assert_string_contains(game.reward_text(6, false), 'Dante "Showboat"')
 	assert_string_contains(game.reward_text(9, true), "ALL NINE RIVAL CARS COLLECTED")
 	assert_string_contains(game.reward_text(-1, true), "collection is complete")
 
@@ -273,7 +277,7 @@ func test_losing_with_a_won_car_returns_it_to_its_rival() -> void:
 	# it can be won again later
 	game.abandon_championship()
 	await wait_physics_frames(60)
-	assert_eq(game.cars.unlock_random(RandomNumberGenerator.new()) in [1, 2, 3, 4, 5, 6, 7, 8], true)
+	assert_eq(game.cars.claim_lowest([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]), 8, "Rocco's car can be won back later (9 still owned)")
 
 
 func test_the_own_car_is_never_at_stake() -> void:

@@ -112,16 +112,14 @@ func test_schedules_rotate_and_cover_all_circuits() -> void:
 func test_collection_unlocks_each_rival_once_and_persists() -> void:
 	var cars := CarCollection.new(PATH)
 	cars.clear()
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 7
 	var got := {}
 	for k in 9:
-		var id := cars.unlock_random(rng)
+		var id := cars.claim_lowest([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
 		assert_true(id >= 1 and id <= 9)
 		assert_false(got.has(id), "never a duplicate")
 		got[id] = true
 	assert_true(cars.all_owned())
-	assert_eq(cars.unlock_random(rng), -1, "nothing left to win")
+	assert_eq(cars.claim_lowest([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]), -1, "nothing left to win")
 	var again := CarCollection.new(PATH)
 	assert_eq(again.owned.size(), 9, "saved between sessions")
 	assert_true(again.displaced(4))
@@ -141,3 +139,21 @@ func test_every_rival_has_taunts() -> void:
 	for id in range(1, 10):
 		assert_eq(RivalTaunts.count(id), 3)
 		assert_ne(RivalTaunts.line(id, 0), RivalTaunts.line(id, 1))
+
+
+## The reward is the car of the lowest-ranked rival in the final standings
+## whose car is not owned yet (2026-11-23): deterministic, owned cars skipped.
+func test_reward_is_the_lowest_ranked_unowned_rival() -> void:
+	var cars := CarCollection.new(PATH)
+	cars.clear()
+	var standings := [0, 3, 7, 1, 9, 2, 5, 8, 4, 6]  # Dante (6) last of all
+	assert_eq(cars.claim_lowest(standings), 6, "the last-placed rival's car")
+	assert_eq(cars.claim_lowest(standings), 4, "next time: the next one up (6 owned)")
+	cars.owned.append(8)
+	assert_eq(cars.claim_lowest(standings), 5, "owned cars are skipped")
+	assert_eq(cars.claim_lowest([1, 0, 2, 3, 4, 5, 6, 7, 8, 9]), 9, "the player's own place does not matter")
+	var again := CarCollection.new(PATH)
+	assert_true(again.owns(6) and again.owns(4) and again.owns(5) and again.owns(9), "saved")
+	cars.clear()
+	assert_eq(cars.claim_lowest([0, 1, 2, 3, 4, 5, 6, 7, 8]), 9, "a rival not in the standings counts as last")
+	cars.clear()
