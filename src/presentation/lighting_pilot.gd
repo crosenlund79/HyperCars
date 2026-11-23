@@ -20,6 +20,22 @@ const AMBIENT := Color(0.42, 0.44, 0.58)
 const LAMP_COLOR := Color(1.0, 0.86, 0.6)
 const HEADLIGHT_COLOR := Color(1.0, 0.95, 0.82)
 const TAIL_COLOR := Color(1.0, 0.12, 0.08)
+## Headlight colours (2026-11-23, Settings: HEADLIGHTS; cosmetic, the player's
+## own car only): subtle tints that keep a near-white core, so the road stays
+## readable. Index 0 is the standard warm white. Rear lights always stay red.
+const HEADLIGHT_PALETTE := [
+	["WARM WHITE", HEADLIGHT_COLOR],
+	["COOL WHITE", Color(0.84, 0.92, 1.0)],
+	["ICE BLUE", Color(0.56, 0.76, 1.0)],
+	["AMBER", Color(1.0, 0.72, 0.38)],
+	["MINT", Color(0.6, 1.0, 0.72)],
+	["VIOLET", Color(0.8, 0.66, 1.0)],
+]
+
+
+## The front lamp lenses: the beam colour around a near-white core.
+static func lens_color(beam: Color) -> Color:
+	return Color.WHITE.lerp(beam, 0.55)
 ## Taillight energy: running and braking (brake lights brighter).
 const TAIL_ENERGY := 0.45
 const BRAKE_ENERGY := 1.25
@@ -91,6 +107,40 @@ var _cursor := 0
 
 
 var lamp_color := LAMP_COLOR
+## The player's headlight colour (HEADLIGHT_PALETTE) and the cars it applies
+## to (the car(s) controlled on this computer).
+var own_headlight := HEADLIGHT_COLOR
+var _own_ids: Array[int] = []
+
+
+static func headlight_color(index: int) -> Color:
+	return HEADLIGHT_PALETTE[clampi(index, 0, HEADLIGHT_PALETTE.size() - 1)][1]
+
+
+static func headlight_name(index: int) -> String:
+	return HEADLIGHT_PALETTE[clampi(index, 0, HEADLIGHT_PALETTE.size() - 1)][0]
+
+
+## Which cars carry own_headlight (every other car keeps the standard colour).
+## Only the beams and the two front lenses change: anchors, direction, high
+## beams and the red rear lights are the same for every colour.
+func set_own_headlights(ids: Array[int], color: Color) -> void:
+	_own_ids = ids.duplicate()
+	own_headlight = color
+	for i in _cars.size():
+		var col := head_color_of(_cars[i].racer_id)
+		if dynamic_lights:
+			if i < _car_lights.size():
+				_car_lights[i].color = col
+		elif i < _beam_sprites.size():
+			_beam_sprites[i].modulate = Color(col, _beam_sprites[i].modulate.a)
+		if i < _lenses.size():
+			for k in 2:
+				_lenses[i][k].modulate = lens_color(col)
+
+
+func head_color_of(racer_id: int) -> Color:
+	return own_headlight if _own_ids.has(racer_id) else HEADLIGHT_COLOR
 var lamp_energy := 1.15
 var lamp_count := LAMP_COUNT
 var headlight_energy := 0.95

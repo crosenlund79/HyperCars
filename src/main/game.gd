@@ -184,6 +184,7 @@ func start_race(choice: int, with_garage: bool = false, devices: Array[int] = []
 	race.shuffle_first_grid = true  # race variety: the rivals' first grid varies too
 	race.music = music
 	race.dynamic_vehicle_lights = settings.vehicle_lights
+	race.headlight_color = settings.headlight_color
 	var two := devices.size() == 2 or net != null
 	if net != null:
 		race.human_count = 2
@@ -357,6 +358,7 @@ func start_battle(choice: int) -> void:
 	b.name = "BattleRoyale"
 	b.track_variant = title.track_variant
 	b.night = title.night
+	b.headlight_color = settings.headlight_color
 	b.player_car = title.player_car if cars.owns(title.player_car) else CarCollection.OWN_CAR
 	b.displaced = cars.owned.duplicate()
 	b.music = music

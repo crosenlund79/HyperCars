@@ -173,3 +173,57 @@ func test_lamp_outline_is_the_car_art_contract() -> void:
 		assert_between(a[k + 2].x, -LightingPilot.CAR_SIZE.x * 0.5, 0.0, "red light inside the rear half")
 	assert_lt(a[0].y, 0.0, "front-left on the left (-Y)")
 	assert_gt(a[1].y, 0.0, "front-right on the right (+Y)")
+
+
+## Headlight colour (2026-11-23): the player's own headlights take the chosen
+## palette colour in both light modes; rivals keep the standard colour; the
+## lamp anchors and the beam direction are those of every colour; the rear
+## lights stay red. The palette keeps a near-white core (readable roads).
+func _check_colour(dynamic: bool) -> void:
+	var m := MAIN_SCENE.instantiate()
+	m.presentation_enabled = true
+	m.night = true
+	m.dynamic_vehicle_lights = dynamic
+	m.headlight_color = 2  # ICE BLUE (the setting, passed in by the game)
+	add_child_autofree(m)
+	await wait_process_frames(3)
+	var l: LightingPilot = m.lighting
+	var ice := LightingPilot.headlight_color(2)
+	assert_eq(l.head_color_of(0), ice)
+	assert_eq(l.head_color_of(3), LightingPilot.HEADLIGHT_COLOR, "rivals: the standard colour")
+	if dynamic:
+		assert_eq(l._car_lights[0].color, ice)
+		assert_eq(l._car_lights[3].color, LightingPilot.HEADLIGHT_COLOR)
+		assert_eq(l._tail_lights[0].color, LightingPilot.TAIL_COLOR, "rear lights stay red")
+	else:
+		assert_eq(Color(l._beam_sprites[0].modulate, 1.0), ice)
+		assert_eq(Color(l._beam_sprites[3].modulate, 1.0), Color(LightingPilot.HEADLIGHT_COLOR, 1.0))
+		assert_eq(Color(l._tail_sprites[0].modulate, 1.0), Color(LightingPilot.TAIL_COLOR, 1.0), "rear glow stays red")
+	assert_eq(l._lenses[0][0].modulate, LightingPilot.lens_color(ice), "front lenses: tinted round a white core")
+	await _check_heading(m, 45.0, dynamic)  # anchors and beam direction unchanged
+
+
+func test_headlight_colour_dynamic_lights() -> void:
+	await _check_colour(true)
+
+
+func test_headlight_colour_glow_sprites() -> void:
+	await _check_colour(false)
+
+
+func test_headlight_palette_is_subtle_and_saved() -> void:
+	assert_eq(LightingPilot.headlight_color(0), LightingPilot.HEADLIGHT_COLOR, "the default is today's colour")
+	for k in LightingPilot.HEADLIGHT_PALETTE.size():
+		var c := LightingPilot.headlight_color(k)
+		assert_gt(minf(c.r, minf(c.g, c.b)), 0.35, "%s is a tint, not a saturated colour" % LightingPilot.headlight_name(k))
+		var lens := LightingPilot.lens_color(c)
+		assert_gt(minf(lens.r, minf(lens.g, lens.b)), 0.6, "%s lenses keep a near-white core" % LightingPilot.headlight_name(k))
+	var path := "user://test_run/lights_settings_%d.cfg" % randi()
+	var s := AudioSettings.new(path)
+	assert_eq(s.headlight_color, 0)
+	s.headlight_color = 3
+	s.save_settings()
+	var again := AudioSettings.new(path)
+	again.load_settings()
+	assert_eq(again.headlight_color, 3, "saved")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))

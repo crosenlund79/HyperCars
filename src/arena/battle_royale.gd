@@ -37,6 +37,8 @@ const SKIP_SPEED := 8
 
 var track_variant := 1
 var night := false
+## Settings: the player's headlight colour (LightingPilot.HEADLIGHT_PALETTE index; cosmetic).
+var headlight_color := 0
 var player_car := 0
 var displaced: Array[int] = []
 var presentation_enabled := true
@@ -205,6 +207,7 @@ func _ready() -> void:
 		var lamp := resolver.get_texture(AssetCatalog.LAMP_POST)
 		for spot in arena.lamp_spots:
 			lighting.add_lamp(spot[0], spot[1], lamp)
+		lighting.set_own_headlights([PLAYER] as Array[int], LightingPilot.headlight_color(headlight_color))
 		lighting.set_enabled(night)
 		if theme.weather != "":
 			var weather := WeatherView.new()

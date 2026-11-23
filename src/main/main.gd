@@ -224,6 +224,8 @@ var _race_open := false
 ## DYNAMIC VEHICLE LIGHTS (setting): real 2D vehicle lights at night, or the
 ## cheap glow-sprite fallback (presentation only).
 var dynamic_vehicle_lights := true
+## Settings: the player's headlight colour (LightingPilot.HEADLIGHT_PALETTE index; cosmetic).
+var headlight_color := 0
 ## TIME: NIGHT (race setup / championship): night lighting from the start.
 ## Presentation only: no physics change (the biome sets the handling).
 var night := false
@@ -532,6 +534,9 @@ func _set_hud_humans() -> void:
 			v.hud.copy_field_from(hud)
 			v.hud.set_humans(colors, [v.racer_id] as Array[int])
 	hud.set_humans(colors, own)
+	if lighting != null:  # the player's chosen headlight colour, own car(s) only
+		lighting.set_own_headlights([] as Array[int] if session.spectator else own,
+			LightingPilot.headlight_color(headlight_color))
 	if player_marker != null:  # only the car(s) controlled on this computer
 		var marked := {}
 		for id in own:

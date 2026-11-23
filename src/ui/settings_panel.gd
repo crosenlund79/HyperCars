@@ -1,7 +1,8 @@
 class_name SettingsPanel
 extends PanelContainer
 ## Settings: Master, Music, Engine, Effects and Voice volume with mute toggles,
-## DYNAMIC VEHICLE LIGHTS ON / OFF (night races; off = cheap glow sprites) and
+## DYNAMIC VEHICLE LIGHTS ON / OFF (night races; off = cheap glow sprites),
+## the player's HEADLIGHTS colour (Left / Right or press to change) and
 ## the Artwork Mode (original template artwork only; applies after a restart).
 ## Changes apply immediately and are saved.
 
@@ -12,6 +13,7 @@ var _sliders: Dictionary = {}
 var _mutes: Dictionary = {}
 var _back: Button
 var _lights: CheckButton
+var _headlights: Button
 var _artwork: CheckButton
 
 
@@ -67,6 +69,13 @@ func setup(p_settings: AudioSettings) -> void:
 		settings.vehicle_lights = on
 		settings.save_settings())
 	box.add_child(_lights)
+	_headlights = Button.new()
+	_headlights.tooltip_text = "Night races: the colour of your own headlights (a subtle tint; rivals keep the standard colour, rear lights stay red)."
+	_headlights.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_headlights.set_meta("cycle", func(step: int) -> void: _cycle_headlights(step))
+	_headlights.pressed.connect(func() -> void: _cycle_headlights(1))
+	_show_headlights()
+	box.add_child(_headlights)
 	_artwork = CheckButton.new()
 	_artwork.text = "ORIGINAL TEMPLATE ARTWORK (after restart)"
 	_artwork.tooltip_text = "Off (Custom): your own drawings where you have made them. On: only the original template graphics."
@@ -84,6 +93,29 @@ func setup(p_settings: AudioSettings) -> void:
 	_back.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_back.pressed.connect(func() -> void: closed.emit())
 	box.add_child(_back)
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if not is_visible_in_tree() or _headlights == null or not _headlights.has_focus():
+		return
+	if event.is_action_pressed("ui_left") or event.is_action_pressed("ui_right"):
+		_cycle_headlights(-1 if event.is_action_pressed("ui_left") else 1)
+		get_viewport().set_input_as_handled()
+
+
+func _cycle_headlights(step: int) -> void:
+	settings.headlight_color = posmod(settings.headlight_color + step, LightingPilot.HEADLIGHT_PALETTE.size())
+	settings.save_settings()
+	_show_headlights()
+
+
+func _show_headlights() -> void:
+	_headlights.text = "HEADLIGHTS: < %s >" % LightingPilot.headlight_name(settings.headlight_color)
+	_headlights.add_theme_color_override("font_color", LightingPilot.headlight_color(settings.headlight_color))
+
+
+func headlights_button() -> Button:
+	return _headlights
 
 
 func focus_first() -> void:
