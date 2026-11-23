@@ -74,11 +74,18 @@ and night. It ends with a **seven-lap GRAND FINAL**, billed on the standings scr
 
 ## Car rewards (`src/garage/car_collection.gd`)
 
-Winning a championship unlocks one random rival car the player does not own yet and
-saves it in `user://car_collection.cfg` (never a duplicate; all nine can be collected).
-The reward screen says e.g. "CHAMPIONSHIP WON - YOU UNLOCKED THE HUNTER!" with the car
-in its original colours; after the ninth, "ALL NINE RIVAL CARS COLLECTED!", and later wins
-say the collection is complete.
+Winning a championship (standalone or a career stage) claims the car of the
+**lowest-ranked rival in the final standings whose car the player does not own yet**
+(2026-11-23; it was random). It is saved in `user://car_collection.cfg`.
+
+- **Deterministic, never a duplicate:** owned cars are skipped (the next one up the
+  standings), and a rival missing from the standings counts as last.
+- **Reward screen:** e.g. "CHAMPIONSHIP WON - YOU CLAIMED DANTE'S CAR!" with the
+  rival's own artwork, in its original colours, and the milestone card "YOU CLAIMED
+  DANTE'S CAR".
+- **Collection complete:** after the ninth, "ALL NINE RIVAL CARS COLLECTED!"; later wins
+  say the collection is complete.
+- **Racing for Keeps:** stakes and forfeits are unchanged.
 
 - **The player's car**: the setup's CAR row picks the own car or any won car. A won car
   keeps the rival's original colours and artwork (user overrides included); the earlier

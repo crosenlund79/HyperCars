@@ -45,12 +45,17 @@ same rules and prices as `docs/ECONOMY.md`. The standalone Garage Race career
 (`user://garage.cfg`) is never touched by the career, and the reverse.
 
 - **Between rounds:** the garage opens before every career race. Buy, sell, equip,
-  repair or add armour, then RACE.
-- **From the career screen:** GARAGE opens it without racing.
+  repair, add armour or upgrade the car (Engine, Brakes, Chassis, Steering), then RACE.
+  Every owned weapon type is carried and can be switched in the race
+  (`docs/RACE_RULES.md`, Weapon cycling).
+- **From the career screen:** GARAGE opens it without racing. Back (Escape / pad B)
+  returns to the career screen, and Back there to the title menu (2026-11-23 fix:
+  after a round the title scene behind the career screens was left hidden).
 - **Prize money** is paid per round by finishing position and race length, as in
   garage races.
 - **Title bonus:** paid once, when a stage is won, together with a rival's car (the
-  normal championship reward).
+  normal championship reward: the lowest-ranked rival in the final standings whose car
+  is not owned yet, `docs/CHAMPIONSHIP.md`).
 - **No dead end:** a broke player still races.
   - A car below 50 % is patched up to 50 % for free before every race.
   - A player with no rounds left races unarmed.

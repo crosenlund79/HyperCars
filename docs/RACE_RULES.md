@@ -40,11 +40,68 @@ Every car's starting rounds are multiplied by the race length
 (`WeaponRules.ammo_scale_by_laps`: 3 laps x1, 7 x2, 20 x5, 50 x10, capped at 99 per
 weapon), for the player's quick / championship loadout, Classic and Tactical rival
 loadouts alike. Garage races are the exception: the player carries what they bought
-(the economy is unchanged). Rivals pace their ammunition (`AiParams.ammo_discipline`):
-a driver who has spent more than their share of the race so far waits for better
-shots, one well under budget gets keener, and everyone loosens up on the last lap, so
-combat continues to the flag. Rocco (0.15) and Dante (0.35) spend freely; Victor and
-Greta (0.9) and Nina (0.85) are calculated.
+(the economy is unchanged).
+
+### Weapon cycling (2026-11-23)
+
+Every car still has one FRONT and one REAR slot (front: front / homing / super missiles;
+rear: rear missiles / mines). A **garage player** (Garage Race and the career) carries
+every weapon type they own: the equipped type of each slot is active at the start and
+**Next front weapon / Next rear weapon** (defaults Q / LB and E / LT, remappable on
+CONTROLS) switch to the next carried type with rounds left, in shop order.
+
+- Switching never fires, never uses or gives a round, and never resets the slot
+  cooldown or the shared lock: the new type waits for the same cooldown.
+- Empty types are skipped; the HUD marks an empty active type (red count, dimmed icon)
+  and lists the other carried types under the slot with the cycle key ("Q: HOMING 3
+  SUPER EMPTY").
+- After the race the garage keeps exactly the rounds left of every carried type; the
+  equipped choice stays the garage's. Leaving early uses nothing.
+- **CARRY: EQUIPPED ONLY** (garage footer, saved) restores the simple single-weapon
+  loadout. Quick, championship, spectator, couch and network races keep their fixed
+  loadouts (nothing to cycle). Rivals do not cycle.
+- An older `controls.cfg` loads unchanged: the new actions take their defaults unless
+  the saved layout already uses those inputs.
+
+### Rival ammunition pacing (2026-11-23)
+
+Each rival follows its own spending schedule (`AiParams.ammo_spend_curve`,
+`ammo_spend_target`): by race progress p (the continuous share of the race distance,
+not whole laps) it means to have used `target × p ^ curve` of its starting rounds.
+
+- **Ahead of schedule:** a shot must be better, by `ammo_discipline`.
+- **Behind schedule:** shots come easier, the more so late in the race. The relief is
+  capped lower for disciplined drivers, so a calculated driver still wants a decent
+  chance.
+- **Closing stage** (last lap or last 8 % of the race): nothing is saved any more.
+- **Race length:** longer races keep closer to the schedule (tolerance 0.2 at 3 laps,
+  0.08 at 50).
+- **Weapon value:** homing and super missiles wait for better chances than plain
+  missiles (Tactical).
+- **No absolute holds:** Victor's reserve (`ammo_reserve`) only asks for clearly better
+  shots until the closing stage; Greta's pacing (`ammo_pacing`) halves her tolerance.
+- **Personalities:** Rocco (curve 0.6, discipline 0.15) spends early; Finn (0.8) and
+  Dante (0.8) are quick on the trigger, Finn with impulsive spells (`ammo_impulse`);
+  Victor (even schedule, target 90 %, discipline 0.9) waits for good shots; Greta is
+  even and methodical; Nina (1.2) and Maya (1.1) hold for later.
+
+**Measured** (spectator, 10 rivals, Classic and Tactical, 6 races per length; share of
+starting rounds used, cars still racing at each point; before → after):
+
+| Laps | 10 % | 25 % | 50 % | 75 % | 90 % | flag | destructions per shot |
+|---|---|---|---|---|---|---|---|
+| 3 | 15 → 18 | 27 → 30 | 41 → 46 | 53 → 63 | 59 → 66 | 62 → 68 | 0.42 → 0.41 |
+| 7 | 16 → 17 | 28 → 30 | 41 → 42 | 47 → 50 | 48 → 50 | 50 → 50 | 0.36 → 0.38 |
+
+- **Per driver at the flag (3 laps):** Rocco 99 → 95 %, Finn 80 → 95 %, Ellie 64 → 75 %,
+  Greta 42 → 52 %, Nina 45 → 52 %, Victor 34 → 25 %.
+- **Why disciplined rivals still finish with rounds left:** they are limited by chances
+  that meet their own quality bar (Victor 0.8, Nina 0.88), not by the plan. Almost no
+  shot is turned down by the pacing (`held_for_reserve` ≈ 0).
+- **20 and 50 laps:** armed long races are dominated by attrition. 70–89 % of the field
+  retires before the flag in both versions (`docs/BACKLOG.md`), leaving too few cars late
+  in the race to judge pacing.
+- The harness (`ammo_pace.gd`) was a scratch script and is not in the repository.
 
 ## Rival racecraft (AI only; same physics for everyone)
 
@@ -167,6 +224,16 @@ crossing the headlights. Night never changes physics. L still toggles lights in 
 Since 2026-11-17 every car carries two headlights and two taillights (brake lights,
 automatic high beams), and Settings → DYNAMIC VEHICLE LIGHTS chooses real lights or
 cheap glow sprites (`docs/PIT_LANES.md`, Vehicle lights).
+
+**HEADLIGHTS colour** (2026-11-23, Settings, saved): warm white (the standard, default),
+cool white, ice blue, amber, mint or violet for the player's own car only. Rivals keep
+the standard colour.
+
+- **What changes:** the beam (light or glow) and the two front lenses, which keep a
+  near-white core.
+- **What stays the same for every colour:** the anchors, the beam direction, the high
+  beams and the red rear / brake lights.
+- **Scope:** both light modes, and the arena at night. Cosmetic only.
 
 ## Pit lanes, split sections and pit violations
 

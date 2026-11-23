@@ -38,10 +38,39 @@ Prices are fixed; the original's fluctuating prices are not implemented.
 
 Armour is kept for the career and never sold back.
 
+### Upgrades (2026-11-23)
+
+Three tiers above stock per part, bought one tier at a time on the garage's UPGRADES
+view.
+
+| Part | Effect per tier 1 / 2 / 3 | Price tier 1 / 2 / 3 |
+|---|---|---|
+| Engine | +4 / +8 / +12 % acceleration, +1.5 / +3 / +4.5 % top speed | $300 / 550 / 900 |
+| Brakes | +8 / +16 / +24 % braking (Fire held in Fire to Brake; off the throttle in Fire to Accelerate) | $200 / 380 / 650 |
+| Chassis | +5 / +10 / +15 % grip (less sliding; not armour) | $220 / 420 / 700 |
+| Steering | +3 / +6 / +9 % turning rate | $200 / 380 / 650 |
+
+- **Payment:** each tier is paid once and kept; tier 3 is the maximum. Nothing can be
+  bought during a race, and upgrades are never sold.
+- **What they change:** they multiply the stock handling, applied after the
+  environment's handling. Stock changes nothing, and car-to-car contacts stay the same
+  for every car.
+- **Whose car:** the garage's car setup, so changing the driven car (own car or a won
+  car) keeps them with no duplicates. The standalone and career garages each have their
+  own; NEW GARAGE / NEW CAREER start stock.
+- **Saving:** in the garage file. Older saves load as stock, and edited values are
+  clamped.
+- **Where they apply:** only the garage player's car. Rivals, quick, championship,
+  spectator, couch and network races are stock.
+- Prices and effects are provisional (`GarageRules`), for the playtest to judge.
+
 ### Races
 
 - Ammunition: the garage player races with their own rounds; race-length ammunition
   scaling applies only to everyone else.
+- Weapon cycling (2026-11-23): the car carries every owned type (CARRY: ALL OWNED,
+  default) or only the equipped ones (CARRY: EQUIPPED ONLY, saved); every carried
+  type's rounds left are kept after the race (`docs/RACE_RULES.md`, Weapon cycling).
 - Longer races pay more, by the multiplier above. Repairs and rounds grow with the
   race, while one race never needs more than a full $200 rebuild.
 - A finished race is settled once: prize, rounds left, condition. Leaving before the
@@ -49,7 +78,7 @@ Armour is kept for the career and never sold back.
 
 ### Career
 
-Money, rounds, equipped weapons, condition, armour and race count are saved in
+Money, rounds, equipped weapons, the carry setting, upgrades, condition, armour and race count are saved in
 `user://garage.cfg` after every change. Nothing is written while a race is running, so
 quitting mid-race equals leaving the race. **NEW GARAGE** (a second press confirms) on
 the garage setup screen starts over.
