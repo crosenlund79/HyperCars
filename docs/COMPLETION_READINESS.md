@@ -48,6 +48,20 @@ career gives a beginning, a climb, a climax and an ending; the car collection an
 arcade modes give reasons to keep playing. Whether it holds the player's interest for
 the whole career is the playtest's question (B), not something tests can answer.
 
+## Presentation & Personality pass (2026-11-23)
+
+The UI, career atmosphere, Scrapyard preview, garage, race introduction / results and
+visible damage are polished (`docs/PRESENTATION.md`; recovery points in
+`docs/RECOVERY_POINTS.md`).
+
+**Full suite:** 786 of 787 passed in 94 scripts. The one failure is the known
+intermittent LAN jump test (A3), which passed 2 / 2 re-run alone.
+
+**Performance** (software OpenGL, no GPU, 10 armed cars, 1280×720):
+- with every car worn and smoking: 34.5 fps by day and 17.9 at night;
+- all healthy: 33.9 and 17.0;
+- the wear shader and smoke cost nothing measurable.
+
 ## A. Confirmed bugs (still open)
 
 None of these blocks a normal session or the career.
@@ -219,3 +233,4 @@ Career-specific tests:
 | Title backdrop showed the own car when a won car was chosen | Now the chosen car (CarArt). | `test_title_backdrop.gd` |
 | Couch pit-ticket banner on the shared screen | Now in the offender's own view. | `test_stabilization_ui.gd` |
 | Achievement toasts over the championship standings | Toasts wait while the standings are up. | `test_stabilization_ui.gd` |
+| A3 | Test only: `test_net_lan_race` "armed jump race at 170 ms" fails now and then under full-suite load. On 2026-11-23 the client counted one take-off fewer for its own predicted car than the host. | None found in the game: classification, DNFs, condition and ammunition come from reliable messages. | Passes re-run alone (2 / 2). Its jump tolerance assumes the client never counts fewer take-offs than the host; whether that assumption or the prediction should change is for the network cleanup. |
