@@ -109,9 +109,14 @@ This is the **master template**, not an active game. Complete it collaboratively
 
 ## Current approved development objective
 
-**Status: Delivered for user review: The Road to 1.0 — Complete Career, Visual Refinement & Feature-Complete Game.** This heading records an objective *after* the user approves it in conversation; it is not an instruction to implement, and a later task needs fresh approval.
+**Status: Delivered for user review: Presentation & Personality Pass.** This heading records an objective *after* the user approves it in conversation; it is not an instruction to implement, and a later task needs fresh approval.
 
-- **Latest approval:** User, 2026-11-22, "HYPERCARS — THE ROAD TO 1.0: Complete Career, Visual Refinement & Feature-Complete Game". One substantial assignment.
+- **Latest approval:** User, 2026-11-23, "HYPERCARS — PRESENTATION & PERSONALITY PASS: Full UI Polish, Career Atmosphere, Scrapyard Preview, Damage Visuals & Recovery Checkpoints". One consolidated milestone.
+  - **Scope:** a cohesive in-game UI in the main menu's style (pause menu, HUD, results, standings, career, garage, Battle Royale, spectating); career stage identity, milestone cards and fact-based rival reactions; a rotating Scrapyard preview; the garage's car centrepiece and feedback; race introduction, results and transitions; lightweight visual damage; recovery points RP0-RP4 (backup branches: tag pushes are refused); the artwork structure kept and audited.
+  - **Not in scope:** gameplay, physics, AI, damage, economy, championship or network rule changes; new stages, modes, circuits or rivals; portraits or new voice; a new asset system; merges, exports or installers.
+  - **Reference:** `docs/PRESENTATION.md`, `docs/RECOVERY_POINTS.md`, `docs/ARTWORK_MASTER_LIST.md`.
+  - **Tests:** `test_presentation_pass.gd`, `test_rival_reactions.gd`, `test_artwork_inventory.gd`, `test_career_flow.gd` (milestones) + the full suite.
+- **Previous approval:** User, 2026-11-22, "HYPERCARS — THE ROAD TO 1.0: Complete Career, Visual Refinement & Feature-Complete Game". One substantial assignment.
   - **Scope:** a proper three-stage career (Rookie Cup, Pro Series, HyperCars Grand Championship) reusing the championship, race, AI, garage and reward systems; the garage in the career; saving, resuming and abandoning rules; progression presentation; the final championship, ending, Hall of Fame, post-career play and credits; one wheel-presentation refinement; remaining confirmed defects; end-to-end tests; release readiness (Windows the first playtest platform).
   - **Not in scope:** new circuits, environments, modes, weapons, physics or rivals; portraits; a story campaign; unapproved rebalancing; a new art / audio architecture; matchmaking; installers, exports, releases or store integration; merges.
   - **Reference:** `docs/CAREER.md`, `docs/COMPLETION_READINESS.md`.

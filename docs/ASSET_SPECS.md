@@ -54,6 +54,7 @@ Any resolution is accepted as long as the **aspect ratio and orientation** match
 | `custom/graphics/fx/dust.png` | 32 x 32 | 32 x 32 | Dust particle, soft, transparent. |
 | `custom/graphics/fx/smoke.png` | 32 x 32 | 32 x 32 | Tyre-smoke particle, soft, transparent. |
 | `custom/graphics/fx/spark.png` | 24 x 24 | 24 x 24 | Impact spark particle. |
+| `custom/graphics/fx/car_wear.png` | 128 x 72 | 64 x 36 | Damage wear (2026-11-23): scratches, dents and soot on a transparent background, top-down, nose right (+X), the same frame as a car body. One image for every car: the game blends it into each car's body (only where the body is painted) more strongly as the car's condition drops. No per-car damage drawings. |
 | `custom/graphics/scenery/bush.png` | 72 x 72 | 72 x 72 | Top-down bush, centred, transparent. |
 | `custom/graphics/scenery/flag.png` | 96 x 64 | 48 x 64 | Marshal flag: horizontal strip of 2 frames (48x64 each), pole foot at bottom-left third. |
 | `custom/graphics/scenery/flowers.png` | 64 x 64 | 64 x 64 | Flower patch, centred, transparent. |

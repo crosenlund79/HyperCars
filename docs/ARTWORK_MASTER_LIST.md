@@ -5,7 +5,7 @@ it goes, how big, and which way up. Generated from the game's own artwork catalo
 (`src/assets/asset_catalog.gd`) by `docs/artwork/make_reference.py`, so it is always
 the complete list. Technical contract: `assets/README.md`, `docs/ASSET_SPECS.md`.
 
-**80 images to draw** (primary, each with a packaged `template_` picture), plus **12 legacy flattened-car names** you do not need (your older drawings only, no packaged picture): 92 catalogued names in total. Your own drawings already in use: 6.
+**81 images to draw** (primary, each with a packaged `template_` picture), plus **12 legacy flattened-car names** you do not need (your older drawings only, no packaged picture): 93 catalogued names in total. Your own drawings already in use: 6.
 
 ## How to replace a picture
 
@@ -129,6 +129,7 @@ Projectiles, mines, explosions, smoke, dust, sparks, confetti, tyre marks. Refer
 |---|---|---|---|---|---|---|---|---|---|
 | `decals/tire_mark` | Pair of rear-tyre marks along +X (stamped repeatedly while sliding); seamless left-right. | 32 x 12 | 10 x 26 | 1 | mark runs top to bottom (along the car) | transparent background | primary | `assets/graphics/decals/template_tire_mark.png` | `custom/graphics/decals/tire_mark.png` |
 | `fx/blast` | Explosion burst, centred, transparent; scaled up and faded out. | 96 x 96 | 110 x 110 | 1 | top-down / as seen on screen | transparent background | primary | `assets/graphics/fx/template_blast.png` | `custom/graphics/fx/blast.png` |
+| `fx/car_wear` | Damage wear (2026-11-23): scratches, dents and soot on a transparent background, top-down, nose right (+X), the same frame as a car body. One image for every car: the game blends it into each car's body (only where the body is painted) more strongly as the car's condition drops. No per-car damage drawings. | 128 x 72 | 64 x 36 | 1 | top-down / as seen on screen | transparent background | primary | `assets/graphics/fx/template_car_wear.png` | `custom/graphics/fx/car_wear.png` |
 | `fx/confetti` | White confetti piece; tinted at runtime, so keep it white/light. | 12 x 12 | 12 x 12 | 1 | top-down / as seen on screen | transparent background | primary | `assets/graphics/fx/template_confetti.png` | `custom/graphics/fx/confetti.png` |
 | `fx/dust` | Dust particle, soft, transparent. | 32 x 32 | 32 x 32 | 1 | top-down / as seen on screen | transparent background | primary | `assets/graphics/fx/template_dust.png` | `custom/graphics/fx/dust.png` |
 | `fx/smoke` | Tyre-smoke particle, soft, transparent. | 32 x 32 | 32 x 32 | 1 | top-down / as seen on screen | transparent background | primary | `assets/graphics/fx/template_smoke.png` | `custom/graphics/fx/smoke.png` |
@@ -231,7 +232,11 @@ follow the track geometry. Larger optional artwork opportunities are listed in
 | Danger-zone ring | Battle Royale | animated effect |
 | Night lighting: ambient tint, lamp and headlight beams, brake lights, high beams, explosion flashes | night races | light, not pictures (the lamp post itself is a picture) |
 | Rain and snow | Wasteland, Winter | particles |
-| Missile trails, mine pulse, damage smoke / wreck tint | races | effects (smoke puffs use the smoke picture) |
+| Missile trails, mine pulse, damage smoke / wreck tint | races | effects (smoke puffs use the smoke picture; the damage wear itself is the replaceable `fx/car_wear` picture) |
 | Player marker chevron (P1 gold, P2 blue) | above your car | UI marker |
 | Rotating circuit preview diorama | GO RACING! setup screen | drawn from the real circuit geometry |
+| Rotating Scrapyard diorama (walls, scrap pile, blocks, barriers, tyre posts, stands, lamps) | Battle Royale setup screen | drawn from the real arena geometry (ArenaLayout) |
+| Victory trophy and podium steps | the career's ending | drawn shapes (optional future pictures: see the backlog) |
+| Garage spotlight under the car, shop pulses and money pop-ups | the garage | light and motion, not pictures (the car is its CarArt picture) |
+| Milestone cards, race introduction card, pause menu shade, accent rules | career and races | panels from the HUD panel / button pictures plus text |
 | Panels, text, bars (standings, results, garage, Nemesis Welcome) | menus and HUD | theme with the `ui/hud_panel` / `ui/button` pictures and the Fredoka font |
