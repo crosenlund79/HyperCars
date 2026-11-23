@@ -101,3 +101,29 @@ func test_garage_centrepiece_is_the_car_being_prepared() -> void:
 	await wait_process_frames(2)
 	assert_true(game.garage_screen._root.get_children().any(func(n: Node) -> bool: return n is Label and n.text == "-$%d" % g.rules.price(WeaponRules.Weapon.MINE)))
 	game.garage_screen.close()
+
+
+func test_visible_damage_follows_condition_only() -> void:
+	var m: Node2D = MAIN_SCENE.instantiate()
+	m.presentation_enabled = true
+	add_child_autofree(m)
+	await wait_physics_frames(3)
+	var dv: DamageView = m.damage_view
+	var car: Car = m.cars[3]
+	assert_eq((car.sprite.material as ShaderMaterial).get_shader_parameter("wear"), m.resolver.get_texture(AssetCatalog.CAR_WEAR),
+		"one shared, catalogued wear drawing (replaceable like any asset)")
+	await wait_process_frames(2)
+	assert_eq(dv.wear_of(3), 0.0, "healthy: as painted")
+	m.damage.condition[3] = 70.0
+	await wait_process_frames(2)
+	assert_between(dv.wear_of(3), 0.1, 0.5, "worn")
+	assert_false(dv._smoke[3].emitting, "no smoke yet")
+	m.damage.condition[3] = 40.0
+	await wait_process_frames(2)
+	assert_gt(dv.wear_of(3), 0.5, "heavy")
+	assert_true(dv._smoke[3].emitting, "thin smoke")
+	m.damage.condition[3] = 20.0
+	await wait_process_frames(2)
+	assert_eq(dv.wear_of(3), 1.0, "critical: full wear")
+	assert_eq(DamageView.wear_amount(1.0), 0.0)
+	assert_eq(DamageView.wear_amount(0.0), 1.0)

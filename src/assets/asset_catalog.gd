@@ -38,6 +38,9 @@ const TIRE_MARK := "decals/tire_mark"
 const SMOKE := "fx/smoke"
 const DUST := "fx/dust"
 const SPARK := "fx/spark"
+## Visual damage (2026-11-23): one shared wear overlay blended into every car's
+## body as its condition drops (scratches, dents, soot).
+const CAR_WEAR := "fx/car_wear"
 const CONFETTI := "fx/confetti"
 const MISSILE := "weapons/missile"
 const MINE := "weapons/mine"
@@ -155,6 +158,8 @@ const SPECS := {
 	SMOKE: {"template_size": Vector2i(32, 32), "display_size": Vector2(32, 32), "notes": "Tyre-smoke particle, soft, transparent."},
 	DUST: {"template_size": Vector2i(32, 32), "display_size": Vector2(32, 32), "notes": "Dust particle, soft, transparent."},
 	SPARK: {"template_size": Vector2i(24, 24), "display_size": Vector2(24, 24), "notes": "Impact spark particle."},
+	CAR_WEAR: {"template_size": Vector2i(128, 72), "display_size": Vector2(64, 36),
+		"notes": "Damage wear (2026-11-23): scratches, dents and soot on a transparent background, top-down, nose right (+X), the same frame as a car body. One image for every car: the game blends it into each car's body (only where the body is painted) more strongly as the car's condition drops. No per-car damage drawings."},
 	CONFETTI: {"template_size": Vector2i(12, 12), "display_size": Vector2(12, 12),
 		"notes": "White confetti piece; tinted at runtime, so keep it white/light."},
 	MISSILE: {"template_size": Vector2i(40, 16), "display_size": Vector2(30, 12),
