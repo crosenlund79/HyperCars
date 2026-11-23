@@ -187,7 +187,20 @@ Nothing else was found missing from an approved system.
 
 ## Verification of this assignment (automated, 2026-11-22)
 
-See the delivery report for the final full-suite numbers. Career-specific tests:
+**Full suite (headless, GUT):** 771 of 771 passed in 91 scripts, with 1 GUT warning
+(a float / int comparison in a test).
+- It includes the determinism fingerprint tests: ordinary races are unchanged by the
+  career and the wheel work.
+- It includes the LAN tests: two processes, simulated latency, jitter, loss and
+  repeated races.
+
+**Armed AI races** (spectator, 3 laps, ten rivals, 8× speed; one per circuit and combat
+style):
+- all six finished, with 13–26 destructions each and no DNFs;
+- the winners were Rocco ×5 and Hank ×1. Scene-level runs keep a fixed first grid, so
+  this is no measure of Rocco's 31 % (shuffled grids, D1).
+
+Career-specific tests:
 - **`tests/unit/test_career.gd` (11):** the career's rules;
 - **`tests/integration/test_career_flow.gd` (9):** the real game, from a fresh career
   through the ending, a restart and post-career racing, plus the losing, forfeiting,
