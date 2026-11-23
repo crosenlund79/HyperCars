@@ -62,6 +62,37 @@ intermittent LAN jump test (A3), which passed 2 / 2 re-run alone.
 - all healthy: 33.9 and 17.0;
 - the wear shader and smoke cost nothing measurable.
 
+## Garage, Combat & Career Refinements (2026-11-23)
+
+Six playtest observations, all delivered:
+- the career-garage Escape bug (root cause fixed, regression test);
+- weapon cycling between owned types;
+- AI ammunition pacing by personality schedule (measured: `docs/RACE_RULES.md`);
+- the lowest-ranked unowned rival's car as the championship reward;
+- Engine / Brakes / Chassis / Steering upgrades;
+- headlight colours.
+
+Recovery points: `docs/RECOVERY_POINTS.md`.
+
+**Full suite:** 818 of 818 passed in 96 scripts on `9c7c0db`. An earlier run on
+`3a8f5fd` had two failures, both fixed:
+- a test expecting the old weapon-command shape;
+- a network test that retired a fresh weapon wreck by fiat
+  (`docs/BACKLOG.md`).
+
+The known intermittent LAN test (A3) passed in both runs.
+
+The armed determinism fingerprints were re-recorded: the AI fires at other moments.
+Every unarmed fingerprint is unchanged.
+
+**Needs a person:** `tests/manual/garage_combat_career_checklist.md`.
+- Upgrade feel and prices.
+- Cycling on a real pad.
+- Headlight tints on a real GPU.
+- Whether Victor / Greta / Nina should spend more: they are limited by their own
+  quality bars.
+- Long armed races ending with most of the field retired (D1).
+
 ## A. Confirmed bugs (still open)
 
 None of these blocks a normal session or the career.
