@@ -26,6 +26,7 @@ var _money: Label
 var _last: Label
 var _summary: Label
 var _race_button: Button
+var _hint: Label
 var _cards: Dictionary = {}
 var _cond_bar: ColorRect
 var _cond_label: Label
@@ -129,8 +130,9 @@ func setup(p_garage: PlayerGarage, resolver: AssetResolver) -> void:
 	strip.position = Vector2(0, 680)
 	strip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_root.add_child(strip)
-	var hint := HyperTheme.label(PlayerControls.fmt("Arrows: move    {confirm}: choose    {back}: grid panel    Weapons: price per round, selling pays half    Repairs: $%d per 1 %%" % garage.rules.repair_price_per_point),
-		17, Color(HyperTheme.CREAM, 0.88), 600)
+	_hint = HyperTheme.label("", 17, Color(HyperTheme.CREAM, 0.88), 600)
+	set_back_label("grid panel")
+	var hint := _hint
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	hint.size = Vector2(1280, 34)
@@ -140,6 +142,12 @@ func setup(p_garage: PlayerGarage, resolver: AssetResolver) -> void:
 	_sfx.bus = "Effects"
 	add_child(_sfx)
 	visible = false
+
+
+## What Back returns to, named in the controls hint ("grid panel" before a
+## race; "career" when the garage was opened from the career hub).
+func set_back_label(back_to: String) -> void:
+	_hint.text = PlayerControls.fmt("Arrows: move    {confirm}: choose    {back}: %s    Weapons: price per round, selling pays half    Repairs: $%d per 1 %%" % [back_to, garage.rules.repair_price_per_point])
 
 
 ## Opens the screen (refreshes every number) with RACE! focused, so one press skips shopping.

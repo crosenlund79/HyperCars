@@ -411,3 +411,90 @@ func test_old_saves_without_career_data_still_load() -> void:
 	game.open_career()
 	assert_eq(game.career_screen._main_button.text, "START: ROOKIE CUP")
 	assert_true(game.career_screen._car_button.visible, "won cars can be entered")
+
+
+## Back (Escape / pad B) through the career's screens (2026-11-23 regression):
+## after a round the race scene is gone, and the title scene behind the career
+## screens was left hidden - closing the hub then showed an empty world with no
+## camera. Every Back must land on a real, visible screen with state intact.
+func _back(pad := false) -> void:
+	var down: InputEvent
+	var up: InputEvent
+	if pad:
+		down = InputEventJoypadButton.new()
+		down.button_index = JOY_BUTTON_B
+		down.pressed = true
+		up = InputEventJoypadButton.new()
+		up.button_index = JOY_BUTTON_B
+	else:
+		down = InputEventKey.new()
+		down.keycode = KEY_ESCAPE
+		down.physical_keycode = KEY_ESCAPE
+		down.pressed = true
+		up = InputEventKey.new()
+		up.keycode = KEY_ESCAPE
+		up.physical_keycode = KEY_ESCAPE
+	Input.parse_input_event(down)
+	await wait_physics_frames(2)
+	Input.parse_input_event(up)
+	await wait_physics_frames(6)
+
+
+## Which screen is up, as a player would see it (and the world has a camera).
+func _screen() -> String:
+	var t: Node = game.title
+	var cam := game.get_viewport().get_camera_2d()
+	assert_not_null(cam, "a camera is current (never an empty world)")
+	if game.garage_screen.visible:
+		return "garage"
+	if game.career_screen.visible:
+		return "career"
+	if game.champ_screen.visible:
+		return "standings"
+	if game.race != null:
+		return "race"
+	if t._ui.visible and t._backdrop.visible and t._main_menu.visible:
+		return "title"
+	return "nothing"
+
+
+func test_back_through_the_career_screens_keyboard_and_pad() -> void:
+	for pad in [false, true]:
+		await _launch()
+		game.open_career()
+		game._enter_career_stage(0)
+		# before a career race: Back in the garage goes to the grid panel, Back there to the hub
+		await _wait_race()
+		assert_eq(_screen(), "garage")
+		await _back(pad)
+		assert_eq(_screen(), "race", "pre-race garage -> grid panel")
+		assert_true(game.race.session.state == RaceSession.State.MODE_SELECT)
+		await _back(pad)
+		await wait_physics_frames(40)
+		assert_eq(_screen(), "career", "grid panel -> the career hub (forfeit-free: not raced yet)")
+		# a round raced, then the standings, SAVE & EXIT, the hub's garage
+		game.career_screen._main_button.emit_signal("pressed")
+		await _decide(2)
+		assert_eq(_screen(), "standings")
+		game.champ_screen._on_abandon()
+		await wait_physics_frames(40)
+		assert_eq(_screen(), "career", "SAVE & EXIT -> the hub")
+		var round_index: int = game.career.champ.round_index()
+		game.career_screen.garage_requested.emit()
+		await wait_physics_frames(5)
+		assert_eq(_screen(), "garage")
+		# Back in the middle of shopping: the purchase stands, nothing else changes
+		var money: int = game.career_garage.money
+		assert_true(game.career_garage.buy(WeaponRules.Weapon.MINE))
+		await _back(pad)
+		assert_eq(_screen(), "career", "the hub's garage -> the hub")
+		assert_eq(game.career_garage.money, money - game.career_garage.rules.price(WeaponRules.Weapon.MINE), "the purchase stands")
+		assert_eq(game.career.champ.round_index(), round_index, "the championship is untouched")
+		assert_true(game.career.in_championship())
+		# and Back on the hub: the title menu, really visible
+		await _back(pad)
+		assert_eq(_screen(), "title", "the hub -> the title menu (pad=%s)" % pad)
+		# and in again: the running championship continues
+		game.open_career()
+		assert_eq(_screen(), "career")
+		assert_eq(game.career_screen._main_button.text, "CONTINUE: ROUND %d OF 3" % (round_index + 1))

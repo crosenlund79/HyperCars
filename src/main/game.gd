@@ -276,6 +276,7 @@ func _close_garage(start: bool) -> void:
 	garage_screen.close()
 	if _career_garage_open:  # opened from the career hub (no race scene yet)
 		_career_garage_open = false
+		garage_screen.set_back_label("grid panel")
 		if start:
 			_enter_career_stage(_career_main_stage())
 		else:
@@ -615,6 +616,7 @@ func _open_career_garage() -> void:
 	career_screen.close()
 	_career_garage_open = true
 	garage_screen.set_garage(career_garage)
+	garage_screen.set_back_label("career")
 	_show_garage_car(career.player_car if career.in_championship() else _career_car_choice())
 	garage_screen.open()
 
@@ -782,6 +784,11 @@ func _show_career_standings() -> void:
 	if race != null:
 		race.queue_free()
 		race = null
+		# The title scene was hidden when the race began: restore it behind the
+		# career screens (as back_to_title does), so that leaving the hub, its
+		# garage or the standings never reveals an empty world without a camera.
+		title.show_title()
+		get_viewport().gui_release_focus()  # (the cards / standings above take the input)
 	_career_mode = false
 	if career.champ == null:
 		career_screen.open()
