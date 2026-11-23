@@ -87,9 +87,12 @@ extends Resource
 @export var attack_rate := 2.0
 ## Longest front shot considered (px).
 @export var attack_range := 600.0
-## Keep this many front rounds until the last lap.
+## A soft reserve (2026-11-23): with this many front rounds or fewer left,
+## shots must be clearly better until the closing stage of the race (never an
+## absolute hold).
 @export var ammo_reserve := 0
-## Spread ammunition evenly over the laps (fire only above the per-lap budget).
+## Methodical pacing: the driver keeps closer to its spending schedule, both
+## ways (half the usual tolerance).
 @export var ammo_pacing := false
 ## Chance per second of firing without a decent shot (wasted rounds).
 @export var waste_chance := 0.0
@@ -128,6 +131,16 @@ extends Resource
 ## whenever it likes, 1 = never ahead of schedule): when more of the starting
 ## rounds are gone than the race is done, shots need to be that much better.
 @export_range(0.0, 1.0) var ammo_discipline := 0.6
+## Spending schedule (2026-11-23): by race progress p (0..1) the driver means
+## to have used ammo_spend_target * p ^ ammo_spend_curve of its starting
+## rounds. Curve < 1 spends early (aggressive), > 1 saves for later (patient).
+@export var ammo_spend_curve := 1.0
+@export_range(0.0, 1.0) var ammo_spend_target := 0.95
+## Impulsive bursts: chance per second of a trigger-happy spell lasting
+## impulse_time s, in which shots need impulse_drop less quality. 0 = never.
+@export var ammo_impulse := 0.0
+@export var impulse_time := 3.0
+@export var impulse_drop := 0.15
 ## Micro Nemesis: after being destroyed by a driver, shots at that driver look
 ## up to grudge_bonus better (0..1 quality), fading over grudge_time s.
 @export var grudge_bonus := 0.12

@@ -94,6 +94,7 @@ func begin_race(seed_value: int) -> void:
 	retaliating = 0.0
 	rear_shots = 0
 	brilliant_shots = 0
+	_burst_left = 0.0
 	shots_by_weapon = {}
 	_aim = [0.0, 0.0]
 	grudge_id = -1
@@ -415,23 +416,24 @@ func decide_weapons(me: Dictionary, targets: Array, ctx: Dictionary, delta: floa
 	var boost := params.retaliation_boost if retaliating > 0.0 else 1.0
 	var relief := 0.15 if retaliating > 0.0 else 0.0
 	var out := {"front": false, "rear": false}
+	relief += _impulse(delta)
 	if ctx.front_ready:
-		var threshold := params.attack_min_confidence - relief + spend_penalty(ctx.front_ammo, ctx.front_start, ctx)
+		var pacing := spend_penalty(ctx.front_ammo, ctx.front_start, ctx) + reserve_penalty(ctx.front_ammo, ctx)
+		var threshold := params.attack_min_confidence - relief + pacing
 		if params.confidence_variation > 0.0:
 			threshold += weapon_rng.randf_range(-params.confidence_variation, params.confidence_variation)
 		if ctx.get("pressure", false):
 			threshold -= params.pressure_attack_drop
 		var quality := front_shot_quality(me, targets, ctx)
-		var hold := _hold_ammo(ctx)
-		if quality >= threshold and quality > 0.0 and not hold and weapon_rng.randf() < params.attack_rate * boost * delta:
+		if quality >= threshold and quality > 0.0 and weapon_rng.randf() < params.attack_rate * boost * delta:
 			out.front = true
 			front_shots += 1
-		elif params.waste_chance > 0.0 and not hold and weapon_rng.randf() < params.waste_chance * _waste_scale(ctx) * delta:
+		elif params.waste_chance > 0.0 and weapon_rng.randf() < params.waste_chance * _waste_scale(ctx) * delta:
 			out.front = true
 			front_shots += 1
 			wasted_shots += 1
-		elif quality >= threshold and quality > 0.0 and hold:
-			held_for_reserve += 1
+		elif quality > 0.0 and quality < threshold and quality >= threshold - maxf(pacing, 0.0):
+			held_for_reserve += 1  # a shot the ammunition plan turned down
 	if ctx.rear_ready:
 		var mq := mine_quality(me, targets, ctx)
 		var rear_threshold := params.mine_min_quality - relief + spend_penalty(ctx.get("rear_ammo", 0), ctx.get("rear_start", 0), ctx)
@@ -488,21 +490,74 @@ func _with_grudge(q: float, t: Dictionary) -> float:
 	return minf(1.0, q + params.grudge_bonus * grudge_left / maxf(params.grudge_time, 0.01))
 
 
-## Ammunition over the race: how much harder a shot must be when more of the
-## starting rounds are gone than the race is done (scaled by ammo_discipline);
-## on the last lap nothing is saved any more.
-func spend_penalty(ammo: int, start: int, ctx: Dictionary) -> float:
-	if start <= 0 or params.ammo_discipline <= 0.0:
-		return 0.0
+## Race progress for ammunition pacing (0..1): the continuous share of the
+## race distance when known ("progress"), else completed laps.
+static func race_progress(ctx: Dictionary) -> float:
+	if ctx.has("progress"):
+		return clampf(float(ctx.progress), 0.0, 1.0)
 	var laps: int = maxi(1, ctx.get("lap_count", 1))
-	var laps_left: int = ctx.get("laps_left", laps)
-	if laps_left <= 1:
-		return -0.1 * params.ammo_discipline
-	var done := clampf(float(laps - laps_left) / float(laps), 0.0, 1.0)
+	return clampf(float(laps - int(ctx.get("laps_left", laps))) / float(laps), 0.0, 1.0)
+
+
+## The share of its starting rounds this driver means to have used by progress p.
+func spend_target(p: float) -> float:
+	return params.ammo_spend_target * pow(clampf(p, 0.0, 1.0), maxf(params.ammo_spend_curve, 0.05))
+
+
+## Ammunition over the race (2026-11-23): how much harder (+) or easier (-) a
+## shot must be, from the rounds left against this driver's own schedule
+## (spend_target), the race length (longer races keep closer to it) and the
+## weapon's value. Ahead of schedule a shot needs to be better, by
+## ammo_discipline; behind it a shot is taken more readily, the more so the
+## later in the race (rounds are there to be used). In the closing stage
+## nothing is saved any more. weapon: the type (Tactical), -1 = not considered.
+func spend_penalty(ammo: int, start: int, ctx: Dictionary, weapon: int = -1) -> float:
+	if start <= 0:
+		return 0.0
+	var p := race_progress(ctx)
+	var laps: int = maxi(1, ctx.get("lap_count", 1))
 	var used := 1.0 - float(ammo) / float(start)
-	if used < done - 0.2:  # well under budget: ammunition is there to be used
-		return -minf(0.2, (done - 0.2 - used) * 0.6)
-	return params.ammo_discipline * maxf(0.0, used - done - 0.1) * 2.0
+	var target := spend_target(p)
+	var tolerance := lerpf(0.2, 0.08, clampf((laps - 3) / 47.0, 0.0, 1.0)) * (0.5 if params.ammo_pacing else 1.0)
+	var pen := 0.0
+	if used > target + tolerance:  # ahead of schedule
+		pen = params.ammo_discipline * (used - target - tolerance) * 2.0
+	elif used < target - tolerance:  # behind it: spend, the more readily the later it is
+		# (a disciplined driver still wants a decent chance: its relief is capped lower)
+		pen = -minf(0.45 * (1.0 - 0.5 * params.ammo_discipline), (target - tolerance - used) * (0.8 + 1.4 * p))
+	if _closing(ctx):
+		pen = minf(pen, 0.0) - 0.1 * params.ammo_discipline
+	match weapon:  # the valuable types are kept for the better chances
+		WeaponRules.Weapon.HOMING_MISSILE: pen += 0.04 * params.ammo_discipline
+		WeaponRules.Weapon.SUPER_MISSILE: pen += 0.08 * params.ammo_discipline
+	return pen
+
+
+## The closing stage of the race: the last lap, or the last 8 % of a long one.
+static func _closing(ctx: Dictionary) -> bool:
+	return int(ctx.get("laps_left", 99)) <= 1 or race_progress(ctx) >= 0.92
+
+
+## The soft reserve: with ammo_reserve front rounds or fewer, shots must be
+## clearly better (+0.12) until the closing stage. Never an absolute hold.
+func reserve_penalty(ammo: int, ctx: Dictionary) -> float:
+	if params.ammo_reserve <= 0 or ammo > params.ammo_reserve or _closing(ctx):
+		return 0.0
+	return 0.12
+
+
+## Impulsive drivers (ammo_impulse): a trigger-happy spell now and then; the
+## threshold relief while it lasts.
+var _burst_left := 0.0
+
+
+func _impulse(delta: float) -> float:
+	if params.ammo_impulse <= 0.0:
+		return 0.0
+	_burst_left = maxf(0.0, _burst_left - delta)
+	if _burst_left <= 0.0 and weapon_rng.randf() < params.ammo_impulse * delta:
+		_burst_left = params.impulse_time
+	return params.impulse_drop if _burst_left > 0.0 else 0.0
 
 
 ## Disciplined drivers waste fewer rounds when they are ahead of their budget.
@@ -518,18 +573,6 @@ func on_destroyed_by(offender: int, self_id: int) -> void:
 	grudge_left = params.grudge_time
 
 
-func _hold_ammo(ctx: Dictionary) -> bool:
-	var laps_left: int = ctx.laps_left
-	if params.ammo_reserve > 0 and laps_left > 1 and ctx.front_ammo <= params.ammo_reserve:
-		return true
-	if params.ammo_pacing and laps_left > 0:
-		var per_lap := float(ctx.front_start) / float(maxi(1, ctx.lap_count))
-		var keep := per_lap * (laps_left - 1)
-		if float(ctx.front_ammo) <= keep:
-			return true
-	return false
-
-
 ## --- M3.5 Tactical decisions. The same weapons, ammunition and cooldowns as
 ## everyone (CombatWorld enforces them); personality traits only shape when a
 ## driver judges a shot worth taking. Uses weapon_rng only, so driving decisions
@@ -543,6 +586,7 @@ func decide_weapons_tactical(me: Dictionary, targets: Array, ctx: Dictionary, de
 	var relief := 0.15 if retaliating > 0.0 else 0.0
 	var pressure: bool = ctx.get("pressure", false)
 	var out := {"front": false, "rear": false}
+	relief += _impulse(delta)
 	for slot in 2:
 		var ready: bool = ctx.front_ready if slot == 0 else ctx.rear_ready
 		if not ready:
@@ -551,33 +595,32 @@ func decide_weapons_tactical(me: Dictionary, targets: Array, ctx: Dictionary, de
 		var weapon: int = ctx.front_weapon if slot == 0 else ctx.rear_weapon
 		var is_mine := weapon == WeaponRules.Weapon.MINE
 		var q := tactical_quality(weapon, me, targets, ctx)
-		var threshold := (params.mine_min_quality if is_mine else params.attack_min_confidence) - relief \
-			+ spend_penalty(ctx.front_ammo if slot == 0 else ctx.rear_ammo, ctx.front_start if slot == 0 else ctx.rear_start, ctx)
+		var ammo: int = ctx.front_ammo if slot == 0 else ctx.rear_ammo
+		var pacing := spend_penalty(ammo, ctx.front_start if slot == 0 else ctx.rear_start, ctx, weapon) \
+			+ (reserve_penalty(ammo, ctx) if slot == 0 else 0.0)
+		var threshold := (params.mine_min_quality if is_mine else params.attack_min_confidence) - relief + pacing
 		if params.confidence_variation > 0.0:
 			threshold += weapon_rng.randf_range(-params.confidence_variation, params.confidence_variation)
 		if pressure:
 			threshold -= params.pressure_attack_drop
-		if ctx.laps_left <= 1:
-			threshold -= 0.1  # last lap: nothing left to save the ammunition for
 		var rate := (params.mine_rate if is_mine else params.attack_rate) * boost
 		if slot == 1:
 			rate *= params.rear_eagerness
 			threshold -= 0.1 * (params.rear_eagerness - 1.0)
-		var hold := _hold_slot(ctx, slot)
 		var good := q > 0.0 and q >= threshold
 		_aim[slot] = _aim[slot] + delta if good else 0.0
 		var aimed := pressure or _aim[slot] >= params.tactical_aim_time
 		var fire := false
-		if q >= 0.9 and not hold and params.brilliance_rate > 0.0 and weapon_rng.randf() < params.brilliance_rate * delta:
+		if q >= 0.9 and params.brilliance_rate > 0.0 and weapon_rng.randf() < params.brilliance_rate * delta:
 			fire = true
 			brilliant_shots += 1
-		elif good and aimed and not hold and weapon_rng.randf() < rate * delta:
+		elif good and aimed and weapon_rng.randf() < rate * delta:
 			fire = true
-		elif slot == 0 and params.waste_chance > 0.0 and not hold and weapon_rng.randf() < params.waste_chance * _waste_scale(ctx) * delta:
+		elif slot == 0 and params.waste_chance > 0.0 and weapon_rng.randf() < params.waste_chance * _waste_scale(ctx) * delta:
 			fire = true
 			wasted_shots += 1
-		elif good and hold:
-			held_for_reserve += 1
+		elif q > 0.0 and not good and q >= threshold - maxf(pacing, 0.0):
+			held_for_reserve += 1  # a shot the ammunition plan turned down
 		if fire:
 			_aim[slot] = 0.0
 			shots_by_weapon[weapon] = shots_by_weapon.get(weapon, 0) + 1
@@ -682,17 +725,6 @@ func _opportunity(me: Dictionary, t: Dictionary, along: float) -> bool:
 
 
 ## Ammunition holding per slot (reserve / pacing traits), from the slot's own count.
-func _hold_slot(ctx: Dictionary, slot: int) -> bool:
-	if slot == 0:
-		return _hold_ammo(ctx)
-	var laps_left: int = ctx.laps_left
-	if params.ammo_pacing and laps_left > 0:
-		var per_lap := float(ctx.rear_start) / float(maxi(1, ctx.lap_count))
-		if float(ctx.rear_ammo) <= per_lap * (laps_left - 1):
-			return true
-	return false
-
-
 # ------------------------------------------------------------- branches
 
 ## How far ahead of a branch the route (and a pit stop) is decided (px).

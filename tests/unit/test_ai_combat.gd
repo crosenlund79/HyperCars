@@ -63,10 +63,17 @@ func test_every_rival_fires_at_a_point_blank_shot() -> void:
 		assert_gt(_shots(d, _me(0), [_target(120)], _ctx(5, 1), 3.0), 0, RivalRoster.short_name(id))
 
 
-func test_victor_conserves_ammunition_until_the_last_lap() -> void:
+## Victor saves his last rounds for clearly better chances, but never by an
+## absolute rule (2026-11-23): a near-perfect shot late in the race is taken,
+## and in the closing stage nothing is saved any more.
+func test_victor_keeps_a_soft_reserve() -> void:
 	var v := _driver(1)
-	assert_eq(_shots(v, _me(0), [_target(250)], _ctx(2, 2)), 0, "keeps the reserve")
-	assert_true(v.held_for_reserve > 0 or v.spend_penalty(2, 5, _ctx(2, 2)) > 0.0, "holding: reserve or ammunition budget")
+	assert_eq(_shots(v, _me(0), [_target(250)], _ctx(2, 2)), 0, "an ordinary shot early on: kept")
+	assert_gt(v.held_for_reserve, 0, "turned down by the ammunition plan")
+	assert_gt(v.reserve_penalty(2, _ctx(2, 2)), 0.0)
+	var late := _ctx(2, 2)
+	late.progress = 0.7  # on schedule late in the race
+	assert_gt(_shots(v, _me(0), [_target(60)], late), 0, "a near-perfect shot is not refused")
 	assert_gt(_shots(v, _me(0), [_target(250)], _ctx(2, 1)), 0, "spends it on the last lap")
 
 

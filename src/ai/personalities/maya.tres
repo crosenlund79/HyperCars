@@ -28,3 +28,4 @@ line_offset = -6.0
 pit_speeding = 0.05
 pit_patience = 2.0
 route_traffic_weight = 0.45
+ammo_spend_curve = 1.1

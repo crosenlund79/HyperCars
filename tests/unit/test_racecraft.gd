@@ -89,3 +89,56 @@ func test_own_lines_stay_on_the_road_and_differ() -> void:
 		assert_eq(greta.own_line(s), _line.offset_at(s), "Greta drives the shared line")
 		diff = maxf(diff, absf(finn.own_line(s) - _line.offset_at(s)))
 	assert_gt(diff, 10.0, "Finn wanders off the shared line")
+
+
+## Ammunition pacing (2026-11-23): each personality's spending schedule over
+## the race, continuous progress, longer races kept closer to it, valuable
+## weapons kept for better chances, impulsive bursts, no absolute holds.
+func test_spending_schedules_follow_the_personalities() -> void:
+	var victor := _driver(1)
+	var rocco := _driver(2)
+	var greta := _driver(7)
+	var finn := _driver(8)
+	assert_gt(rocco.spend_target(0.3), greta.spend_target(0.3), "Rocco spends early")
+	assert_gt(greta.spend_target(0.3), victor.spend_target(0.3), "Victor saves for later")
+	assert_gt(finn.spend_target(0.3), greta.spend_target(0.3), "Finn is quick on the trigger")
+	assert_almost_eq(greta.spend_target(0.5), 0.95 * 0.5, 0.001, "Greta: an even schedule")
+	for d in [victor, rocco, greta, finn]:
+		assert_gt(d.spend_target(1.0), 0.85, "everyone means to use the rounds by the flag")
+
+
+func test_pacing_uses_continuous_progress_and_race_length() -> void:
+	var greta := _driver(7)
+	var a := {"lap_count": 3, "laps_left": 3, "progress": 0.05}
+	var b := {"lap_count": 3, "laps_left": 3, "progress": 0.6}
+	assert_gt(greta.spend_penalty(2, 10, a), greta.spend_penalty(2, 10, b), "the same lap, later in it: keener")
+	var short := {"lap_count": 3, "laps_left": 2, "progress": 0.5}
+	var long := {"lap_count": 50, "laps_left": 25, "progress": 0.5}
+	assert_gt(greta.spend_penalty(20, 100, long), greta.spend_penalty(2, 10, short), "long races keep closer to the schedule")
+
+
+func test_behind_schedule_late_means_spending() -> void:
+	var victor := _driver(1)
+	var ctx := {"lap_count": 20, "laps_left": 4, "progress": 0.82}
+	assert_lt(victor.spend_penalty(45, 50, ctx), -0.15, "lots left late in the race: shots come easier")
+	assert_lt(victor.spend_penalty(45, 50, ctx), victor.spend_penalty(45, 50, {"lap_count": 20, "laps_left": 12, "progress": 0.42}))
+
+
+func test_valuable_weapons_wait_for_better_chances() -> void:
+	var v := _driver(1)
+	var ctx := {"lap_count": 7, "laps_left": 4, "progress": 0.45}
+	var plain := v.spend_penalty(4, 8, ctx, WeaponRules.Weapon.FRONT_MISSILE)
+	assert_gt(v.spend_penalty(4, 8, ctx, WeaponRules.Weapon.HOMING_MISSILE), plain)
+	assert_gt(v.spend_penalty(4, 8, ctx, WeaponRules.Weapon.SUPER_MISSILE), v.spend_penalty(4, 8, ctx, WeaponRules.Weapon.HOMING_MISSILE))
+
+
+func test_finn_has_impulsive_spells() -> void:
+	var finn := _driver(8)
+	finn.begin_race(5)
+	var spells := 0
+	for i in 60 * 120:
+		if finn._impulse(1.0 / 60.0) > 0.0 and finn._burst_left >= finn.params.impulse_time - 0.02:
+			spells += 1
+	assert_gt(spells, 2, "a few trigger-happy spells in two minutes")
+	var greta := _driver(7)
+	assert_eq(greta._impulse(1.0), 0.0, "Greta never")

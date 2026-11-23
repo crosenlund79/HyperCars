@@ -10,8 +10,9 @@ const MAIN_SCENE := preload("res://src/main/main.tscn")
 ## Re-recorded 2026-11-17 for the human (race-mode) probes only: the approved
 ## steering precision change ramps the scripted player's key steering. Spectator
 ## hashes, pit lanes, split sections and lighting change nothing here.
-const M3_CLASSIC_RACE_HASH := "12b2a9c37c7154d68d29b640309aaf5c"
-const M3_CLASSIC_SPECTATE_HASH := "19ce0eec7cfc8e9b0bb18e4032b63b41"
+## Re-recorded 2026-11-23: the approved AI ammunition pacing (when rivals fire).
+const M3_CLASSIC_RACE_HASH := "3fc4c4820475e95e2e11a7cc529f69d4"
+const M3_CLASSIC_SPECTATE_HASH := "972801697bd102240dcbc052ed8cd287"
 
 var _main: Node2D
 

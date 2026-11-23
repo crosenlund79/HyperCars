@@ -32,3 +32,4 @@ pit_stay_out_chance = 0.3
 pit_speeding = 0.03
 pit_patience = 3.0
 route_traffic_weight = 0.6
+ammo_spend_curve = 1.2

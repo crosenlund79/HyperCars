@@ -95,7 +95,8 @@ func weapons(race: Node, step: float, _states: Array) -> Dictionary:
 	var r := session.racers[id]
 	var ctx := {"front_ready": front_ready, "rear_ready": rear_ready, "front_ammo": combat.ammo[id][CombatWorld.FRONT],
 		"front_start": combat.start_ammo[id][CombatWorld.FRONT], "laps_left": r.tracker.lap_count - r.tracker.laps_completed,
-		"lap_count": r.tracker.lap_count, "missile_speed": rules.missile_speed, "hit_radius": rules.hit_radius,
+		"lap_count": r.tracker.lap_count, "progress": progress[id].distance / maxf(1.0, race.track.path.length * r.tracker.lap_count),
+		"missile_speed": rules.missile_speed, "hit_radius": rules.hit_radius,
 		"mine_fuse": rules.mine_fuse, "rear_ammo": combat.ammo[id][CombatWorld.REAR], "rear_start": combat.start_ammo[id][CombatWorld.REAR],
 		"pressure": d.params.pressure_attack_drop > 0.0 and d.under_pressure(me, targets)}
 	if race.combat_style == WeaponRules.Style.TACTICAL:

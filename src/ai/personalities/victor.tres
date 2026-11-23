@@ -30,3 +30,5 @@ pit_speeding = 0.002
 pit_patience = 5.0
 route_whim = 0.03
 route_traffic_weight = 0.2
+ammo_spend_curve = 1.0
+ammo_spend_target = 0.9
