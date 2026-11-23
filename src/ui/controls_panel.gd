@@ -14,6 +14,7 @@ const ROWS := [
 	["Fire to Accelerate", "Hold {fire} to accelerate, release to brake"],
 	["Fire to Brake", "Accelerates by itself, hold {fire} to brake hard"],
 	["Grid panel", "{steer_left} / {steer_right} control mode, {fire_front} / {fire_rear} weapons, {toggle_style} combat style, {history_view} laps, {fire} start"],
+	["Weapon types", "{cycle_front} / {cycle_rear} switch to the next owned type you carry (garage races)"],
 	["Race menu", "{back} pauses (resume or leave)"],
 	["Results / standings", "{confirm} continues; Fire never does"],
 	["Lights", "{toggle_lighting} switches the lights on or off"],

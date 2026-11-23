@@ -48,6 +48,10 @@ var loadout: Array = []
 var start_ammo: Array = []
 ## Per car (Tactical): [front, rear] slot cooldowns. cooldown[] is the shared lock.
 var slot_cooldown: Array = []
+## Weapon cycling (2026-11-23): per car, per slot, the other weapon types it
+## carries and their rounds ({type: rounds}; the active type is not in it).
+## Empty for everyone except a garage player who owns several types for a slot.
+var carried: Array = []
 var _custom_loadouts := false
 ## Live projectiles: {type, owner, pos, dir, age, target, angle}.
 var projectiles: Array = []
@@ -77,12 +81,14 @@ func reset() -> void:
 	loadout.clear()
 	start_ammo.clear()
 	slot_cooldown.clear()
+	carried.clear()
 	_custom_loadouts = false
 	for i in cooldown.size():
 		ammo.append([rules.ammo_for(FRONT), rules.ammo_for(REAR)])
 		loadout.append([rules.weapon_for(FRONT), rules.weapon_for(REAR)])
 		start_ammo.append([rules.ammo_for(FRONT), rules.ammo_for(REAR)])
 		slot_cooldown.append([0.0, 0.0])
+		carried.append([{}, {}])
 	cooldown.fill(0.0)
 	wreck_left.fill(0.0)
 	grace_left.fill(0.0)
@@ -113,6 +119,62 @@ func set_loadout(id: int, front_weapon: int, front_ammo: int, rear_weapon: int, 
 	ammo[id] = [fa, ra]
 	start_ammo[id] = [fa, ra]
 	_custom_loadouts = true
+
+
+## Weapon cycling: the other types this car carries for a slot, with their
+## rounds (types that do not fit the slot, or the active one, are ignored).
+## Set after set_loadout; never scaled with the race length.
+func set_carried(id: int, slot: int, rounds_by_type: Dictionary) -> void:
+	var d := {}
+	for w in rounds_by_type:
+		if WeaponRules.compatible(int(w), slot) and int(w) != weapon_of(id, slot):
+			d[int(w)] = maxi(0, int(rounds_by_type[w]))
+	carried[id][slot] = d
+
+
+## Every type the car carries for a slot in shop order: [[type, rounds, active], ...].
+func slot_types(id: int, slot: int) -> Array:
+	var out: Array = []
+	for w in WeaponRules.ALL_WEAPONS:
+		if w == weapon_of(id, slot):
+			out.append([w, ammo[id][slot], true])
+		elif carried[id][slot].has(w):
+			out.append([w, carried[id][slot][w], false])
+	return out
+
+
+## Rounds left of every type the car carries (active and carried), {type: rounds}.
+func rounds_by_type(id: int) -> Dictionary:
+	var out := {}
+	for slot in 2:
+		for t in slot_types(id, slot):
+			out[t[0]] = t[1]
+	return out
+
+
+## Switches a slot to the next carried type that still has rounds (shop order,
+## wrapping). Cooldowns and the shared lock are untouched, nothing is fired and
+## no round is used. Returns false when there is nothing to switch to.
+func cycle(id: int, slot: int) -> bool:
+	if not enabled or carried[id][slot].is_empty():
+		return false
+	var types := slot_types(id, slot)
+	var at := -1  # (an empty slot starts from the first carried type)
+	for i in types.size():
+		if types[i][2]:
+			at = i
+	for k in range(1, types.size() + 1):
+		var t: Array = types[(at + k) % types.size()]
+		if not t[2] and t[1] > 0:
+			var old: int = weapon_of(id, slot)
+			if old != W.NONE:
+				carried[id][slot][old] = ammo[id][slot]
+			carried[id][slot].erase(t[0])
+			loadout[id][slot] = t[0]
+			ammo[id][slot] = t[1]
+			events.append({"kind": "switch", "type": t[0], "pos": Vector2.ZERO, "car": id, "owner": id})
+			return true
+	return false
 
 
 ## Long races: every listed car's starting rounds times factor (rounded up,

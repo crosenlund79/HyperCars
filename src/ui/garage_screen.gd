@@ -27,6 +27,8 @@ var _last: Label
 var _summary: Label
 var _race_button: Button
 var _hint: Label
+## Weapon cycling: carry every owned type, or the equipped ones only.
+var _carry_button: Button
 var _cards: Dictionary = {}
 var _cond_bar: ColorRect
 var _cond_label: Label
@@ -114,8 +116,15 @@ func setup(p_garage: PlayerGarage, resolver: AssetResolver) -> void:
 	texts.add_child(_summary)
 	_car_note = HyperTheme.label("", 16, Color("f0b48a"), 600)
 	_car_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_car_note.custom_minimum_size = Vector2(900, 0)
+	_car_note.custom_minimum_size = Vector2(680, 0)
 	texts.add_child(_car_note)
+	_carry_button = _small_button("")
+	_carry_button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_carry_button.tooltip_text = "Carry every owned weapon type and switch between them in the race, or only the equipped ones."
+	_carry_button.pressed.connect(func() -> void:
+		_play("ui/ui_select" if garage.set_carry_all(not garage.carry_all) else "ui/ui_back")
+		refresh())
+	fbox.add_child(_carry_button)
 	_race_button = Button.new()
 	_race_button.text = "RACE!"
 	_race_button.custom_minimum_size = Vector2(220, 56)
@@ -235,8 +244,11 @@ func refresh() -> void:
 	_refresh_car()
 	var front := garage.equipped[PlayerGarage.FRONT]
 	var rear := garage.equipped[PlayerGarage.REAR]
-	_summary.text = "FRONT: %s x%d      REAR: %s x%d" % [WeaponRules.weapon_name(front), garage.count(front) if front != W.NONE else 0,
-		WeaponRules.weapon_name(rear), garage.count(rear) if rear != W.NONE else 0]
+	var extra := garage.race_carried()
+	_summary.text = "FRONT: %s x%d%s      REAR: %s x%d%s" % [WeaponRules.weapon_name(front), garage.count(front) if front != W.NONE else 0,
+		_extra_text(extra[PlayerGarage.FRONT]), WeaponRules.weapon_name(rear), garage.count(rear) if rear != W.NONE else 0,
+		_extra_text(extra[PlayerGarage.REAR])]
+	_carry_button.text = "CARRY: ALL OWNED" if garage.carry_all else "CARRY: EQUIPPED ONLY"
 	for w in _cards:
 		var c: Dictionary = _cards[w]
 		c.owned.text = "Owned: %d" % garage.count(w)
@@ -249,6 +261,17 @@ func refresh() -> void:
 		# equipped is a state, not an unavailable action: gold, not greyed out
 		c.equip.add_theme_color_override("font_disabled_color", HyperTheme.GOLD if mounted else DISABLED_TEXT)
 		c.panel.self_modulate = Color(1.15, 1.05, 0.8) if mounted else Color.WHITE
+
+
+## " (+ HOMING 4, SUPER 2)": the other types carried for a slot.
+static func _extra_text(d: Dictionary) -> String:
+	if d.is_empty():
+		return ""
+	var parts := PackedStringArray()
+	for w in WeaponRules.ALL_WEAPONS:
+		if d.has(w):
+			parts.append("%s %d" % [Hud.short_weapon_name(w), d[w]])
+	return " (+ %s)" % ", ".join(parts)
 
 
 ## M6 car row: condition bar, repair buttons, armour grade and upgrade.

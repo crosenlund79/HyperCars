@@ -53,8 +53,8 @@ func test_assign_replaces_one_slot_only() -> void:
 	assert_true(InputMap.event_is_action(_pad(JOY_BUTTON_A, 0), PlayerControls.FIRE), "pad binding kept")
 	assert_eq(ControlBindings.assign(PlayerControls.FIRE, _key(KEY_K), 1), "")
 	assert_eq(ControlBindings.describe(PlayerControls.FIRE, ControlBindings.KEYBOARD), "J / K", "slot 2 replaced in place")
-	assert_eq(ControlBindings.assign(PlayerControls.FIRE, _pad(JOY_BUTTON_LEFT_SHOULDER), 1), "")
-	assert_eq(ControlBindings.describe(PlayerControls.FIRE, ControlBindings.PAD), "Pad A / Cross / L1", "a second pad input")
+	assert_eq(ControlBindings.assign(PlayerControls.FIRE, _pad(JOY_BUTTON_RIGHT_STICK), 1), "")
+	assert_eq(ControlBindings.describe(PlayerControls.FIRE, ControlBindings.PAD), "Pad A / Cross / R3", "a second pad input")
 	assert_eq(ControlBindings.events(PlayerControls.FIRE, ControlBindings.PAD)[1].device, -1, "stored for any controller")
 
 
@@ -101,12 +101,12 @@ func test_race_context_lets_confirm_press_buttons_but_never_fire() -> void:
 
 
 func test_join_panel_follows_the_bindings_and_drops_unplugged_pads() -> void:
-	ControlBindings.assign(PlayerControls.FIRE, _pad(JOY_BUTTON_LEFT_SHOULDER), 1)
+	ControlBindings.assign(PlayerControls.FIRE, _pad(JOY_BUTTON_RIGHT_STICK), 1)
 	var j := JoinPanel.new()
 	add_child_autofree(j)
 	j.setup()
 	j.open()
-	j._input(_pad(JOY_BUTTON_LEFT_SHOULDER, 2))
+	j._input(_pad(JOY_BUTTON_RIGHT_STICK, 2))
 	assert_eq(j.devices, [2] as Array[int], "a remapped Fire joins")
 	j._input(_key(KEY_SPACE))
 	assert_eq(j.devices, [2, PlayerControls.KEYBOARD] as Array[int])
@@ -127,37 +127,37 @@ func test_confirm_and_back_keep_enter_and_escape() -> void:
 	assert_eq(ControlBindings.assign(PlayerControls.CONFIRM, _key(KEY_Y)), "")
 	assert_true(InputMap.event_is_action(_key(KEY_Y), PlayerControls.CONFIRM))
 	assert_true(InputMap.event_is_action(_key(KEY_ENTER), PlayerControls.CONFIRM), "Enter always confirms")
-	assert_eq(ControlBindings.assign(PlayerControls.BACK, _key(KEY_Q)), "")
+	assert_eq(ControlBindings.assign(PlayerControls.BACK, _key(KEY_Z)), "")
 	assert_true(InputMap.event_is_action(_key(KEY_ESCAPE), PlayerControls.BACK), "Esc always goes back")
 
 
 func test_saved_bindings_load_and_defaults_restore() -> void:
 	ControlBindings.assign(PlayerControls.FIRE, _key(KEY_J))
-	ControlBindings.assign(PlayerControls.STEER_LEFT, _pad(JOY_BUTTON_LEFT_SHOULDER))
+	ControlBindings.assign(PlayerControls.STEER_LEFT, _pad(JOY_BUTTON_RIGHT_STICK))
 	ControlBindings.save()
 	ControlBindings.restore_defaults()  # also deletes the file...
 	assert_true(InputMap.event_is_action(_key(KEY_SPACE), PlayerControls.FIRE), "defaults back")
 	ControlBindings.assign(PlayerControls.FIRE, _key(KEY_J))
-	ControlBindings.assign(PlayerControls.STEER_LEFT, _pad(JOY_BUTTON_LEFT_SHOULDER))
+	ControlBindings.assign(PlayerControls.STEER_LEFT, _pad(JOY_BUTTON_RIGHT_STICK))
 	ControlBindings.save()
 	for a in ControlBindings.ACTIONS:  # ...so simulate a fresh start
 		InputMap.erase_action(a[0])
 	ControlBindings.load_saved()
 	assert_true(InputMap.event_is_action(_key(KEY_J), PlayerControls.FIRE))
 	assert_false(InputMap.event_is_action(_key(KEY_SPACE), PlayerControls.FIRE))
-	assert_true(InputMap.event_is_action(_pad(JOY_BUTTON_LEFT_SHOULDER, 0), PlayerControls.STEER_LEFT))
+	assert_true(InputMap.event_is_action(_pad(JOY_BUTTON_RIGHT_STICK, 0), PlayerControls.STEER_LEFT))
 	assert_true(InputMap.event_is_action(_key(KEY_ENTER), PlayerControls.CONFIRM))
 
 
 func test_couch_players_copy_the_remapped_bindings_on_their_own_device() -> void:
-	ControlBindings.assign(PlayerControls.FIRE, _pad(JOY_BUTTON_LEFT_SHOULDER))
+	ControlBindings.assign(PlayerControls.FIRE, _pad(JOY_BUTTON_RIGHT_STICK))
 	ControlBindings.assign(PlayerControls.FIRE, _key(KEY_J))
 	var p1 := PlayerControls.ensure_player_actions(1, PlayerControls.KEYBOARD)
 	var p2 := PlayerControls.ensure_player_actions(2, 3)
 	assert_true(InputMap.event_is_action(_key(KEY_J), p1 + PlayerControls.FIRE))
-	assert_false(InputMap.event_is_action(_pad(JOY_BUTTON_LEFT_SHOULDER, 3), p1 + PlayerControls.FIRE))
-	assert_true(InputMap.event_is_action(_pad(JOY_BUTTON_LEFT_SHOULDER, 3), p2 + PlayerControls.FIRE))
-	assert_false(InputMap.event_is_action(_pad(JOY_BUTTON_LEFT_SHOULDER, 1), p2 + PlayerControls.FIRE), "only its own pad")
+	assert_false(InputMap.event_is_action(_pad(JOY_BUTTON_RIGHT_STICK, 3), p1 + PlayerControls.FIRE))
+	assert_true(InputMap.event_is_action(_pad(JOY_BUTTON_RIGHT_STICK, 3), p2 + PlayerControls.FIRE))
+	assert_false(InputMap.event_is_action(_pad(JOY_BUTTON_RIGHT_STICK, 1), p2 + PlayerControls.FIRE), "only its own pad")
 	assert_false(InputMap.event_is_action(_key(KEY_J), p2 + PlayerControls.FIRE))
 
 

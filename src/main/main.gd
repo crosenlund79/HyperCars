@@ -812,6 +812,9 @@ func _apply_loadouts() -> void:
 	if garage_player:
 		var g := garage.race_loadout()
 		combat.set_loadout(RaceSession.PLAYER_ID, g[0], g[1], g[2], g[3])
+		var carried := garage.race_carried()  # weapon cycling: the other owned types
+		combat.set_carried(RaceSession.PLAYER_ID, CombatWorld.FRONT, carried[CombatWorld.FRONT])
+		combat.set_carried(RaceSession.PLAYER_ID, CombatWorld.REAR, carried[CombatWorld.REAR])
 	elif not session.spectator and combat_style == WeaponRules.Style.TACTICAL:
 		var q := RivalArmoury.QUICK_RACE_PLAYER
 		combat.set_loadout(RaceSession.PLAYER_ID, q[0], q[1], q[2], q[3])
@@ -1048,7 +1051,7 @@ func _settle_garage() -> void:
 	garage.settle_race(0 if me.dnf else me.finish_position,
 		combat.ammo[RaceSession.PLAYER_ID][CombatWorld.FRONT], combat.ammo[RaceSession.PLAYER_ID][CombatWorld.REAR],
 		damage.fraction(RaceSession.PLAYER_ID) * 100.0, session.lap_count(),
-		pits.fines[RaceSession.PLAYER_ID] if pits != null else 0)
+		pits.fines[RaceSession.PLAYER_ID] if pits != null else 0, combat.rounds_by_type(RaceSession.PLAYER_ID))
 
 
 ## Opens the garage between races (garage races only).
@@ -1798,7 +1801,8 @@ func _refresh_hud() -> void:
 		session.position_of(me), session.racer_count())
 	hud.update_combat(weapons_enabled, combat.weapon_of(me, CombatWorld.FRONT), combat.ammo[me][CombatWorld.FRONT],
 		combat.weapon_of(me, CombatWorld.REAR), combat.ammo[me][CombatWorld.REAR], combat.wreck_left[me],
-		_cooldown_fraction(CombatWorld.FRONT, me), _cooldown_fraction(CombatWorld.REAR, me))
+		_cooldown_fraction(CombatWorld.FRONT, me), _cooldown_fraction(CombatWorld.REAR, me),
+		combat.slot_types(me, CombatWorld.FRONT), combat.slot_types(me, CombatWorld.REAR))
 	_refresh_condition(hud, me)
 	_refresh_pit(hud, me)
 	hud.set_weapons_locked(combat.enabled and combat.locked and session.state != RaceSession.State.FINISHED)
@@ -1825,7 +1829,8 @@ func _refresh_player_hud(view_hud: Hud, id: int) -> void:
 		session.position_of(id), session.racer_count())
 	view_hud.update_combat(weapons_enabled, combat.weapon_of(id, CombatWorld.FRONT), combat.ammo[id][CombatWorld.FRONT],
 		combat.weapon_of(id, CombatWorld.REAR), combat.ammo[id][CombatWorld.REAR], combat.wreck_left[id],
-		_cooldown_fraction(CombatWorld.FRONT, id), _cooldown_fraction(CombatWorld.REAR, id))
+		_cooldown_fraction(CombatWorld.FRONT, id), _cooldown_fraction(CombatWorld.REAR, id),
+		combat.slot_types(id, CombatWorld.FRONT), combat.slot_types(id, CombatWorld.REAR))
 	_refresh_condition(view_hud, id)
 	_refresh_pit(view_hud, id)
 	view_hud.set_weapons_locked(combat.enabled and combat.locked and session.state != RaceSession.State.FINISHED)
@@ -2223,6 +2228,10 @@ func _update_weapons_lock() -> void:
 func _request_weapons(id: int, cmd: Dictionary, states: Array) -> void:
 	if damage.is_retired(id):
 		return
+	if cmd.get("cycle_front", false):  # weapon cycling first: a press in the same tick fires the new type
+		combat.cycle(id, CombatWorld.FRONT)
+	if cmd.get("cycle_rear", false):
+		combat.cycle(id, CombatWorld.REAR)
 	if cmd.front:
 		combat.request(id, CombatWorld.FRONT, states)
 	if cmd.rear:

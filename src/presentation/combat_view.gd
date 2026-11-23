@@ -251,6 +251,9 @@ func _show_event(e: Dictionary) -> void:
 		"empty":
 			if human_ids.has(e.car):
 				_play("weapons/empty", e.pos)
+		"switch":  # weapon cycling (only a human cycles): a soft click at the car
+			if human_ids.has(e.car):
+				_play("ui/ui_move", _cars[e.car].global_position)
 		"explode", "mine_blast":
 			_blast(e.pos, 1.4 if e.kind == "mine_blast" else 0.8)
 			_play("weapons/explosion", e.pos)

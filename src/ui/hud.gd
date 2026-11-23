@@ -34,6 +34,9 @@ var _rear_label: Label
 ## Cooldown bars under each weapon (fill = time until the slot is ready).
 var _front_bar: ColorRect
 var _rear_bar: ColorRect
+## Weapon cycling: the other carried types under each slot ("" hidden).
+var _front_more: Label
+var _rear_more: Label
 var _wreck_label: Label
 ## Pit lane: limiter / override / penalty / service line and service progress.
 var _pit_box: VBoxContainer
@@ -139,8 +142,10 @@ func setup(resolver: AssetResolver) -> void:
 	_rear_label = HyperTheme.label("", 18, HyperTheme.CREAM, 700)
 	_front_bar = ColorRect.new()
 	_rear_bar = ColorRect.new()
-	_combat_box.add_child(_weapon_slot("F", _front_icon, _front_label, _front_bar))
-	_combat_box.add_child(_weapon_slot("R", _rear_icon, _rear_label, _rear_bar))
+	_front_more = HyperTheme.label("", 12, HyperTheme.CREAM_DIM, 600)
+	_rear_more = HyperTheme.label("", 12, HyperTheme.CREAM_DIM, 600)
+	_combat_box.add_child(_weapon_slot("F", _front_icon, _front_label, _front_bar, _front_more))
+	_combat_box.add_child(_weapon_slot("R", _rear_icon, _rear_label, _rear_bar, _rear_more))
 	_combat_box.visible = false
 	_lock_label = HyperTheme.label("WEAPONS LOCKED", 15, Color("e0704f"), 700)
 	_lock_label.visible = false
@@ -383,14 +388,21 @@ static func weapons_text(on: bool) -> String:
 
 ## Player's weapons: icons + ammo + cooldown bars (0 = ready, 1 = just fired),
 ## and the DESTROYED countdown while wrecked.
+## front_types / rear_types: every type carried for the slot (weapon cycling,
+## CombatWorld.slot_types); the others are listed under the slot with the key
+## that cycles to them, an empty one marked EMPTY.
 func update_combat(enabled: bool, front: int, front_ammo: int, rear: int, rear_ammo: int, wreck_left: float,
-		front_cooldown: float = 0.0, rear_cooldown: float = 0.0) -> void:
+		front_cooldown: float = 0.0, rear_cooldown: float = 0.0, front_types: Array = [], rear_types: Array = []) -> void:
 	_combat_box.visible = enabled
 	_wreck_label.visible = enabled and wreck_left > 0.0 and not _results_up and not watching
 	if not enabled:
 		return
 	_set_slot(_front_icon, _front_label, _front_bar, front, front_ammo, front_cooldown)
 	_set_slot(_rear_icon, _rear_label, _rear_bar, rear, rear_ammo, rear_cooldown)
+	_front_more.text = carried_text(front_types, PlayerControls.CYCLE_FRONT)
+	_rear_more.text = carried_text(rear_types, PlayerControls.CYCLE_REAR)
+	_front_more.visible = _front_more.text != ""
+	_rear_more.visible = _rear_more.text != ""
 	_wreck_label.text = "DESTROYED  %.1f" % wreck_left
 
 
@@ -471,18 +483,42 @@ static func _first_frame(tex: Texture2D, frames: int) -> Texture2D:
 	return a
 
 
+## "Q: HOMING 4  SUPER EMPTY": the carried types other than the active one
+## (shop order) after the cycling key; "" when nothing else is carried.
+static func carried_text(types: Array, cycle_action: String) -> String:
+	var parts := PackedStringArray()
+	for t in types:
+		if not t[2]:
+			parts.append("%s %s" % [short_weapon_name(t[0]), "EMPTY" if t[1] <= 0 else str(t[1])])
+	if parts.is_empty():
+		return ""
+	var key := PlayerControls.key_text(cycle_action).get_slice(" / ", 0)
+	return "%s: %s" % [key, "  ".join(parts)]
+
+
+static func short_weapon_name(w: int) -> String:
+	match w:
+		WeaponRules.Weapon.FRONT_MISSILE: return "FRONT"
+		WeaponRules.Weapon.REAR_MISSILE: return "REAR"
+		WeaponRules.Weapon.HOMING_MISSILE: return "HOMING"
+		WeaponRules.Weapon.SUPER_MISSILE: return "SUPER"
+		WeaponRules.Weapon.MINE: return "MINES"
+	return "-"
+
+
 func _set_slot(icon: TextureRect, label: Label, bar: ColorRect, weapon: int, count: int, wait: float) -> void:
 	var none := weapon == WeaponRules.Weapon.NONE
 	icon.texture = null if none else _weapon_textures.get(weapon)
 	icon.flip_h = weapon == WeaponRules.Weapon.REAR_MISSILE
+	icon.modulate.a = 1.0 if count > 0 else 0.4
 	label.text = "-" if none else ("x INF" if count >= 999 else "x%d" % count)  # 999: unlimited (Battle Royale)
-	label.add_theme_color_override("font_color", HyperTheme.CREAM if count > 0 else HyperTheme.CREAM_DIM)
+	label.add_theme_color_override("font_color", HyperTheme.CREAM if count > 0 else Color("e0704f"))
 	var ready := wait <= 0.0 and count > 0
 	bar.size.x = 64.0 * (1.0 - clampf(wait, 0.0, 1.0)) if count > 0 else 0.0
 	bar.color = HyperTheme.GOLD if ready else HyperTheme.RED
 
 
-func _weapon_slot(tag: String, icon: TextureRect, label: Label, bar: ColorRect) -> Control:
+func _weapon_slot(tag: String, icon: TextureRect, label: Label, bar: ColorRect, more: Label) -> Control:
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 1)
 	var row := HBoxContainer.new()
@@ -497,6 +533,8 @@ func _weapon_slot(tag: String, icon: TextureRect, label: Label, bar: ColorRect) 
 	bar.size = Vector2(64, 5)
 	track.add_child(bar)
 	col.add_child(track)
+	more.visible = false
+	col.add_child(more)
 	return col
 
 

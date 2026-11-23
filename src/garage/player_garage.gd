@@ -20,6 +20,10 @@ var money := 0
 var stock: Dictionary = {}
 ## Equipped weapon type per slot: [front, rear] (W.NONE = empty slot).
 var equipped: Array[int] = [W.NONE, W.NONE]
+## Weapon cycling (2026-11-23): true = the car carries every owned weapon type
+## (the equipped one is active, the others are cycled to in the race); false =
+## only the equipped types (the simple single-weapon loadout).
+var carry_all := true
 ## Races paid so far, and what the last settled race paid.
 var races_settled := 0
 var last_position := 0
@@ -99,6 +103,27 @@ func equip(slot: int, w: int) -> bool:
 func race_loadout() -> Array:
 	return [equipped[FRONT], count(equipped[FRONT]) if equipped[FRONT] != W.NONE else 0,
 		equipped[REAR], count(equipped[REAR]) if equipped[REAR] != W.NONE else 0]
+
+
+## The other owned types the car carries per slot: [{type: rounds}, {type: rounds}]
+## (only types with rounds, never the equipped one; empty with carry_all off).
+func race_carried() -> Array:
+	var out: Array = [{}, {}]
+	if not carry_all:
+		return out
+	for w in WeaponRules.ALL_WEAPONS:
+		var slot := WeaponRules.slot_of(w)
+		if w != equipped[slot] and count(w) > 0:
+			out[slot][w] = count(w)
+	return out
+
+
+func set_carry_all(on: bool) -> bool:
+	if _race_pending:
+		return false
+	carry_all = on
+	save()
+	return true
 
 
 # ----------------------------------------------------- condition (M6)
@@ -193,18 +218,25 @@ func race_pending() -> bool:
 ## there was no race to settle (repeat calls change nothing).
 ## condition_left: the car's condition at the end (%; -1 keeps it unchanged).
 ## laps: the race length (longer races pay more, GarageRules.prize_for).
+## left_by_type: the rounds left of every type carried ({type: rounds}; weapon
+## cycling) - when given, it replaces front_left / rear_left.
 func settle_race(position: int, front_left: int, rear_left: int, condition_left: float = -1.0, laps: int = 3,
-		fine: int = 0) -> int:
+		fine: int = 0, left_by_type: Dictionary = {}) -> int:
 	if not _race_pending:
 		return -1
 	_race_pending = false
 	if condition_left >= 0.0:
 		condition = clampf(condition_left, 0.0, 100.0)
-	for slot in 2:
-		var w := equipped[slot]
-		if w != W.NONE:
-			var left := front_left if slot == FRONT else rear_left
-			stock[w] = clampi(left, 0, count(w))
+	if not left_by_type.is_empty():
+		for w in left_by_type:  # rounds are only ever used up, never gained
+			if stock.has(int(w)):
+				stock[int(w)] = clampi(int(left_by_type[w]), 0, count(int(w)))
+	else:
+		for slot in 2:
+			var w := equipped[slot]
+			if w != W.NONE:
+				var left := front_left if slot == FRONT else rear_left
+				stock[w] = clampi(left, 0, count(w))
 	last_position = position
 	last_prize = rules.prize_for(position, laps)
 	last_fine = fine
@@ -233,6 +265,7 @@ func save() -> void:
 		st[str(w)] = stock[w]
 	cfg.set_value("garage", "stock", st)
 	cfg.set_value("garage", "equipped", [equipped[0], equipped[1]])
+	cfg.set_value("garage", "carry_all", carry_all)
 	cfg.set_value("garage", "condition", condition)
 	cfg.set_value("garage", "armour", armour)
 	cfg.set_value("garage", "races", races_settled)
@@ -258,6 +291,7 @@ static func load_or_new(p_rules: GarageRules, path: String = "") -> PlayerGarage
 			var w := int(eq[slot])
 			if w == W.NONE or (g.stock.has(w) and WeaponRules.compatible(w, slot)):
 				g.equipped[slot] = w
+	g.carry_all = bool(cfg.get_value("garage", "carry_all", true))
 	g.condition = clampf(float(cfg.get_value("garage", "condition", 100.0)), 0.0, 100.0)
 	g.armour = clampi(int(cfg.get_value("garage", "armour", 0)), 0, p_rules.armour_names.size() - 1)
 	g.races_settled = maxi(0, int(cfg.get_value("garage", "races", 0)))
@@ -276,6 +310,7 @@ func reset() -> void:
 	money = fresh.money
 	stock = fresh.stock
 	equipped = fresh.equipped
+	carry_all = true
 	condition = 100.0
 	armour = 0
 	races_settled = 0

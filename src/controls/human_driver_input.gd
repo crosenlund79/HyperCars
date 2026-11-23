@@ -43,4 +43,6 @@ func weapons(race: Node, _step: float, _states: Array) -> Dictionary:
 		return out
 	out.front = Input.is_action_just_pressed(prefix + PlayerControls.FIRE_FRONT)
 	out.rear = Input.is_action_just_pressed(prefix + PlayerControls.FIRE_REAR)
+	out.cycle_front = Input.is_action_just_pressed(prefix + PlayerControls.CYCLE_FRONT)
+	out.cycle_rear = Input.is_action_just_pressed(prefix + PlayerControls.CYCLE_REAR)
 	return out

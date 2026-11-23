@@ -11,6 +11,9 @@ const FIRE := "fire"
 ## Joystick forward / backwards: front / rear weapon (M3).
 const FIRE_FRONT := "fire_front"
 const FIRE_REAR := "fire_rear"
+## Weapon cycling (2026-11-23): the next carried type for the front / rear slot.
+const CYCLE_FRONT := "cycle_front"
+const CYCLE_REAR := "cycle_rear"
 ## Spectator mode only: switch history view, toggle simulation speed, leave.
 const HISTORY_VIEW := "history_view"
 const SIM_SPEED := "sim_speed"
@@ -28,7 +31,7 @@ const KEYBOARD := -1
 ## button, so shooting can never dismiss a screen.
 const CONFIRM := "confirm"
 ## Per-player driving actions (prefix + name) for two-player races.
-const PLAYER_ACTIONS: Array[String] = [STEER_LEFT, STEER_RIGHT, FIRE, FIRE_FRONT, FIRE_REAR, BACK, HISTORY_VIEW, TOGGLE_STYLE, CONFIRM]
+const PLAYER_ACTIONS: Array[String] = [STEER_LEFT, STEER_RIGHT, FIRE, FIRE_FRONT, FIRE_REAR, CYCLE_FRONT, CYCLE_REAR, BACK, HISTORY_VIEW, TOGGLE_STYLE, CONFIRM]
 ## (Couch players share TOGGLE_PANEL / TOGGLE_LIGHTING / SIM_SPEED through the
 ## base actions: they are not per-player.)
 
@@ -126,6 +129,8 @@ static func ensure_actions() -> void:
 	_add(FIRE, [_key(KEY_SPACE), _key(KEY_CTRL), _joy_button(JOY_BUTTON_A)])
 	_add(FIRE_FRONT, [_key(KEY_UP), _key(KEY_W), _joy_button(JOY_BUTTON_DPAD_UP), _joy_axis(JOY_AXIS_LEFT_Y, -1.0)])
 	_add(FIRE_REAR, [_key(KEY_DOWN), _key(KEY_S), _joy_button(JOY_BUTTON_DPAD_DOWN), _joy_axis(JOY_AXIS_LEFT_Y, 1.0)])
+	_add(CYCLE_FRONT, [_key(KEY_Q), _joy_button(JOY_BUTTON_LEFT_SHOULDER)])
+	_add(CYCLE_REAR, [_key(KEY_E), _joy_axis(JOY_AXIS_TRIGGER_LEFT, 1.0)])
 	_add(HISTORY_VIEW, [_key(KEY_TAB), _joy_button(JOY_BUTTON_Y)])
 	_add(SIM_SPEED, [_key(KEY_F), _joy_button(JOY_BUTTON_X)])
 	_add(BACK, [_key(KEY_ESCAPE), _joy_button(JOY_BUTTON_B)])
@@ -162,7 +167,7 @@ static func key_text(action: String) -> String:
 ## text becomes the player's binding (key_text).
 static func fmt(text: String) -> String:
 	var out := text
-	for a in [STEER_LEFT, STEER_RIGHT, FIRE, FIRE_FRONT, FIRE_REAR, HISTORY_VIEW, SIM_SPEED, BACK, TOGGLE_PANEL,
+	for a in [STEER_LEFT, STEER_RIGHT, FIRE, FIRE_FRONT, FIRE_REAR, CYCLE_FRONT, CYCLE_REAR, HISTORY_VIEW, SIM_SPEED, BACK, TOGGLE_PANEL,
 			TOGGLE_LIGHTING, TOGGLE_STYLE, CONFIRM]:
 		out = out.replace("{%s}" % a, key_text(a))
 	return out

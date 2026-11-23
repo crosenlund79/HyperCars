@@ -22,6 +22,8 @@ const ACTIONS := [
 	[PlayerControls.FIRE, "Fire"],
 	[PlayerControls.FIRE_FRONT, "Front weapon"],
 	[PlayerControls.FIRE_REAR, "Rear weapon"],
+	[PlayerControls.CYCLE_FRONT, "Next front weapon"],
+	[PlayerControls.CYCLE_REAR, "Next rear weapon"],
 	[PlayerControls.CONFIRM, "Confirm (+ Enter)"],
 	[PlayerControls.BACK, "Back / race menu (+ Esc)"],
 	[PlayerControls.HISTORY_VIEW, "Skip / laps / history"],
@@ -179,6 +181,8 @@ static func load_saved() -> void:
 	if cfg.load(path) != OK:
 		return
 	for a in ACTIONS:
+		if not cfg.has_section_key("bindings", a[0]):
+			continue  # (an action this file does not know: its defaults stay)
 		var list = cfg.get_value("bindings", a[0], null)
 		if not (list is Array) or (list as Array).is_empty():
 			continue
@@ -192,6 +196,17 @@ static func load_saved() -> void:
 		InputMap.action_erase_events(a[0])
 		for e in parsed:
 			InputMap.action_add_event(a[0], e)
+	# An action the saved layout does not know yet (added in a later version,
+	# e.g. weapon cycling) keeps its defaults, minus any input the saved layout
+	# already uses for another action: existing layouts keep working unchanged.
+	for a in ACTIONS:
+		if cfg.has_section_key("bindings", a[0]):
+			continue
+		for e in InputMap.action_get_events(a[0]):
+			for other in ACTIONS:
+				if other[0] != a[0] and InputMap.event_is_action(e, other[0], true):
+					InputMap.action_erase_event(a[0], e)
+					break
 	for code in RESERVED:
 		if not _has(RESERVED[code], PlayerControls._key(code)):
 			InputMap.action_add_event(RESERVED[code], PlayerControls._key(code))

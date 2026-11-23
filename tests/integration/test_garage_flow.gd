@@ -24,7 +24,8 @@ func after_each() -> void:
 	Engine.physics_ticks_per_second = 60
 	Engine.time_scale = 1.0
 	Engine.max_physics_steps_per_frame = 8
-	for a in [PlayerControls.FIRE, PlayerControls.FIRE_FRONT, PlayerControls.FIRE_REAR, PlayerControls.HISTORY_VIEW]:
+	for a in [PlayerControls.FIRE, PlayerControls.FIRE_FRONT, PlayerControls.FIRE_REAR, PlayerControls.HISTORY_VIEW,
+			PlayerControls.CYCLE_FRONT, PlayerControls.CYCLE_REAR]:
 		Input.action_release(a)
 
 
@@ -205,3 +206,45 @@ func test_new_garage_needs_confirmation() -> void:
 	game.title._open_setup("quick")
 	assert_false(game.title._garage_button.visible, "only for garage races")
 	game.title.stop_audio()
+
+
+## Weapon cycling in a real garage race: the player carries every owned type,
+## cycles with the remappable key, fires the new type, and the garage keeps
+## exactly the rounds left of each type afterwards.
+func test_cycling_in_a_garage_race_and_settling_every_type() -> void:
+	var g := _new_garage()
+	g.buy(W.HOMING_MISSILE, 2)
+	await _make(g)
+	_main.set_weapons_enabled(true)
+	await _tap(PlayerControls.FIRE)
+	assert_eq(_main.combat.slot_types(0, CombatWorld.FRONT), [[W.FRONT_MISSILE, 5, true], [W.HOMING_MISSILE, 2, false]])
+	await _tap(PlayerControls.CYCLE_FRONT)
+	assert_eq(_main.combat.weapon_of(0, CombatWorld.FRONT), W.HOMING_MISSILE, "the cycle key switched the front slot")
+	assert_string_contains(_main.hud._front_more.text, "FRONT 5", "the HUD lists the other carried type")
+	await _tap(PlayerControls.FIRE_FRONT)
+	assert_eq(_main.combat.ammo[0][0], 1, "a homing missile fired")
+	await _finish_player()
+	assert_eq(g.count(W.HOMING_MISSILE), 1)
+	assert_eq(g.count(W.FRONT_MISSILE), 5, "the unused type keeps its rounds")
+	assert_eq(g.equipped[PlayerGarage.FRONT], W.FRONT_MISSILE, "the equipped choice stays the garage's")
+
+
+func test_equipped_only_keeps_the_single_weapon_loadout() -> void:
+	var g := _new_garage()
+	g.buy(W.HOMING_MISSILE, 2)
+	g.set_carry_all(false)
+	await _make(g)
+	_main.set_weapons_enabled(true)
+	await _tap(PlayerControls.FIRE)
+	await _tap(PlayerControls.CYCLE_FRONT)
+	assert_eq(_main.combat.weapon_of(0, CombatWorld.FRONT), W.FRONT_MISSILE, "nothing else carried")
+	assert_false(_main.hud._front_more.visible)
+
+
+func test_quick_races_carry_the_standard_loadout_only() -> void:
+	await _make(null)
+	_main.set_weapons_enabled(true)
+	await _tap(PlayerControls.FIRE)
+	await _tap(PlayerControls.CYCLE_FRONT)
+	assert_eq(_main.combat.carried[0], [{}, {}])
+	assert_eq(_main.combat.weapon_of(0, CombatWorld.FRONT), W.FRONT_MISSILE)
