@@ -70,6 +70,7 @@ None of these blocks a normal session or the career.
 |---|---|---|---|
 | A1 | At an elevation-zone end (bridge circuits), two cars on the same branch can pass through each other for a few frames (J1 design limit). | A rare visual pass-through. | Not fixed: a fix changes collision layering and therefore the deterministic simulation fingerprints. Better as its own small, approved task with fingerprint review. |
 | A2 | A client's car bumps arrive as host corrections: slightly late or snappy, with a few hard snaps per race at 80–120 ms. | Feel only, online. | The prediction design (M5.2). Needs real two-PC play to judge. |
+| A3 | Test only: `test_net_lan_race` "armed jump race at 170 ms" fails now and then under full-suite load. On 2026-11-23 the client counted one take-off fewer for its own predicted car than the host. | None found in the game: classification, DNFs, condition and ammunition come from reliable messages. | Passes re-run alone (2 / 2). Its jump tolerance assumes the client never counts fewer take-offs than the host; whether that assumption or the prediction should change is for the network cleanup. |
 
 **Fixed in this assignment:**
 - Network clients now see the culprit of a collision retirement in the kill feed and
@@ -233,4 +234,3 @@ Career-specific tests:
 | Title backdrop showed the own car when a won car was chosen | Now the chosen car (CarArt). | `test_title_backdrop.gd` |
 | Couch pit-ticket banner on the shared screen | Now in the offender's own view. | `test_stabilization_ui.gd` |
 | Achievement toasts over the championship standings | Toasts wait while the standings are up. | `test_stabilization_ui.gd` |
-| A3 | Test only: `test_net_lan_race` "armed jump race at 170 ms" fails now and then under full-suite load. On 2026-11-23 the client counted one take-off fewer for its own predicted car than the host. | None found in the game: classification, DNFs, condition and ammunition come from reliable messages. | Passes re-run alone (2 / 2). Its jump tolerance assumes the client never counts fewer take-offs than the host; whether that assumption or the prediction should change is for the network cleanup. |
