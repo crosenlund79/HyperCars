@@ -260,7 +260,15 @@ func start_race(choice: int, with_garage: bool = false, devices: Array[int] = []
 
 
 func _open_garage() -> void:
+	_show_garage_car(race.player_car if race != null else CarCollection.OWN_CAR)
 	garage_screen.open()
+
+
+## The garage's centrepiece: the car being prepared, as it races (CarArt).
+func _show_garage_car(car: int) -> void:
+	var owned := car > 0 and cars.owns(car)
+	garage_screen.set_car(CarArt.icon(resolver, AssetCatalog.ai_car(car) if owned else AssetCatalog.CAR_PLAYER),
+		("%s'S CAR" % RivalRoster.short_name(car).to_upper()) if owned else "YOUR OWN CAR")
 	music.play("music/music_menu")
 
 
@@ -607,6 +615,7 @@ func _open_career_garage() -> void:
 	career_screen.close()
 	_career_garage_open = true
 	garage_screen.set_garage(career_garage)
+	_show_garage_car(career.player_car if career.in_championship() else _career_car_choice())
 	garage_screen.open()
 
 

@@ -90,20 +90,14 @@ func build(resolver: AssetResolver, theme: TrackTheme) -> void:
 		s.position = t.centre
 		add_child(s)
 	var stand := resolver.get_texture(AssetCatalog.GRANDSTAND)
-	for x in [-560.0, 0.0, 560.0]:
-		for y in [-1010.0, 1010.0]:
-			var g := Sprite2D.new()
-			g.texture = stand
-			g.scale = AssetCatalog.scale_for(stand, AssetCatalog.SPECS[AssetCatalog.GRANDSTAND].display_size)
-			g.position = Vector2(x, y)
-			g.rotation = 0.0 if y < 0.0 else PI
-			add_child(g)
-	for spot in [[Vector2(-1060, -665), Vector2(-1, -1)], [Vector2(1060, -665), Vector2(1, -1)],
-			[Vector2(-1060, 665), Vector2(-1, 1)], [Vector2(1060, 665), Vector2(1, 1)],
-			[Vector2(0, -838), Vector2(0, -1)], [Vector2(0, 838), Vector2(0, 1)],
-			[Vector2(-560, -838), Vector2(0, -1)], [Vector2(560, -838), Vector2(0, -1)],
-			[Vector2(-560, 838), Vector2(0, 1)], [Vector2(560, 838), Vector2(0, 1)],
-			[Vector2(-1238, 0), Vector2(-1, 0)], [Vector2(1238, 0), Vector2(1, 0)]]:  # on the wall, lighting the yard
+	for at in layout.stands:  # (shared with the setup screen's preview)
+		var g := Sprite2D.new()
+		g.texture = stand
+		g.scale = AssetCatalog.scale_for(stand, AssetCatalog.SPECS[AssetCatalog.GRANDSTAND].display_size)
+		g.position = at
+		g.rotation = 0.0 if at.y < 0.0 else PI
+		add_child(g)
+	for spot in layout.lamps:  # on the wall, lighting the yard
 		lamp_spots.append([spot[0], (spot[1] as Vector2).normalized()])
 
 

@@ -5,6 +5,10 @@ extends CanvasLayer
 ## grid panel). Shows money, prices, owned rounds and the last race's prize.
 ## M6: the car row shows its condition, repair prices and armour.
 ## All rules live in PlayerGarage; this screen only calls it and redraws.
+## 2026-11-23: the car being prepared is the centrepiece (the same CarArt
+## picture as everywhere: own car, a won rival car, user artwork, Artwork
+## Mode), standing in a spotlight with a gentle sway; buying, selling and
+## repairing answer with a pulse and the money changing hands.
 
 signal race_requested
 signal closed
@@ -31,6 +35,10 @@ var _armour_label: Label
 var _armour_button: Button
 var _car_note: Label
 var _sfx: AudioStreamPlayer
+var _showcase: Control
+var _car_rect: TextureRect
+var _car_name: Label
+var _time := 0.0
 
 
 func setup(p_garage: PlayerGarage, resolver: AssetResolver) -> void:
@@ -52,6 +60,23 @@ func setup(p_garage: PlayerGarage, resolver: AssetResolver) -> void:
 	var title := HyperTheme.label("GARAGE", 60, HyperTheme.GOLD, 700)
 	title.position = Vector2(40, 90)
 	_root.add_child(title)
+	# the car being prepared, centre stage in a spotlight
+	_showcase = Control.new()
+	_showcase.position = Vector2(300, 6)
+	_showcase.size = Vector2(440, 190)
+	_showcase.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_showcase.draw.connect(_draw_spotlight)
+	_root.add_child(_showcase)
+	_car_rect = TextureRect.new()
+	_car_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_car_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_car_rect.size = Vector2(300, 150)
+	_car_rect.position = Vector2(70, 14)
+	_car_rect.pivot_offset = _car_rect.size * 0.5
+	_showcase.add_child(_car_rect)
+	_car_name = HyperTheme.label("", 18, HyperTheme.CREAM, 700)
+	_car_name.position = Vector2(42, 156)
+	_root.add_child(_car_name)
 	_money = HyperTheme.label("", 44, HyperTheme.CREAM, 700)
 	_money.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_money.size = Vector2(500, 60)
@@ -127,7 +152,57 @@ func set_garage(g: PlayerGarage) -> void:
 func open() -> void:
 	visible = true
 	refresh()
+	HyperTheme.reveal(_root)
 	_race_button.grab_focus()
+
+
+## The car being prepared (its CarArt picture) and its name.
+func set_car(texture: Texture2D, car_name: String) -> void:
+	_car_rect.texture = texture
+	_car_name.text = car_name
+
+
+func car_texture() -> Texture2D:
+	return _car_rect.texture
+
+
+func _draw_spotlight() -> void:
+	var c := Vector2(220, 150)
+	_showcase.draw_set_transform(c, 0.0, Vector2(1.0, 0.28))
+	_showcase.draw_circle(Vector2.ZERO, 200.0, Color(1.0, 0.86, 0.55, 0.10))
+	_showcase.draw_circle(Vector2.ZERO, 150.0, Color(1.0, 0.86, 0.55, 0.14))
+	_showcase.draw_circle(Vector2.ZERO, 110.0, Color(0.0, 0.0, 0.0, 0.25))  # the car's shadow
+	_showcase.draw_set_transform(Vector2.ZERO)
+
+
+func _process(delta: float) -> void:
+	if not visible or _car_rect == null:
+		return
+	_time += delta
+	_car_rect.rotation = sin(_time * 0.7) * 0.025  # a gentle sway on the stand
+	_car_rect.position.y = 14.0 + sin(_time * 1.4) * 1.5
+
+
+## A short pulse on a control (a card, the money, the car row).
+func _pulse(node: Control) -> void:
+	node.pivot_offset = node.size * 0.5
+	var tw := create_tween()
+	tw.tween_property(node, "scale", Vector2(1.05, 1.05), 0.08)
+	tw.tween_property(node, "scale", Vector2.ONE, 0.16)
+
+
+## The money changing hands: a small "-$40" / "+$20" rising from the total.
+func _float_money(amount: int) -> void:
+	if amount == 0:
+		return
+	var l := HyperTheme.label(("-$%d" if amount < 0 else "+$%d") % absi(amount), 30,
+		Color("ff8a6a") if amount < 0 else Color("9ad27a"), 700)
+	l.position = _money.position + Vector2(_money.size.x - 130, 40)
+	_root.add_child(l)
+	var tw := create_tween().set_parallel(true)
+	tw.tween_property(l, "position:y", l.position.y - 46, 0.7)
+	tw.tween_property(l, "modulate:a", 0.0, 0.7).set_delay(0.2)
+	tw.chain().tween_callback(l.queue_free)
 
 
 func close() -> void:
@@ -190,15 +265,23 @@ func _car_row() -> Control:
 	box.add_child(_cond_label)
 	_repair_all = _small_button("REPAIR ALL")
 	_repair_all.pressed.connect(func() -> void:
+		var before := garage.money
 		var ok := garage.repair_affordable() > 0.0
 		_play("ui/shop_buy" if ok else "ui/ui_back")
-		refresh())
+		refresh()
+		if ok:
+			_pulse(panel)
+			_float_money(garage.money - before))
 	box.add_child(_repair_all)
 	_repair_some = _small_button("+10 %")
 	_repair_some.pressed.connect(func() -> void:
+		var before := garage.money
 		var ok := garage.repair(10.0)
 		_play("ui/shop_buy" if ok else "ui/ui_back")
-		refresh())
+		refresh()
+		if ok:
+			_pulse(panel)
+			_float_money(garage.money - before))
 	box.add_child(_repair_some)
 	_armour_label = HyperTheme.label("", 19, HyperTheme.CREAM, 600)
 	_armour_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -206,9 +289,13 @@ func _car_row() -> Control:
 	box.add_child(_armour_label)
 	_armour_button = _small_button("UPGRADE")
 	_armour_button.pressed.connect(func() -> void:
+		var before := garage.money
 		var ok := garage.buy_armour()
 		_play("ui/shop_buy" if ok else "ui/ui_back")
-		refresh())
+		refresh()
+		if ok:
+			_pulse(panel)
+			_float_money(garage.money - before))
 	box.add_child(_armour_button)
 	return panel
 
@@ -291,9 +378,14 @@ func _card(w: int) -> Control:
 
 
 func _trade(w: int, buying: bool) -> void:
+	var before := garage.money
 	var ok := garage.buy(w) if buying else garage.sell(w)
 	_play(("ui/shop_buy" if buying else "ui/shop_sell") if ok else "ui/ui_back")
 	refresh()
+	if ok:
+		_pulse(_cards[w].panel)
+		_pulse(_money)
+		_float_money(garage.money - before)
 
 
 func _small_button(text: String) -> Button:

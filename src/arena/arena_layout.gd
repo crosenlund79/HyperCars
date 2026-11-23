@@ -17,6 +17,17 @@ var polygons: Array = []
 var posts: Array = []
 ## Where the ten cars start (facing the middle).
 var spawns: Array[Transform2D] = []
+## Presentation geometry (shared by the arena and its setup-screen preview):
+## grandstands outside the long walls (centre; facing the yard), and lamp
+## spots on the walls ([position, outward direction]).
+var stands: Array[Vector2] = [Vector2(-560, -1010), Vector2(0, -1010), Vector2(560, -1010),
+	Vector2(-560, 1010), Vector2(0, 1010), Vector2(560, 1010)]
+var lamps: Array = [[Vector2(-1060, -665), Vector2(-1, -1)], [Vector2(1060, -665), Vector2(1, -1)],
+	[Vector2(-1060, 665), Vector2(-1, 1)], [Vector2(1060, 665), Vector2(1, 1)],
+	[Vector2(0, -838), Vector2(0, -1)], [Vector2(0, 838), Vector2(0, 1)],
+	[Vector2(-560, -838), Vector2(0, -1)], [Vector2(560, -838), Vector2(0, -1)],
+	[Vector2(-560, 838), Vector2(0, 1)], [Vector2(560, 838), Vector2(0, 1)],
+	[Vector2(-1238, 0), Vector2(-1, 0)], [Vector2(1238, 0), Vector2(1, 0)]]
 
 
 func _init() -> void:

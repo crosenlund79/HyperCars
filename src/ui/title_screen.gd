@@ -412,7 +412,7 @@ func _refresh_preview() -> void:
 	if _preview == null:
 		return
 	_setup_note.remove_theme_color_override("font_color")
-	_preview.visible = setup_mode != "battle"
+	_preview.visible = true  # (Battle Royale: the Scrapyard diorama)
 	if setup_mode == "championship" and championship != null:
 		var sched := championship.with_length(championship_rounds)
 		var r := sched.get_round(0)
@@ -424,6 +424,7 @@ func _refresh_preview() -> void:
 			_setup_note.add_theme_color_override("font_color", Color("ff8a6a"))
 		return
 	if setup_mode == "battle":
+		_preview.show_arena(ArenaLayout.new(), track_variant, night)
 		_setup_note.text = "THE SCRAPYARD  -  %s, %s\nTen cars, one arena, no respawns: the last car standing wins.\nUnlimited missiles and mines on cooldowns (no homing or super missiles).\nAfter a while the safe zone shrinks." % [
 			TrackTheme.load_variant(track_variant).display_name, "night" if night else "day"]
 		return

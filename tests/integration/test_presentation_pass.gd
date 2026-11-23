@@ -73,3 +73,31 @@ func test_race_introduction_and_pause_menu_name_the_race() -> void:
 	assert_string_contains(m.race_menu._context.text, "NIGHT")
 	assert_eq(m.race_menu._resume.custom_minimum_size.y, 58.0, "RESUME is the main menu's primary button")
 	m.resume_race()
+
+
+func test_garage_centrepiece_is_the_car_being_prepared() -> void:
+	var game: Node = load("res://src/main/game.tscn").instantiate()
+	game.cars_path = "user://test_run/pres_cars_%d.cfg" % randi()
+	game.career_path = "user://test_run/pres_career_%d.cfg" % randi()
+	game.career_garage_path = "user://test_run/pres_cgarage_%d.cfg" % randi()
+	game.greetings_enabled = false
+	add_child_autofree(game)
+	await wait_physics_frames(3)
+	game._show_garage_car(0)
+	assert_eq(game.garage_screen.car_texture(), CarArt.icon(game.resolver, AssetCatalog.CAR_PLAYER), "the own car, as it races")
+	game.cars.owned.append(4)
+	game._show_garage_car(4)
+	assert_eq(game.garage_screen.car_texture(), CarArt.icon(game.resolver, AssetCatalog.ai_car(4)), "Hank's car in its own colours")
+	assert_eq(game.garage_screen._car_name.text, "HANK'S CAR")
+	game.cars.owned.erase(4)
+	game._show_garage_car(4)
+	assert_eq(game.garage_screen._car_name.text, "YOUR OWN CAR", "a car no longer owned is never shown")
+	# feedback: buying pulses and shows the money changing hands; the rules are the garage's
+	var g: PlayerGarage = game.garage_screen.garage
+	var money := g.money
+	game.garage_screen.open()
+	game.garage_screen._trade(WeaponRules.Weapon.MINE, true)
+	assert_eq(g.money, money - g.rules.price(WeaponRules.Weapon.MINE), "price unchanged")
+	await wait_process_frames(2)
+	assert_true(game.garage_screen._root.get_children().any(func(n: Node) -> bool: return n is Label and n.text == "-$%d" % g.rules.price(WeaponRules.Weapon.MINE)))
+	game.garage_screen.close()
