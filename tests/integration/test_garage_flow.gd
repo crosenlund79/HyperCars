@@ -248,3 +248,34 @@ func test_quick_races_carry_the_standard_loadout_only() -> void:
 	await _tap(PlayerControls.CYCLE_FRONT)
 	assert_eq(_main.combat.carried[0], [{}, {}])
 	assert_eq(_main.combat.weapon_of(0, CombatWorld.FRONT), W.FRONT_MISSILE)
+
+
+## Vehicle upgrades in the race: only the garage player's car, on top of the
+## environment's handling; rivals, quick races and spectating stay stock; a
+## purchase between races is raced with at once.
+func test_upgrades_drive_the_garage_players_car_only() -> void:
+	var g := _new_garage()
+	g.money = 5000
+	g.buy_upgrade("engine")
+	g.buy_upgrade("steering")
+	await _make(g)
+	var base: DrivingParams = _main.driving_params
+	var mine: DrivingParams = _main.cars[0].model.params
+	assert_almost_eq(mine.acceleration, base.acceleration * 1.04, 0.001)
+	assert_almost_eq(mine.turn_rate_degrees, base.turn_rate_degrees * 1.03, 0.001)
+	for id in range(1, _main.cars.size()):
+		assert_same(_main.cars[id].model.params, base, "rival %d: stock" % id)
+	await _tap(PlayerControls.FIRE)
+	await _finish_player()
+	await _tap(PlayerControls.CONFIRM)  # to the garage
+	assert_true(_main.garage_open)
+	g.buy_upgrade("brakes")
+	_main.close_garage(false)
+	assert_almost_eq(_main.cars[0].model.params.brake_deceleration, base.brake_deceleration * 1.08, 0.001, "raced at once")
+	_main.set_menu_choice(_main.Choice.SPECTATE)
+	assert_same(_main.cars[0].model.params, base, "spectating: stock")
+
+
+func test_quick_races_are_stock() -> void:
+	await _make(null)
+	assert_same(_main.cars[0].model.params, _main.driving_params)

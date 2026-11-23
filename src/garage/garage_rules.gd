@@ -44,6 +44,70 @@ const W := WeaponRules.Weapon
 @export var armour_price: PackedInt32Array = PackedInt32Array([0, 250, 400])
 
 
+## Vehicle upgrades (2026-11-23): three paid tiers above stock per part,
+## bought once and kept (the garage's own car setup: whichever car the
+## player drives). Each tier is a small, explicit multiplier on the stock
+## handling (the environment's handling first, then the upgrade); stock (0)
+## changes nothing. Rivals are never upgraded. PROVISIONAL numbers.
+const UPGRADES: Array[String] = ["engine", "brakes", "chassis", "steering"]
+## Price of tiers 1, 2 and 3 of each part.
+@export var upgrade_prices: Dictionary = {"engine": [300, 550, 900], "brakes": [200, 380, 650],
+	"chassis": [220, 420, 700], "steering": [200, 380, 650]}
+## Engine: acceleration and top speed (+ fraction at tiers 0..3).
+@export var engine_acceleration: PackedFloat32Array = PackedFloat32Array([0.0, 0.04, 0.08, 0.12])
+@export var engine_top_speed: PackedFloat32Array = PackedFloat32Array([0.0, 0.015, 0.03, 0.045])
+## Brakes: braking with Fire held (Fire to Brake) and off the throttle (Fire to Accelerate).
+@export var brakes_deceleration: PackedFloat32Array = PackedFloat32Array([0.0, 0.08, 0.16, 0.24])
+## Chassis: grip, i.e. resistance to sliding sideways (not armour).
+@export var chassis_grip: PackedFloat32Array = PackedFloat32Array([0.0, 0.05, 0.10, 0.15])
+## Steering: turning rate.
+@export var steering_turn_rate: PackedFloat32Array = PackedFloat32Array([0.0, 0.03, 0.06, 0.09])
+
+
+func max_upgrade() -> int:
+	return 3
+
+
+## Price of the next tier above `level` (0 when the best is fitted).
+func upgrade_price(kind: String, level: int) -> int:
+	var prices: Array = upgrade_prices.get(kind, [])
+	return int(prices[level]) if level >= 0 and level < mini(prices.size(), max_upgrade()) else 0
+
+
+## The stock handling `base` with these upgrade levels fitted ({kind: level});
+## base itself when everything is stock.
+func upgraded(base: DrivingParams, levels: Dictionary) -> DrivingParams:
+	var e := clampi(int(levels.get("engine", 0)), 0, max_upgrade())
+	var b := clampi(int(levels.get("brakes", 0)), 0, max_upgrade())
+	var c := clampi(int(levels.get("chassis", 0)), 0, max_upgrade())
+	var s := clampi(int(levels.get("steering", 0)), 0, max_upgrade())
+	if e + b + c + s == 0:
+		return base
+	var p := base.duplicate() as DrivingParams
+	p.acceleration = base.acceleration * (1.0 + engine_acceleration[e])
+	p.max_speed = base.max_speed * (1.0 + engine_top_speed[e])
+	p.brake_deceleration = base.brake_deceleration * (1.0 + brakes_deceleration[b])
+	p.release_deceleration = base.release_deceleration * (1.0 + brakes_deceleration[b])
+	p.grip = base.grip * (1.0 + chassis_grip[c])
+	p.turn_rate_degrees = base.turn_rate_degrees * (1.0 + steering_turn_rate[s])
+	return p
+
+
+## One line on what a tier of a part does ("+8 % acceleration, +3 % top speed").
+func upgrade_effect(kind: String, level: int) -> String:
+	level = clampi(level, 0, max_upgrade())
+	match kind:
+		"engine": return "+%d %% acceleration, +%.1f %% top speed" % [roundi(engine_acceleration[level] * 100.0), engine_top_speed[level] * 100.0]
+		"brakes": return "+%d %% braking" % roundi(brakes_deceleration[level] * 100.0)
+		"chassis": return "+%d %% grip (less sliding)" % roundi(chassis_grip[level] * 100.0)
+		"steering": return "+%d %% turning" % roundi(steering_turn_rate[level] * 100.0)
+	return ""
+
+
+static func upgrade_title(kind: String) -> String:
+	return kind.to_upper()
+
+
 func price(w: int) -> int:
 	match w:
 		W.FRONT_MISSILE: return price_front_missile

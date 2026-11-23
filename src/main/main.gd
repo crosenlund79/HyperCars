@@ -764,6 +764,7 @@ func reset_race() -> void:
 	combat.enabled = weapons_enabled
 	combat.style = combat_style
 	_apply_loadouts()
+	_apply_upgrades()
 	_reset_damage()
 	_clear_wreck_passes()
 	_restart_timer = -1.0
@@ -825,6 +826,16 @@ func _apply_loadouts() -> void:
 		if not (garage_player and id == RaceSession.PLAYER_ID):
 			ids.append(id)
 	combat.scale_ammo(weapon_rules.ammo_scale(session.lap_count()), ids)
+
+
+## Vehicle upgrades: the garage player's car races with the garage's upgrades
+## on top of the environment's handling; every other car (and a spectated
+## race) with the stock handling. Rivals are never upgraded.
+func _apply_upgrades() -> void:
+	var me := cars[RaceSession.PLAYER_ID]
+	if me.model == null:
+		return
+	me.model.params = garage.driving(driving_params) if garage != null and not session.spectator else driving_params
 
 
 ## M6: every car starts at full condition without armour, except the player's

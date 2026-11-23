@@ -24,6 +24,10 @@ var equipped: Array[int] = [W.NONE, W.NONE]
 ## (the equipped one is active, the others are cycled to in the race); false =
 ## only the equipped types (the simple single-weapon loadout).
 var carry_all := true
+## Vehicle upgrades (2026-11-23): tier per part (0 = stock .. 3), bought
+## once, kept between races and saved; the garage's car setup (whichever car
+## the player drives).
+var upgrades: Dictionary = {"engine": 0, "brakes": 0, "chassis": 0, "steering": 0}
 ## Races paid so far, and what the last settled race paid.
 var races_settled := 0
 var last_position := 0
@@ -124,6 +128,36 @@ func set_carry_all(on: bool) -> bool:
 	carry_all = on
 	save()
 	return true
+
+
+# ----------------------------------------------------- upgrades
+
+func upgrade_level(kind: String) -> int:
+	return int(upgrades.get(kind, 0))
+
+
+func next_upgrade_price(kind: String) -> int:
+	return rules.upgrade_price(kind, upgrade_level(kind))
+
+
+func can_buy_upgrade(kind: String) -> bool:
+	return not _race_pending and upgrades.has(kind) and upgrade_level(kind) < rules.max_upgrade() \
+		and next_upgrade_price(kind) > 0 and money >= next_upgrade_price(kind)
+
+
+## Buys the next tier of a part: paid once, capped at the best tier.
+func buy_upgrade(kind: String) -> bool:
+	if not can_buy_upgrade(kind):
+		return false
+	money -= next_upgrade_price(kind)
+	upgrades[kind] = upgrade_level(kind) + 1
+	save()
+	return true
+
+
+## The handling this garage's car races with (stock handling `base` + upgrades).
+func driving(base: DrivingParams) -> DrivingParams:
+	return rules.upgraded(base, upgrades)
 
 
 # ----------------------------------------------------- condition (M6)
@@ -266,6 +300,7 @@ func save() -> void:
 	cfg.set_value("garage", "stock", st)
 	cfg.set_value("garage", "equipped", [equipped[0], equipped[1]])
 	cfg.set_value("garage", "carry_all", carry_all)
+	cfg.set_value("garage", "upgrades", upgrades.duplicate())
 	cfg.set_value("garage", "condition", condition)
 	cfg.set_value("garage", "armour", armour)
 	cfg.set_value("garage", "races", races_settled)
@@ -292,6 +327,10 @@ static func load_or_new(p_rules: GarageRules, path: String = "") -> PlayerGarage
 			if w == W.NONE or (g.stock.has(w) and WeaponRules.compatible(w, slot)):
 				g.equipped[slot] = w
 	g.carry_all = bool(cfg.get_value("garage", "carry_all", true))
+	var up = cfg.get_value("garage", "upgrades", {})  # (older saves: stock)
+	if up is Dictionary:
+		for kind in g.upgrades:
+			g.upgrades[kind] = clampi(int(up.get(kind, 0)), 0, p_rules.max_upgrade())
 	g.condition = clampf(float(cfg.get_value("garage", "condition", 100.0)), 0.0, 100.0)
 	g.armour = clampi(int(cfg.get_value("garage", "armour", 0)), 0, p_rules.armour_names.size() - 1)
 	g.races_settled = maxi(0, int(cfg.get_value("garage", "races", 0)))
@@ -311,6 +350,7 @@ func reset() -> void:
 	stock = fresh.stock
 	equipped = fresh.equipped
 	carry_all = true
+	upgrades = fresh.upgrades
 	condition = 100.0
 	armour = 0
 	races_settled = 0

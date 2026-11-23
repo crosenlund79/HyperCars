@@ -29,6 +29,11 @@ var _race_button: Button
 var _hint: Label
 ## Weapon cycling: carry every owned type, or the equipped ones only.
 var _carry_button: Button
+## Vehicle upgrades: the part cards (shown instead of the weapon cards) and the toggle.
+var _weapons_row: HBoxContainer
+var _upgrades_row: HBoxContainer
+var _view_button: Button
+var _upgrade_cards: Dictionary = {}
 var _cards: Dictionary = {}
 var _cond_bar: ColorRect
 var _cond_label: Label
@@ -95,8 +100,16 @@ func setup(p_garage: PlayerGarage, resolver: AssetResolver) -> void:
 	row.add_theme_constant_override("separation", 12)
 	row.position = Vector2(26, 196)
 	_root.add_child(row)
+	_weapons_row = row
 	for w in WeaponRules.ALL_WEAPONS:
 		row.add_child(_card(w))
+	_upgrades_row = HBoxContainer.new()
+	_upgrades_row.add_theme_constant_override("separation", 12)
+	_upgrades_row.position = Vector2(26, 196)
+	_upgrades_row.visible = false
+	_root.add_child(_upgrades_row)
+	for kind in GarageRules.UPGRADES:
+		_upgrades_row.add_child(_upgrade_card(kind))
 	_root.add_child(_car_row())  # (the footer below holds its hint line)
 
 	var footer := PanelContainer.new()
@@ -242,6 +255,7 @@ func refresh() -> void:
 			garage.last_prize, roundi(garage.last_condition_before + garage.last_patch), roundi(garage.condition)] \
 			+ ("   pit fine $%d" % garage.last_fine if garage.last_fine > 0 else "")
 	_refresh_car()
+	_refresh_upgrades()
 	var front := garage.equipped[PlayerGarage.FRONT]
 	var rear := garage.equipped[PlayerGarage.REAR]
 	var extra := garage.race_carried()
@@ -328,6 +342,12 @@ func _car_row() -> Control:
 			_pulse(panel)
 			_float_money(garage.money - before))
 	box.add_child(_armour_button)
+	_view_button = _small_button("UPGRADES")
+	_view_button.tooltip_text = "Engine, brakes, chassis and steering upgrades (or back to the weapons)."
+	_view_button.pressed.connect(func() -> void:
+		_play("ui/ui_select")
+		show_upgrades(not showing_upgrades()))
+	box.add_child(_view_button)
 	return panel
 
 
@@ -406,6 +426,88 @@ func _card(w: int) -> Control:
 	box.add_child(equip)
 	_cards[w] = {"panel": panel, "owned": owned, "buy": buy, "sell": sell, "equip": equip}
 	return panel
+
+
+## Upgrades view (true) or the weapon cards (false).
+func show_upgrades(on: bool) -> void:
+	_upgrades_row.visible = on
+	_weapons_row.visible = not on
+	_view_button.text = "WEAPONS" if on else "UPGRADES"
+	if on:
+		HyperTheme.reveal(_upgrades_row)
+
+
+func showing_upgrades() -> bool:
+	return _upgrades_row.visible
+
+
+const UPGRADE_NOTES := {
+	"engine": "Pulls harder out of the corners, with a little more top speed.",
+	"brakes": "Stops sooner: with Fire held (Fire to Brake) and off the throttle (Fire to Accelerate).",
+	"chassis": "Holds the road: less sliding in fast corners. Not armour.",
+	"steering": "Turns in more quickly.",
+}
+
+
+func _upgrade_card(kind: String) -> Control:
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(284, 280)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 6)
+	panel.add_child(box)
+	var name := HyperTheme.label(GarageRules.upgrade_title(kind), 24, HyperTheme.GOLD, 700)
+	name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(name)
+	var tier := HyperTheme.label("", 30, HyperTheme.CREAM, 700)  # pips: the level at a glance
+	tier.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(tier)
+	var note := HyperTheme.label(UPGRADE_NOTES.get(kind, ""), 15, HyperTheme.CREAM_DIM, 600)
+	note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	note.custom_minimum_size = Vector2(256, 44)
+	box.add_child(note)
+	var now := HyperTheme.label("", 16, HyperTheme.CREAM, 600)
+	now.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	now.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(now)
+	var next := HyperTheme.label("", 16, Color("f0b48a"), 600)
+	next.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	next.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(next)
+	var buy := _small_button("BUY")
+	buy.custom_minimum_size = Vector2(230, 44)
+	buy.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	buy.size_flags_vertical = Control.SIZE_EXPAND | Control.SIZE_SHRINK_END
+	buy.pressed.connect(func() -> void:
+		var before := garage.money
+		var ok := garage.buy_upgrade(kind)
+		_play("ui/shop_buy" if ok else "ui/ui_back")
+		refresh()
+		if ok:
+			_pulse(panel)
+			_pulse(_money)
+			_float_money(garage.money - before))
+	box.add_child(buy)
+	_upgrade_cards[kind] = {"panel": panel, "tier": tier, "now": now, "next": next, "buy": buy}
+	return panel
+
+
+func _refresh_upgrades() -> void:
+	var top := garage.rules.max_upgrade()
+	for kind in _upgrade_cards:
+		var c: Dictionary = _upgrade_cards[kind]
+		var level := garage.upgrade_level(kind)
+		c.tier.text = "%s  %s" % ["●".repeat(level) + "○".repeat(top - level), "STOCK" if level == 0 else "TIER %d / %d" % [level, top]]
+		c.now.text = "Fitted: " + ("stock" if level == 0 else garage.rules.upgrade_effect(kind, level))
+		if level >= top:
+			c.next.text = "Best fitted"
+			c.buy.text = "MAXED"
+			c.buy.disabled = true
+		else:
+			c.next.text = "Tier %d: %s" % [level + 1, garage.rules.upgrade_effect(kind, level + 1)]
+			c.buy.text = "BUY TIER %d  $%d" % [level + 1, garage.next_upgrade_price(kind)]
+			c.buy.disabled = not garage.can_buy_upgrade(kind)
+		c.panel.self_modulate = Color(1.15, 1.05, 0.8) if level > 0 else Color.WHITE
 
 
 func _trade(w: int, buying: bool) -> void:
