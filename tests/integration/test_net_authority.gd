@@ -192,7 +192,17 @@ func test_final_results_carry_retirements_when_every_snapshot_is_lost() -> void:
 	await wait_physics_frames(10)
 	host_link.sim_loss = 1.0  # from here on no snapshot reaches the client
 	host.combat.ammo[healthy] = [1, 2]  # rounds spent after the last snapshot that arrived
-	for id in [6, RaceSession.PLAYER_2_ID, RaceSession.PLAYER_ID]:
+	# A rival not destroyed so far: retiring a fresh weapon wreck "by fiat" (no
+	# weapon, no culprit) cannot happen in a race, and the client would rightly
+	# read it as the weapon retirement (2026-11-23: the AI's new timing put a
+	# destruction of racer 6 just before this point).
+	var rival := 6
+	for id in [6, 7, 8, 9, 1, 2, 4, 5]:
+		if host.stats.deaths[id] == 0 and not host.combat.is_wrecked(id):
+			rival = id
+			break
+	var out := [rival, RaceSession.PLAYER_2_ID, RaceSession.PLAYER_ID]
+	for id in out:
 		host.damage.condition[id] = 0.0
 		host.damage.retired[id] = 1
 		host._retire(id)
@@ -206,7 +216,7 @@ func test_final_results_carry_retirements_when_every_snapshot_is_lost() -> void:
 		assert_eq(c.dnf, r.dnf, "DNF of racer %d" % r.id)
 		assert_eq(c.finish_position, r.finish_position, "position of racer %d" % r.id)
 		assert_eq(c.finish_time, r.finish_time, "time of racer %d" % r.id)
-	for id in [6, RaceSession.PLAYER_2_ID, RaceSession.PLAYER_ID]:
+	for id in out:
 		assert_true(client.session.racers[id].dnf, "racer %d retired on the client too" % id)
 		assert_eq(client.damage.condition[id], 0.0)
 		assert_eq(client.damage.retired[id], 1)
@@ -214,7 +224,7 @@ func test_final_results_carry_retirements_when_every_snapshot_is_lost() -> void:
 	for c in host.cars.size():
 		assert_eq(client.combat.ammo[c], host.combat.ammo[c], "final ammunition of car %d from the result" % c)
 	await wait_physics_frames(5)
-	for id in [6, RaceSession.PLAYER_2_ID, RaceSession.PLAYER_ID]:
+	for id in out:
 		assert_eq(client.stats.deaths[id], host.stats.deaths[id], "D of racer %d agrees (the retirement counts)" % id)
 	host_link.sim_loss = 0.0
 
