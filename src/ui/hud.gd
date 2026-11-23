@@ -255,6 +255,73 @@ func setup(resolver: AssetResolver) -> void:
 	_banner.pivot_offset = Vector2(640, 70)
 	_banner.modulate.a = 0.0
 	add_child(_banner)
+	_build_intro()
+
+
+# --------------------------------------------- race introduction (2026-11-23)
+# A short card at the bottom centre before the start: what this race is (round,
+# mode), where (circuit, environment, time, laps) and, in a championship, the
+# standings that matter. It never blocks input and fades a moment after GO!.
+
+var _intro: PanelContainer
+var _intro_lines: Array[Label] = []
+var _intro_tween: Tween
+
+
+func _build_intro() -> void:
+	_intro = PanelContainer.new()
+	_intro.theme = _theme
+	_intro.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 0)
+	_intro.add_child(box)
+	for spec in [[24, HyperTheme.GOLD, 700], [18, HyperTheme.CREAM, 600], [17, HyperTheme.CREAM_DIM, 600]]:
+		var l := HyperTheme.label("", spec[0], spec[1], spec[2])
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		l.custom_minimum_size = Vector2(700, 0)
+		box.add_child(l)
+		_intro_lines.append(l)
+	_intro.visible = false
+	add_child(_intro)
+
+
+## lines: [what, where, standings] ("" lines are left out).
+func show_intro(lines: PackedStringArray) -> void:
+	if _intro == null or _split_view:
+		return
+	for k in _intro_lines.size():
+		var t := lines[k] if k < lines.size() else ""
+		_intro_lines[k].text = t
+		_intro_lines[k].visible = t != ""
+	if _intro_tween != null and _intro_tween.is_valid():
+		_intro_tween.kill()
+	_intro.reset_size()
+	var size := _intro.get_combined_minimum_size()
+	_intro.position = Vector2((1280 - size.x) * 0.5, 700 - size.y - 52)
+	_intro.modulate.a = 0.0
+	_intro.visible = true
+	_intro_tween = create_tween()
+	_intro_tween.tween_property(_intro, "modulate:a", 1.0, 0.25)
+
+
+## Fades the introduction after `after` seconds (the race has started).
+func fade_intro(after: float = 2.5) -> void:
+	if _intro == null or not _intro.visible:
+		return
+	if _intro_tween != null and _intro_tween.is_valid():
+		_intro_tween.kill()
+	_intro_tween = create_tween()
+	_intro_tween.tween_interval(after)
+	_intro_tween.tween_property(_intro, "modulate:a", 0.0, 0.4)
+	_intro_tween.tween_callback(func() -> void: _intro.visible = false)
+
+
+func intro_text() -> String:
+	var parts := PackedStringArray()
+	for l in _intro_lines:
+		if l.visible:
+			parts.append(l.text)
+	return "\n".join(parts) if _intro != null and _intro.visible else ""
 
 
 ## Car icons and full names for the tower and results (keyed by racer id).
@@ -707,6 +774,15 @@ func show_results(standings: Array[RacerState], footer: String = "{confirm}: rac
 	var laps: int = standings[0].tracker.lap_count if not standings.is_empty() else 0
 	_message_box.add_child(_centered(HyperTheme.label(results_title if results_title != "" else
 		"RESULTS  -  %s" % Hud.laps_text(laps), 34, HyperTheme.GOLD, 700)))
+	# 2026-11-23: what the result means for this screen's player, in one line
+	# (a victory, a near miss, a podium, a DNF) - from the standings only
+	if _own_ids.size() <= 1:
+		var me := _own_ids[0] if _own_ids.size() == 1 else RaceSession.PLAYER_ID
+		var o := Hud.outcome(standings, me)
+		if not o.is_empty():
+			var line := _centered(HyperTheme.label(o.text, 26 if o.tone == "win" else 22, o.color, 700))
+			line.name = "Outcome"
+			_message_box.add_child(line)
 	# One row per car (same columns as before); the HUD's own human rows get a
 	# box in their identity colour, other humans their colour.
 	if stats != null:  # column heads above the rows (not a row itself)
@@ -900,6 +976,33 @@ func _fade_in_message() -> void:
 
 
 ## "1 LAP", "3 LAPS".
+## The result's meaning for one player, from the standings only:
+## {text, tone (win / close / podium / finish / dnf), color}; {} when that
+## player is not in the standings or still racing (results while watching).
+static func outcome(standings: Array[RacerState], id: int) -> Dictionary:
+	var pos := -1
+	for i in standings.size():
+		if standings[i].id == id:
+			pos = i + 1
+	if pos < 1:
+		return {}
+	var me := standings[pos - 1]
+	if me.dnf:
+		return {"text": "DNF  -  out of the race, no points or prize", "tone": "dnf", "color": Color("ff8a6a")}
+	if not me.is_finished():
+		return {}
+	if pos == 1:
+		return {"text": "VICTORY!", "tone": "win", "color": HyperTheme.GOLD}
+	var winner := standings[0]
+	if pos == 2 and winner.is_finished() and winner.finish_time >= 0.0 and me.finish_time >= 0.0 \
+			and me.finish_time - winner.finish_time < 1.0:
+		return {"text": "SO CLOSE  -  %.2f s behind the win" % (me.finish_time - winner.finish_time), "tone": "close",
+			"color": HyperTheme.CREAM}
+	if pos <= 3:
+		return {"text": "PODIUM  -  %s place" % ["", "first", "second", "third"][pos], "tone": "podium", "color": HyperTheme.CREAM}
+	return {"text": "FINISHED  -  P%d" % pos, "tone": "finish", "color": HyperTheme.CREAM_DIM}
+
+
 static func laps_text(laps: int) -> String:
 	return "1 LAP" if laps == 1 else "%d LAPS" % laps
 

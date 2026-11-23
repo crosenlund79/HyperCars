@@ -1,0 +1,75 @@
+extends GutTest
+## Presentation & Personality pass (2026-11-23): the results' outcome line,
+## the race introduction, the championship line from real points, the pause
+## menu's race identity - all read-only on the race (it stays bit-identical).
+
+const MAIN_SCENE := preload("res://src/main/main.tscn")
+const MAIN_SCRIPT := preload("res://src/main/main.gd")
+const P := RaceSession.PLAYER_ID
+
+
+func _racers(times: Array, dnf: Array = []) -> Array[RacerState]:
+	# racer i finishes in `times[i]` (< 0: still running)
+	var out: Array[RacerState] = []
+	for i in times.size():
+		var r := RacerState.new(i, "R%d" % i, i == 0, 4, 3)
+		if dnf.has(i):
+			r.dnf = true
+		elif times[i] >= 0.0:
+			r.finish_position = out.size() + 1
+			r.finish_time = times[i]
+		out.append(r)
+	return out
+
+
+func test_outcome_line_says_what_the_result_means() -> void:
+	var win := _racers([90.0, 91.0, 95.0])
+	assert_eq(Hud.outcome(win, 0).tone, "win")
+	var close: Array[RacerState] = _racers([90.4, 90.0, 95.0])
+	close.sort_custom(func(a: RacerState, b: RacerState) -> bool: return a.finish_time < b.finish_time)
+	var o := Hud.outcome(close, 0)
+	assert_eq(o.tone, "close", "second, 0.4 s behind")
+	assert_string_contains(o.text, "0.40")
+	var podium: Array[RacerState] = _racers([95.0, 90.0, 91.0])
+	podium.sort_custom(func(a: RacerState, b: RacerState) -> bool: return a.finish_time < b.finish_time)
+	assert_eq(Hud.outcome(podium, 0).tone, "podium")
+	var out := _racers([-1.0, 90.0, 91.0], [0])
+	assert_eq(Hud.outcome(out, 0).tone, "dnf")
+	assert_string_contains(Hud.outcome(out, 0).text, "no points")
+	assert_eq(Hud.outcome(win, 7), {}, "not in the standings (spectating): no line")
+
+
+func test_championship_line_from_real_points_only() -> void:
+	var pts := {}
+	for id in 10:
+		pts[id] = 0
+	assert_eq(MAIN_SCRIPT.championship_line(pts, P), "", "no points yet: nothing to say")
+	pts[2] = 25
+	pts[P] = 18
+	assert_string_contains(MAIN_SCRIPT.championship_line(pts, P), "leads the championship  -  you are 2nd, 7 points behind")
+	assert_string_contains(MAIN_SCRIPT.championship_line(pts, P), "Rocco")
+	pts[P] = 40
+	assert_eq(MAIN_SCRIPT.championship_line(pts, P), 'You lead the championship by 15 points from Rocco "Mad Dog"')
+
+
+func test_race_introduction_and_pause_menu_name_the_race() -> void:
+	var m: Node2D = MAIN_SCENE.instantiate()
+	m.presentation_enabled = true
+	m.night = true
+	add_child_autofree(m)
+	await wait_physics_frames(3)
+	var intro: String = m.hud.intro_text()
+	assert_string_contains(intro, "QUICK RACE")
+	assert_string_contains(intro, "NIGHT")
+	assert_string_contains(intro, "%d laps" % m.session.lap_count())
+	m.set_lap_count(7)
+	await wait_physics_frames(2)
+	assert_string_contains(m.hud.intro_text(), "7 laps", "follows the grid panel's settings")
+	m.start_race()
+	await wait_seconds(3.5)
+	assert_eq(m.hud.intro_text(), "", "gone shortly after GO!")
+	m.open_race_menu()
+	await wait_process_frames(2)
+	assert_string_contains(m.race_menu._context.text, "NIGHT")
+	assert_eq(m.race_menu._resume.custom_minimum_size.y, 58.0, "RESUME is the main menu's primary button")
+	m.resume_race()

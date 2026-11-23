@@ -111,3 +111,60 @@ static func label(text: String, size: int = 20, color: Color = CREAM, weight: in
 	l.add_theme_color_override("font_outline_color", OUTLINE)
 	l.add_theme_constant_override("outline_size", maxi(4, size / 4))
 	return l
+
+
+# ------------------------------------------------- shared screen pieces (2026-11-23)
+# One look for every screen, taken from the main menu: wooden buttons with the
+# main menu's margins and type sizes, a gold title with a thin gold rule under
+# it, cream subtitles, and the dark warm shade behind overlays.
+
+## The dark warm shade behind overlays (pause menu, ceremonies).
+const SHADE := Color(0.11, 0.09, 0.08, 0.62)
+
+
+## Styles a button like the main menu's: 20 px type (28 for the primary
+## action), the main menu's content margins and height.
+static func style_button(b: Button, primary: bool = false, width: float = 380.0) -> Button:
+	b.custom_minimum_size = Vector2(width, 58 if primary else 40)
+	b.add_theme_font_size_override("font_size", 28 if primary else 20)
+	var theme := b.theme if b.theme != null else null
+	for state in ["normal", "hover", "pressed", "focus", "disabled"]:
+		var sb: StyleBox = b.get_theme_stylebox(state, "Button")
+		if sb == null and theme != null:
+			sb = theme.get_stylebox(state, "Button")
+		if sb != null:
+			sb = sb.duplicate()
+			sb.content_margin_top = 4
+			sb.content_margin_bottom = 6
+			b.add_theme_stylebox_override(state, sb)
+	return b
+
+
+## A screen heading: a gold title, an optional cream subtitle and a thin gold
+## rule, as one VBox (place it where the screen's title goes).
+static func heading(title: String, subtitle: String = "", size: int = 46) -> VBoxContainer:
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 2)
+	var t := label(title, size, GOLD, 700)
+	t.name = "Title"
+	box.add_child(t)
+	var rule := ColorRect.new()
+	rule.name = "Rule"
+	rule.color = Color(GOLD, 0.7)
+	rule.custom_minimum_size = Vector2(220, 3)
+	rule.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	box.add_child(rule)
+	var s := label(subtitle, 20, CREAM, 600)
+	s.name = "Subtitle"
+	s.visible = subtitle != ""
+	box.add_child(s)
+	return box
+
+
+## A short fade-and-rise for a panel appearing (shared timing: 0.22 s).
+static func reveal(node: CanvasItem) -> void:
+	if not node.is_inside_tree():
+		return
+	node.modulate.a = 0.0
+	var tw := node.create_tween()
+	tw.tween_property(node, "modulate:a", 1.0, 0.22)

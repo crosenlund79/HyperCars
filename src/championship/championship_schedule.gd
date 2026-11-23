@@ -29,6 +29,10 @@ const SCHEDULES: Array[String] = [
 @export var career_style := -1
 @export var career_bonus := 0
 @export_multiline var blurb := ""
+## Presentation identity (2026-11-23): a short tagline and an accent colour
+## for the stage's cards, standings and milestones.
+@export var career_tagline := ""
+@export var career_accent := Color("e2b23c")
 
 ## Championship lengths offered on the setup screen.
 const LENGTHS: Array[int] = [6, 3]

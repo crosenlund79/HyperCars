@@ -12,3 +12,5 @@ laps = PackedInt32Array(3, 3, 3, 7, 7, 7)
 career_style = 1
 career_bonus = 2000
 blurb = "The ultimate championship: all nine rivals, every circuit and environment, long races and a seven-lap Grand Final at night in the snow. Win it to become the HyperCars Champion."
+career_tagline = "The ultimate championship"
+career_accent = Color(0.9098, 0.3765, 0.2353, 1)

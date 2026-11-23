@@ -31,6 +31,13 @@ var warning := ""
 var _confirming := false
 var _hint: Label
 var _icons := {}
+var _accent_rule: ColorRect
+var _reaction: HBoxContainer
+var _reaction_car: TextureRect
+var _reaction_name: Label
+var _reaction_text: Label
+## The accent colour of the championship shown (a career stage's identity).
+var accent := HyperTheme.GOLD
 
 
 func setup(resolver: AssetResolver) -> void:
@@ -50,8 +57,13 @@ func setup(resolver: AssetResolver) -> void:
 	_title.position = Vector2(40, 30)
 	_root.add_child(_title)
 	_sub = HyperTheme.label("", 20, HyperTheme.CREAM, 600)
-	_sub.position = Vector2(42, 88)
+	_sub.position = Vector2(42, 92)
 	_root.add_child(_sub)
+	_accent_rule = ColorRect.new()  # (the stage's accent in the career; gold otherwise)
+	_accent_rule.position = Vector2(42, 86)
+	_accent_rule.size = Vector2(260, 3)
+	_accent_rule.color = Color(HyperTheme.GOLD, 0.7)
+	_root.add_child(_accent_rule)
 
 	var table := PanelContainer.new()
 	table.position = Vector2(30, 126)
@@ -64,6 +76,25 @@ func setup(resolver: AssetResolver) -> void:
 	_rows = VBoxContainer.new()
 	_rows.add_theme_constant_override("separation", 2)
 	tbox.add_child(_rows)
+	# a rival's reaction to the round (RivalReactions), when there is one
+	_reaction = HBoxContainer.new()
+	_reaction.add_theme_constant_override("separation", 12)
+	_reaction.visible = false
+	tbox.add_child(_reaction)
+	_reaction_car = TextureRect.new()
+	_reaction_car.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_reaction_car.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_reaction_car.custom_minimum_size = Vector2(96, 56)
+	_reaction.add_child(_reaction_car)
+	var rbox := VBoxContainer.new()
+	rbox.add_theme_constant_override("separation", -2)
+	_reaction.add_child(rbox)
+	_reaction_name = HyperTheme.label("", 16, HyperTheme.GOLD, 700)
+	rbox.add_child(_reaction_name)
+	_reaction_text = HyperTheme.label("", 19, HyperTheme.CREAM, 600)
+	_reaction_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_reaction_text.custom_minimum_size = Vector2(500, 0)
+	rbox.add_child(_reaction_text)
 
 	var side := PanelContainer.new()
 	side.position = Vector2(690, 126)
@@ -111,7 +142,10 @@ func setup(resolver: AssetResolver) -> void:
 func _button(text: String, action: Callable) -> Button:
 	var b := Button.new()
 	b.text = text
-	b.custom_minimum_size = Vector2(260, 52)
+	b.theme = _root.theme
+	HyperTheme.style_button(b, false, 260)  # (the main menu's buttons)
+	b.custom_minimum_size.y = 52
+	b.add_theme_font_size_override("font_size", 22)
 	b.pressed.connect(action)
 	b.mouse_entered.connect(b.grab_focus)
 	return b
@@ -139,6 +173,21 @@ func _row_box(cells: Array, header: bool, icon: Texture2D = null, color: Color =
 			l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		row.add_child(l)
 	return row
+
+
+## A rival's reaction under the table ({rival, kind, text} from
+## RivalReactions; {} hides it). car: that rival's picture as it raced.
+func set_reaction(r: Dictionary, car: Texture2D = null) -> void:
+	_reaction.visible = not r.is_empty() and str(r.get("text", "")) != ""
+	if not _reaction.visible:
+		return
+	_reaction_name.text = RivalRoster.full_name(int(r.rival)).to_upper()
+	_reaction_text.text = '"%s"' % r.text
+	_reaction_car.texture = car
+
+
+func reaction_text() -> String:
+	return _reaction_text.text if _reaction.visible else ""
 
 
 ## icons: racer id -> car picture (the cars as they raced).
@@ -210,7 +259,9 @@ func show_standings(champ: Championship, reward: String = "", reward_car: Textur
 		_sub.add_theme_color_override("font_color", Color("ff8a6a"))
 	else:
 		_sub.remove_theme_color_override("font_color")
+	_accent_rule.color = Color(accent, 0.8)
 	visible = true
+	HyperTheme.reveal(_root)
 	_continue.grab_focus()
 
 

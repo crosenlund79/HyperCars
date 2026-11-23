@@ -26,6 +26,7 @@ func before_each() -> void:
 	for f in ["career.cfg", "career_garage.cfg", "cars.cfg", "ach.cfg", "memory.cfg", "garage.cfg"]:
 		SafeSave.remove(DIR + f)
 	PlayerGarage.default_path = DIR + "garage.cfg"  # the standalone Garage Race career
+	cards_seen.clear()
 	await _launch()
 
 
@@ -66,15 +67,29 @@ func _tap(action: String) -> void:
 	await wait_physics_frames(1)
 
 
+## Milestone cards (stage intros, first victory, titles...): moved on at once,
+## and remembered for the tests that check them.
+var cards_seen: Array[String] = []
+
+
+func _skip_cards() -> void:
+	if is_instance_valid(game) and game.milestones != null and game.milestones.showing():
+		cards_seen.append(game.milestones.current_title())
+		game.milestones._age = 1.0
+		game.milestones.advance()
+
+
 func _wait_race() -> void:
 	for i in 300:
+		_skip_cards()
 		if game.race != null and not game._starting:
 			return
 		await wait_physics_frames(1)
 
 
 func _wait_standings() -> void:
-	for i in 240:
+	for i in 300:
+		_skip_cards()
 		if game.race == null and game.champ_screen.visible:
 			return
 		await wait_physics_frames(1)
@@ -253,6 +268,12 @@ func test_the_whole_career_with_a_lost_stage_the_ending_and_after() -> void:
 	game.champ_screen._on_continue()
 	await wait_physics_frames(5)
 	assert_true(game.victory.showing(), "the ending")
+	# the milestones along the way (2026-11-23), from what really happened
+	for t in ["YOUR CAREER BEGINS", "FIRST CAREER VICTORY", "ROOKIE CUP CHAMPION", "STAGE 2 OF 3",
+			"ROCCO WINS THE PRO SERIES", "PRO SERIES CHAMPION", "THE FINAL STAGE", "THE GRAND FINAL"]:
+		assert_has(cards_seen, t, "milestone card: %s" % t)
+	assert_eq(cards_seen.count("FIRST CAREER VICTORY"), 1, "a first victory happens once")
+	assert_false(cards_seen.has("HYPERCARS GRAND CHAMPIONSHIP CHAMPION"), "the ending has its own ceremony")
 	assert_eq(game.victory._podium._ids[0], P, "the player on the top step")
 	await wait_seconds(VictoryScreen.INPUT_DELAY + 0.1)
 	var ev := InputEventAction.new()  # (a real input event: the screens read events)
@@ -315,7 +336,8 @@ func test_leaving_after_finishing_records_the_round() -> void:
 	await wait_physics_frames(3)
 	assert_eq(race.session.state, RaceSession.State.FINISHED)
 	game.back_to_title()  # leave while the rivals are still racing
-	await wait_physics_frames(40)
+	await _wait_standings()  # (via the FIRST CAREER VICTORY card)
+	assert_has(cards_seen, "FIRST CAREER VICTORY")
 	assert_true(game.career.in_championship(), "not forfeited: the player had finished")
 	assert_eq(game.career.champ.round_index(), 1, "the round counts (running order for the rest)")
 	assert_eq(game.career.champ.position_in(0, P), 1)

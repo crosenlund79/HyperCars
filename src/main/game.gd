@@ -8,6 +8,7 @@ extends Node
 ## garage screen opens before the first garage race and after each one.
 
 const MAIN_SCENE := preload("res://src/main/main.tscn")
+const MAIN_SCRIPT := preload("res://src/main/main.gd")
 
 ## Where achievements and rival careers are saved (tests use a scratch file).
 @export var achievements_path := ""  # "" = AchievementStore.default_path
@@ -77,6 +78,10 @@ var victory: VictoryScreen
 var credits: CreditsScreen
 var _career_mode := false
 var _career_outcome := {}
+## Career milestones (cards between screens) and the rival who reacted last
+## (nobody reacts twice in a row).
+var milestones: MilestoneScreen
+var _last_reaction_rival := -1
 var _career_garage_open := false
 
 
@@ -389,7 +394,11 @@ func _on_round_done(order: Array, dnf: Array) -> void:
 		return
 	if champ == null or race == null:
 		return
+	var before: Dictionary = champ.points.duplicate()
+	var history: Array = champ.results.duplicate(true)
 	champ.record(order, dnf)
+	var facts := round_facts(race, order, dnf, before, champ.points, history, champ)
+	_set_reaction(facts)
 	await _fade_to(1.0)
 	var player_car: int = race.player_car
 	race.queue_free()
@@ -418,6 +427,7 @@ func _on_round_done(order: Array, dnf: Array) -> void:
 			reward = "Win the championship to take one of your rivals' cars."
 		title.refresh_car_choice()
 	champ_screen.career = false
+	champ_screen.accent = HyperTheme.GOLD
 	champ_screen.warning = "FOR KEEPS: abandoning gives %s's car back." % RivalRoster.short_name(cars.stake) \
 		if cars.stake > 0 and not champ.finished() else ""
 	champ_screen.show_standings(champ, reward, reward_car)
@@ -514,6 +524,10 @@ func _setup_career() -> void:
 	career_screen.back_requested.connect(func() -> void:
 		career_screen.close()
 		title.focus_main())
+	milestones = MilestoneScreen.new()
+	milestones.name = "Milestones"
+	add_child(milestones)
+	milestones.setup(resolver)
 	victory = VictoryScreen.new()
 	victory.name = "Victory"
 	add_child(victory)
@@ -566,13 +580,23 @@ func _enter_career_stage(stage: int) -> void:
 	if career.in_championship():
 		if career.active_stage != stage:
 			return
-	else:
+	var cards: Array = []
+	if not career.in_championship():
 		var car := _career_car_choice()
 		if not career.start_stage(stage, car):
 			return
 		cars.put_career_stake(car)
+		cards.append(_stage_intro(stage))
+	elif career.champ.next_round().get("final", false):
+		cards.append(_final_intro())
 	_career_outcome = {}
 	career_screen.close()
+	if not cards.is_empty():
+		milestones.show_queue(cards)
+		if milestones.showing():
+			await milestones.finished
+		if race != null or _starting:
+			return
 	champ_screen.career = false
 	_career_mode = true
 	champ = career.champ
@@ -600,9 +624,14 @@ func _on_career_concluded(order: Array) -> void:
 	for r in race.session.racers:
 		if r.dnf and order.has(r.id):
 			dnf.append(r.id)
+	var before: Dictionary = career.champ.points.duplicate()
+	var history: Array = career.champ.results.duplicate(true)
+	var wins_before := career.race_wins
+	var stage_schedule: ChampionshipSchedule = career.champ.schedule
 	var out := career.record_round(order, dnf)
 	if not out.recorded:
 		return
+	var facts := round_facts(race, order, dnf, before, career.champ.points, history, career.champ)
 	if race.garage != null and race._garage_settled:
 		career.add_prize(race.garage.last_prize)
 	var reward := ""
@@ -632,7 +661,90 @@ func _on_career_concluded(order: Array) -> void:
 				reward_car = CarArt.icon(resolver, AssetCatalog.ai_car(last_lost))
 				reward += "\n%s RECLAIMS THE CAR!" % RivalRoster.short_name(last_lost).to_upper()
 		title.refresh_car_choice()
-	_career_outcome = {"outcome": out, "reward": reward, "reward_car": reward_car}
+	var cards := _round_milestones(out, order, dnf, wins_before, stage_schedule)
+	_career_outcome = {"outcome": out, "reward": reward, "reward_car": reward_car, "facts": facts, "milestones": cards}
+
+
+## The facts of a championship round for RivalReactions (from the race scene
+## before it is freed): order, retirements, finish times, the combat feed,
+## points before / after, earlier rounds, and the decision.
+func round_facts(r: Node, order: Array, dnf: Array, before: Dictionary, after: Dictionary, history: Array,
+		c: Championship) -> Dictionary:
+	var times := {}
+	for st in r.session.racers:
+		if st.is_finished() and not st.dnf and st.finish_time >= 0.0:
+			times[st.id] = st.finish_time
+	return {"order": order.duplicate(), "dnf": dnf.duplicate(), "times": times,
+		"feed": (r.stats.feed as Array).duplicate(true) if r.stats != null else [],
+		"before": before.duplicate(), "after": after.duplicate(), "history": history,
+		"final": c.finished(), "champion": c.champion(), "me": RaceSession.PLAYER_ID}
+
+
+## The standings' rival reaction for a round's facts (at most one; nobody
+## twice in a row; most rounds none).
+func _set_reaction(facts: Dictionary) -> void:
+	var r := RivalReactions.pick(facts, _last_reaction_rival)
+	if r.is_empty():
+		champ_screen.set_reaction({})
+		return
+	_last_reaction_rival = r.rival
+	champ_screen.set_reaction(r, CarArt.icon(resolver, AssetCatalog.CAR_JUNKER if cars.displaced(r.rival)
+		else AssetCatalog.ai_car(r.rival)))
+
+
+func _player_car_icon() -> Texture2D:
+	var car := career.player_car if cars.owns(career.player_car) else CarCollection.OWN_CAR
+	return CarArt.icon(resolver, AssetCatalog.ai_car(car) if car > 0 else AssetCatalog.CAR_PLAYER)
+
+
+## The card that opens a career stage.
+func _stage_intro(stage: int) -> Dictionary:
+	var s := Career.schedule(stage)
+	var title := ("STAGE %d OF 3" % (stage + 1)) if stage < Career.FINAL_STAGE else "THE FINAL STAGE"
+	var subtitle := "%s  -  %s" % [s.title.to_upper(), s.career_tagline.to_upper()]
+	if stage == 0 and career.attempts[0] <= 1 and not career.completed:
+		title = "YOUR CAREER BEGINS"
+	return {"title": title, "subtitle": subtitle, "detail": s.blurb, "car": _player_car_icon(), "accent": s.career_accent}
+
+
+## The card before the Grand Final.
+func _final_intro() -> Dictionary:
+	var r: Dictionary = career.champ.next_round()
+	var s: ChampionshipSchedule = career.champ.schedule
+	return {"title": "THE GRAND FINAL", "subtitle": ChampionshipScreen.round_text(r).replace("\n", "  -  "),
+		"detail": MAIN_SCRIPT.championship_line(career.champ.points, RaceSession.PLAYER_ID) + ".\nEverything is decided tonight.",
+		"car": _player_car_icon(), "accent": s.career_accent}
+
+
+## Milestone cards after a career round (before its standings), from what
+## the round decided.
+func _round_milestones(out: Dictionary, order: Array, dnf: Array, wins_before: int, s: ChampionshipSchedule) -> Array:
+	var cards: Array = []
+	var won_round: bool = not order.is_empty() and order[0] == RaceSession.PLAYER_ID and not dnf.has(RaceSession.PLAYER_ID)
+	if won_round and wins_before == 0 and career.race_wins == 1:
+		cards.append({"title": "FIRST CAREER VICTORY", "subtitle": s.title.to_upper(),
+			"detail": "The rivals know your name now.", "car": _player_car_icon(), "accent": s.career_accent})
+	if not out.get("finished", false):
+		return cards
+	if out.won and not out.completed_now:
+		var next := ""
+		if out.stage < Career.FINAL_STAGE:
+			next = "PROMOTED TO THE %s" % Career.stage_title(out.stage + 1).to_upper()
+		cards.append({"title": "%s CHAMPION" % s.title.to_upper(), "subtitle": next,
+			"detail": "Title bonus $%d." % out.bonus, "car": _player_car_icon(), "accent": s.career_accent})
+	if out.won and last_reward > 0:
+		cards.append({"title": "YOU WON %s'S CAR" % RivalRoster.short_name(last_reward).to_upper(),
+			"subtitle": RivalRoster.full_name(last_reward).to_upper(),
+			"detail": "Yours, in its original colours. %s races the junker from now on." % RivalRoster.short_name(last_reward),
+			"car": CarArt.icon(resolver, AssetCatalog.ai_car(last_reward)), "accent": HyperTheme.GOLD})
+	if not out.won:
+		var champion: int = out.champion
+		cards.append({"title": "%s WINS THE %s" % [RivalRoster.short_name(champion).to_upper(), s.title.to_upper()],
+			"subtitle": RivalRoster.full_name(champion).to_upper(),
+			"detail": "The stage stays open: enter it again when you are ready.",
+			"car": CarArt.icon(resolver, AssetCatalog.CAR_JUNKER if cars.displaced(champion) else AssetCatalog.ai_car(champion)),
+			"accent": Color("ff8a6a")})
+	return cards
 
 
 ## Leaving a career race scene (the race menu, or Back on the grid panel):
@@ -666,9 +778,23 @@ func _show_career_standings() -> void:
 		career_screen.open()
 		await _fade_to(0.0)
 		return
+	var cards: Array = _career_outcome.get("milestones", [])
+	if not cards.is_empty():
+		_career_outcome["milestones"] = []  # (shown once)
+		music.play("music/music_menu")
+		milestones.show_queue(cards)
+		await _fade_to(0.0)
+		if milestones.showing():
+			await milestones.finished
+		await _fade_to(1.0)
 	var car := career.player_car if cars.owns(career.player_car) else CarCollection.OWN_CAR
 	champ_screen.set_icons(car_icons(car))
 	champ_screen.career = true
+	champ_screen.accent = career.champ.schedule.career_accent
+	if _career_outcome.has("facts"):
+		_set_reaction(_career_outcome.facts)
+	else:
+		champ_screen.set_reaction({})
 	champ_screen.warning = ""
 	var stage := career.active_stage if career.in_championship() else int(_career_outcome.get("outcome", {}).get("stage", Career.FINAL_STAGE))
 	champ_screen.career_stage_text = "CAREER STAGE %d OF 3" % (stage + 1)

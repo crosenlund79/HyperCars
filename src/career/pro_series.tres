@@ -13,3 +13,5 @@ has_final = false
 career_style = 1
 career_bonus = 1000
 blurb = "Six rounds in every kind of weather, day and night, ending with two seven-lap races. Tactical combat: time your shots, keep your car in shape."
+career_tagline = "The big league"
+career_accent = Color(0.4549, 0.7412, 0.9490, 1)

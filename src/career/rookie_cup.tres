@@ -13,3 +13,5 @@ has_final = false
 career_style = 0
 career_bonus = 500
 blurb = "Your first formal championship: three short daytime races, one on each circuit, Classic combat. Learn the tracks and the rivals."
+career_tagline = "Where reputations begin"
+career_accent = Color(0.4863, 0.7686, 0.4157, 1)

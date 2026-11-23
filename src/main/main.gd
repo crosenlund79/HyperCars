@@ -732,6 +732,7 @@ func _show_menu() -> void:
 	hud.track_name = hud_track_name
 	hud.show_menu(choice_name(menu_choice), weapons_enabled, session.lap_count(), combat_style,
 		net.status_text() if net != null and net.race != null else "", laps_fixed())
+	hud.show_intro(intro_lines())
 	if net != null and net.is_host():
 		net.send_setup()
 
@@ -916,6 +917,7 @@ func on_network_start(race_number: int = races_started) -> void:
 	combat.locked = weapons_enabled and weapons_lock_enabled  # until the host says otherwise
 	_apply_loadouts()
 	hud.hide_message()
+	hud.fade_intro()
 	hud.flash_banner("GO!", HyperTheme.GOLD, GO_BANNER_HOLD)
 	if race_audio != null:
 		race_audio.play_cue("race/start_go")
@@ -1218,6 +1220,7 @@ func start_race() -> void:
 	if garage != null and not session.spectator:
 		garage.begin_race()
 	hud.hide_message()
+	hud.fade_intro()
 	hud.flash_banner("GO!", HyperTheme.GOLD, GO_BANNER_HOLD)
 	if race_audio != null:
 		race_audio.play_cue("race/start_go")
@@ -1404,6 +1407,7 @@ func open_race_menu() -> void:
 	_menu_paused = net == null
 	if _menu_paused:
 		get_tree().paused = true
+	race_menu.set_context(_race_identity())
 	race_menu.open(net != null)
 
 
@@ -1978,6 +1982,66 @@ func _apply_impacts(step: float) -> void:
 	for id in grid_order:
 		if damage.is_retired(id) and cars[id].visible and damage.retired_age[id] >= damage_rules.retired_show_time:
 			cars[id].visible = false
+
+
+## The race introduction (HUD card before the start): what, where and - in a
+## championship after its first round - the standings that matter, from the
+## points so far (never invented).
+func intro_lines() -> PackedStringArray:
+	var what := championship_label
+	if what == "":
+		if session.spectator:
+			what = "SPECTATING  -  THE NINE RIVALS"
+		elif race_mode == "knockout":
+			what = "KNOCKOUT  -  LAST PLACE IS OUT EVERY LAP"
+		elif net != null:
+			what = "NETWORK RACE"
+		elif is_two_player():
+			what = "TWO-PLAYER RACE"
+		elif garage != null:
+			what = "GARAGE RACE"
+		else:
+			what = "QUICK RACE"
+	var where := "%s  -  %s  -  %s  -  %d laps%s" % [DevLayouts.display_name(DevLayouts.id_of(track.layout)).to_upper(),
+		track_theme.display_name, "NIGHT" if night else "DAY", session.lap_count(),
+		"" if weapons_enabled else "  -  NO GUNS"]
+	return PackedStringArray([what, where, championship_line(championship_points, local_player_id)])
+
+
+## "Rocco "Mad Dog" leads the championship - you are 2nd, 7 points behind".
+## "" before any points are scored.
+static func championship_line(points: Dictionary, me: int) -> String:
+	if points.is_empty():
+		return ""
+	var ids: Array = points.keys()
+	var total := 0
+	for id in ids:
+		total += int(points[id])
+	if total <= 0:
+		return ""
+	ids.sort_custom(func(a: int, b: int) -> bool: return points[a] > points[b] or (points[a] == points[b] and a < b))
+	var leader: int = ids[0]
+	var who := func(id: int) -> String: return "you" if id == me else RivalRoster.full_name(id)
+	if leader == me:
+		var second: int = ids[1]
+		var gap: int = int(points[me]) - int(points[second])
+		return ("You lead the championship by %d point%s from %s" % [gap, "" if gap == 1 else "s", who.call(second)]) if gap > 0 \
+			else "You share the championship lead with %s" % who.call(second)
+	var pos := ids.find(me) + 1
+	var behind: int = int(points[leader]) - int(points.get(me, 0))
+	return "%s leads the championship  -  you are %s, %d point%s behind" % [who.call(leader),
+		["", "1st", "2nd", "3rd"][pos] if pos <= 3 else "%dth" % pos, behind, "" if behind == 1 else "s"]
+
+
+## "ROOKIE CUP - ROUND 2 OF 3\nLARKSPUR RING - The Raceway - DAY - 3 laps": the
+## race's identity for the pause menu and the race introduction.
+func _race_identity() -> String:
+	var where := "%s  -  %s  -  %s  -  %d laps" % [DevLayouts.display_name(DevLayouts.id_of(track.layout)).to_upper(),
+		track_theme.display_name, "NIGHT" if night else "DAY", session.lap_count()]
+	var what := championship_label
+	if what == "" and race_mode == "knockout":
+		what = "KNOCKOUT"
+	return (what + "\n" + where) if what != "" else where
 
 
 ## Zero condition: the car is out of the race (DNF). It stops where it is, no

@@ -151,7 +151,9 @@ func setup(resolver: AssetResolver) -> void:
 func _button(text: String, action: Callable) -> Button:
 	var b := Button.new()
 	b.text = text
-	b.custom_minimum_size = Vector2(420, 36)
+	b.theme = _root.theme
+	HyperTheme.style_button(b, false, 420)  # (the main menu's buttons)
+	b.custom_minimum_size.y = 36
 	b.add_theme_font_size_override("font_size", 18)
 	b.pressed.connect(action)
 	b.mouse_entered.connect(b.grab_focus)
@@ -252,7 +254,8 @@ func card_text(i: int) -> String:
 	for l in s.laps:
 		long_races += int(l > 3)
 	var style := "Classic" if s.career_style == WeaponRules.Style.CLASSIC else "Tactical"
-	return "%d.  %s      %s\n%s\n%d rounds%s%s  -  %s combat  -  title bonus $%d + a rival's car" % [i + 1, s.title.to_upper(), state,
+	return "%d.  %s  -  %s      %s\n%s\n%d rounds%s%s  -  %s combat  -  title bonus $%d + a rival's car" % [i + 1, s.title.to_upper(),
+		s.career_tagline.to_upper(), state,
 		s.blurb, s.round_count(), ("  -  %d at night" % night) if night > 0 else "",
 		("  -  %d of 7 laps" % long_races) if long_races > 0 else "", style, s.career_bonus]
 

@@ -3,6 +3,9 @@ extends CanvasLayer
 ## The in-race Esc menu: RESUME RACE / LEAVE RACE. Keeps working while the game
 ## is paused (process mode Always). The race scene decides what pausing means
 ## (single-player, spectator and couch pause; a network race goes on).
+## 2026-11-23: the main menu's look - the race dimmed behind (still visible),
+## a gold heading with the race's identity (circuit, environment, round), a
+## large RESUME and a smaller, clearly separate LEAVE.
 
 signal resume_requested
 signal leave_requested
@@ -10,6 +13,7 @@ signal leave_requested
 var _panel: PanelContainer
 var _title: Label
 var _note: Label
+var _context: Label
 var _resume: Button
 var _leave: Button
 var _opened_frame := -1
@@ -23,7 +27,7 @@ func setup(theme: Theme) -> void:
 	layer = 30
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	var shade := ColorRect.new()
-	shade.color = Color(0, 0, 0, 0.45)
+	shade.color = HyperTheme.SHADE
 	shade.size = Vector2(1280, 720)
 	shade.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(shade)
@@ -33,15 +37,32 @@ func setup(theme: Theme) -> void:
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 10)
 	_panel.add_child(box)
-	_title = HyperTheme.label("RACE PAUSED", 34, HyperTheme.GOLD, 700)
+	_title = HyperTheme.label("RACE PAUSED", 40, HyperTheme.GOLD, 700)
 	_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(_title)
+	var rule := ColorRect.new()
+	rule.color = Color(HyperTheme.GOLD, 0.7)
+	rule.custom_minimum_size = Vector2(220, 3)
+	rule.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	box.add_child(rule)
+	_context = HyperTheme.label("", 18, HyperTheme.CREAM, 600)
+	_context.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_context.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_context.custom_minimum_size = Vector2(420, 0)
+	box.add_child(_context)
 	_note = HyperTheme.label("", 17, HyperTheme.CREAM_DIM, 500)
 	_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_note.custom_minimum_size = Vector2(420, 0)
 	box.add_child(_note)
 	_resume = _button("RESUME RACE", func() -> void: resume_requested.emit())
+	HyperTheme.style_button(_resume, true, 420)
+	var gap := Control.new()
+	gap.custom_minimum_size = Vector2(0, 6)
 	_leave = _button("LEAVE RACE", _on_leave)
+	HyperTheme.style_button(_leave, false, 420)
 	box.add_child(_resume)
+	box.add_child(gap)
 	box.add_child(_leave)
 	var hint := HyperTheme.label(PlayerControls.fmt("Up / Down: choose    {confirm}: select    {back}: resume"), 15, HyperTheme.CREAM_DIM, 500)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -49,10 +70,15 @@ func setup(theme: Theme) -> void:
 	visible = false
 
 
+## The race's identity under the title ("KESTREL RIDGE - Winter - NIGHT - 3 laps").
+func set_context(text: String) -> void:
+	_context.text = text
+	_context.visible = text != ""
+
+
 func _button(text: String, action: Callable) -> Button:
 	var b := Button.new()
 	b.text = text
-	b.custom_minimum_size = Vector2(360, 46)
 	b.pressed.connect(action)
 	b.mouse_entered.connect(b.grab_focus)
 	return b
@@ -68,6 +94,7 @@ func open(network: bool) -> void:
 	visible = true
 	_panel.reset_size()
 	_panel.position = (Vector2(1280, 720) - _panel.get_combined_minimum_size()) * 0.5
+	HyperTheme.reveal(_panel)
 	_resume.grab_focus()
 	_opened_frame = Engine.get_process_frames()
 
