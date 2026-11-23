@@ -310,6 +310,7 @@ func fade_intro(after: float = 2.5) -> void:
 		return
 	if _intro_tween != null and _intro_tween.is_valid():
 		_intro_tween.kill()
+	_intro.modulate.a = 1.0  # (fully shown, even if its fade-in was cut short by an immediate start)
 	_intro_tween = create_tween()
 	_intro_tween.tween_interval(after)
 	_intro_tween.tween_property(_intro, "modulate:a", 0.0, 0.4)
